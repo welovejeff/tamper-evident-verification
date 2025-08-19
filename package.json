@@ -4,6 +4,6 @@
   "type": "module",
   "scripts": {
     "dev": "node server.js",
-    "build": "echo 'Build complete - static files ready'"
+    "build": "mkdir -p dist && cp *.html *.css *.js dist/ && echo 'Build complete - static files ready in dist/'"
   }
 }
