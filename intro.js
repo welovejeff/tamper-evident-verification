@@ -1,9 +1,6 @@
-// Luhn Algorithm Animation Controller
+// Simplified Luhn Algorithm Explanation Controller
 let currentStep = 0;
 const totalSteps = 9;
-
-// Credit card numbers for demonstration
-const cardNumber = "4024607236950748";
 
 // DOM elements
 const steps = document.querySelectorAll('.step');
@@ -18,7 +15,6 @@ const stepDots = document.querySelectorAll('.step-dot');
 document.addEventListener('DOMContentLoaded', function() {
     updateDisplay();
     setupEventListeners();
-    setupHoverEffects();
 });
 
 function setupEventListeners() {
@@ -30,35 +26,6 @@ function setupEventListeners() {
     // Step dot navigation
     stepDots.forEach((dot, index) => {
         dot.addEventListener('click', () => goToStep(index));
-    });
-}
-
-function setupHoverEffects() {
-    // Set up hover effects for credit card labels
-    const labelMappings = {
-        'industry-text': 'industry',
-        'issuer-text': 'issuer', 
-        'account-text': 'account',
-        'check-text': 'check'
-    };
-    
-    Object.entries(labelMappings).forEach(([labelClass, numberClass]) => {
-        const labels = document.querySelectorAll(`.${labelClass}`);
-        const numberSections = document.querySelectorAll(`.${numberClass}`);
-        
-        labels.forEach(label => {
-            label.addEventListener('mouseenter', () => {
-                numberSections.forEach(section => {
-                    section.classList.add('highlight-hover');
-                });
-            });
-            
-            label.addEventListener('mouseleave', () => {
-                numberSections.forEach(section => {
-                    section.classList.remove('highlight-hover');
-                });
-            });
-        });
     });
 }
 
@@ -115,104 +82,183 @@ function updateDisplay() {
 
 function triggerStepAnimations() {
     switch(currentStep) {
+        case 0:
+            setTimeout(() => animateCardIntro(), 500);
+            break;
+        case 1:
+            setTimeout(() => animateCheckDigitFocus(), 800);
+            break;
+        case 2:
+            setTimeout(() => animateAlgorithmDemo(), 1000);
+            break;
         case 3:
-            setTimeout(() => highlightAlternateDigits(), 500);
+            setTimeout(() => animateDoubling(), 800);
             break;
         case 4:
-            setTimeout(() => showDoubledValues(), 500);
+            setTimeout(() => animateFixing(), 800);
             break;
         case 5:
-            setTimeout(() => showCorrectedValues(), 500);
+            setTimeout(() => animateAddition(), 800);
             break;
         case 6:
-            setTimeout(() => animateSum(), 500);
+            setTimeout(() => animateFinalTest(), 800);
+            break;
+        case 7:
+            setTimeout(() => animateValidExample(), 800);
             break;
     }
 }
 
-function highlightAlternateDigits() {
-    const digits = document.querySelectorAll('#step-3 .digit-container');
+function animateCardIntro() {
+    // Animate the card segments appearing one by one
+    const segments = [
+        '.major-industry-group',
+        '.issuer-group',
+        '.account-group', 
+        '.check-digit-group'
+    ];
+    
+    const labels = [
+        '.major-industry',
+        '.issuer-id',
+        '.account-number',
+        '.check-digit'
+    ];
+    
+    segments.forEach((selector, index) => {
+        setTimeout(() => {
+            const element = document.querySelector(`#step-0 ${selector}`);
+            const label = document.querySelector(`#step-0 ${labels[index]}`);
+            
+            if (element) {
+                element.style.transform = 'scale(1.1)';
+                setTimeout(() => {
+                    element.style.transform = 'scale(1)';
+                }, 400);
+            }
+            
+            if (label) {
+                label.style.transform = 'scale(1.05)';
+                label.style.boxShadow = '0 4px 20px rgba(0, 0, 0, 0.2)';
+                setTimeout(() => {
+                    label.style.transform = 'scale(1)';
+                    label.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.1)';
+                }, 600);
+            }
+        }, index * 800);
+    });
+}
+
+function animateCheckDigitFocus() {
+    const checkDigit = document.querySelector('#step-1 .check-digit-highlight');
+    if (checkDigit) {
+        // The pulse animation is already defined in CSS
+        checkDigit.style.animation = 'pulse-glow 2s ease-in-out infinite';
+    }
+}
+
+function animateAlgorithmDemo() {
+    const digits = document.querySelectorAll('#step-2 .digit.individual');
+    
+    // First, highlight the positions that need doubling
     digits.forEach((digit, index) => {
         const position = parseInt(digit.getAttribute('data-position'));
-        if (position % 2 === 0 && position !== 1) { // Even positions from right, excluding check digit
+        
+        // Skip check digit (position 1) and double every second digit from right
+        if (position % 2 === 0 && position !== 1) {
             setTimeout(() => {
-                digit.classList.add('highlight');
+                digit.classList.add('highlight-double');
             }, index * 100);
         }
     });
 }
 
-function showDoubledValues() {
-    const containers = document.querySelectorAll('#step-4 .digit-container');
-    const values = [4, 0, 2, 4, 6, 0, 7, 2, 3, 6, 9, 5, 0, 7, 4, 8];
+function animateFixing() {
+    const fixItems = document.querySelectorAll('#step-4 .fix-item');
+    fixItems.forEach((item, index) => {
+        setTimeout(() => {
+            item.style.opacity = '1';
+            item.style.transform = 'translateY(0) scale(1.05)';
+            setTimeout(() => {
+                item.style.transform = 'translateY(0) scale(1)';
+            }, 200);
+        }, index * 400);
+    });
     
-    containers.forEach((container, index) => {
-        const position = parseInt(container.getAttribute('data-position'));
-        const arrayIndex = 16 - position;
+    setTimeout(() => {
+        const resultRow = document.querySelector('#step-4 .result-row');
+        resultRow.style.opacity = '1';
+        resultRow.style.transform = 'translateY(0)';
+        resultRow.style.backgroundColor = '#c8e6c9';
+    }, fixItems.length * 400 + 500);
+}
+
+function animateAddition() {
+    const unchangedDiv = document.querySelector('#step-5 .unchanged');
+    const changedDiv = document.querySelector('#step-5 .changed');
+    const totalDiv = document.querySelector('#step-5 .total');
+    
+    setTimeout(() => {
+        unchangedDiv.style.opacity = '1';
+        unchangedDiv.style.transform = 'translateY(0)';
+    }, 300);
+    
+    setTimeout(() => {
+        changedDiv.style.opacity = '1';
+        changedDiv.style.transform = 'translateY(0)';
+    }, 800);
+    
+    setTimeout(() => {
+        totalDiv.style.opacity = '1';
+        totalDiv.style.transform = 'translateY(0)';
+        const bigResult = totalDiv.querySelector('.big-result');
+        bigResult.style.fontSize = '2em';
+        bigResult.style.color = '#d32f2f';
+    }, 1300);
+}
+
+function animateFinalTest() {
+    const testBox = document.querySelector('#step-6 .test-box');
+    const question = testBox.querySelector('.question');
+    const check = testBox.querySelector('.check');
+    const result = testBox.querySelector('.result');
+    
+    setTimeout(() => {
+        question.style.opacity = '1';
+        question.style.transform = 'translateY(0)';
+    }, 300);
+    
+    setTimeout(() => {
+        check.style.opacity = '1';
+        check.style.transform = 'translateY(0)';
+    }, 800);
+    
+    setTimeout(() => {
+        result.style.opacity = '1';
+        result.style.transform = 'translateY(0) scale(1.1)';
+        result.style.backgroundColor = '#ffcdd2';
+    }, 1300);
+}
+
+function animateValidExample() {
+    const correctCard = document.querySelector('#step-7 .correct-card');
+    const quickCheck = document.querySelector('#step-7 .quick-check');
+    
+    setTimeout(() => {
+        correctCard.style.opacity = '1';
+        correctCard.style.transform = 'translateY(0) scale(1.05)';
+        correctCard.style.backgroundColor = '#e8f5e8';
+    }, 300);
+    
+    setTimeout(() => {
+        quickCheck.style.opacity = '1';
+        quickCheck.style.transform = 'translateY(0)';
         
-        if (position % 2 === 0 && position !== 1) { // Even positions need doubling, excluding check digit
-            const doubled = values[arrayIndex] * 2;
-            const calculation = container.querySelector('.calculation');
-            const result = container.querySelector('.result');
-            
-            setTimeout(() => {
-                calculation.textContent = `${values[arrayIndex]}×2=${doubled}`;
-                result.textContent = doubled;
-                container.classList.add('doubled');
-            }, index * 150);
-        } else {
-            // For non-doubled digits, just show the result
-            const result = container.querySelector('.result');
-            setTimeout(() => {
-                result.textContent = values[arrayIndex];
-                result.style.opacity = '1';
-                result.style.transform = 'translateY(0)';
-            }, index * 150);
+        const validResult = quickCheck.querySelector('.result.valid');
+        if (validResult) {
+            validResult.style.backgroundColor = '#c8e6c9';
         }
-    });
-}
-
-function showCorrectedValues() {
-    const containers = document.querySelectorAll('#step-5 .digit-container');
-    const corrections = {
-        7: { original: 6, doubled: 12, corrected: 3 },   // 6×2=12→3
-        5: { original: 5, doubled: 10, corrected: 1 },   // 5×2=10→1
-        3: { original: 7, doubled: 14, corrected: 5 }    // 7×2=14→5
-    };
-    
-    Object.entries(corrections).forEach(([position, values]) => {
-        const container = document.querySelector(`#step-5 .digit-container[data-position="${position}"]`);
-        const calculation = container.querySelector('.calculation');
-        const result = container.querySelector('.result');
-        
-        setTimeout(() => {
-            calculation.textContent = `${values.original}×2=${values.doubled}→${values.corrected}`;
-            result.textContent = values.corrected;
-            container.classList.remove('doubled');
-            container.classList.add('corrected');
-        }, 800);
-    });
-}
-
-function animateSum() {
-    const containers = document.querySelectorAll('#step-6 .digit-container');
-    let runningSum = 0;
-    
-    containers.forEach((container, index) => {
-        setTimeout(() => {
-            container.classList.add('summing');
-            const result = container.querySelector('.result');
-            const value = parseInt(result.textContent);
-            runningSum += value;
-            
-            // Update the total after all digits are processed
-            if (index === containers.length - 1) {
-                setTimeout(() => {
-                    document.getElementById('total-sum').textContent = runningSum;
-                }, 200);
-            }
-        }, index * 100);
-    });
+    }, 800);
 }
 
 function goToDemo() {
