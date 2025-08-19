@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tamper-Evident AI Proof Verification System</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔒 Tamper-Evident AI Proof Verification System</h1>
+            <p class="subtitle">Demonstrating cryptographic integrity verification for AI-generated data</p>
+        </header>
+
+        <!-- Phase 1: Data Processing & Proof Generation -->
+        <section class="phase" id="phase1">
+            <h2>📊 Phase 1: Data Processing & Proof Generation</h2>
+            
+            <div class="data-section">
+                <h3>Original Input Data</h3>
+                <div id="original-data" class="data-table"></div>
+            </div>
+
+            <div class="ai-section">
+                <h3>AI Processing</h3>
+                <div class="equation-box">
+                    <h4>AI Equation:</h4>
+                    <code>For each row: average = (value1 + value2) / 2<br>Final output = sum of all averages</code>
+                </div>
+                <button id="process-data" class="btn btn-primary">Process Data with AI</button>
+            </div>
+
+            <div class="data-section" id="processed-section" style="display: none;">
+                <h3>AI-Processed Output Data</h3>
+                <div id="processed-data" class="data-table"></div>
+                <div class="final-output">
+                    <strong>Final AI Output: <span id="final-output">0</span></strong>
+                </div>
+            </div>
+
+            <div class="proof-section" id="proof-section" style="display: none;">
+                <h3>Generated Proof Tag</h3>
+                <div class="privacy-notice">
+                    🔐 <strong>Privacy Protection:</strong> Only cryptographic hashes are stored in the proof tag.
+                    Your original data remains private and secure!
+                </div>
+                <div id="proof-tag" class="proof-display"></div>
+            </div>
+        </section>
+
+        <!-- Phase 2: Verification & Tamper Detection -->
+        <section class="phase" id="phase2" style="display: none;">
+            <h2>🔍 Phase 2: Verification & Tamper Detection</h2>
+            
+            <div class="verification-controls">
+                <button id="verify-data" class="btn btn-success">🔍 Verify Integrity</button>
+                <button id="tamper-data" class="btn btn-warning">⚠️ Simulate Data Tampering</button>
+                <button id="tamper-proof" class="btn btn-warning">⚠️ Simulate Proof Tampering</button>
+                <button id="reset-data" class="btn btn-secondary">🔄 Reset to Original</button>
+            </div>
+
+            <div class="verification-results" id="verification-results"></div>
+
+            <div class="demo-panels">
+                <div class="panel">
+                    <h3>Current Input Data</h3>
+                    <div id="current-data" class="data-table"></div>
+                </div>
+                
+                <div class="panel">
+                    <h3>Current Proof Tag</h3>
+                    <textarea id="proof-editor" rows="12" cols="50"></textarea>
+                    <div class="panel-note">You can edit this proof tag to simulate tampering</div>
+                </div>
+            </div>
+
+            <div class="tampering-log" id="tampering-log"></div>
+        </section>
+
+        <footer>
+            <div class="summary">
+                <h3>📋 System Benefits</h3>
+                <div class="benefits">
+                    <div class="benefit">✓ Hash-based integrity: Any change to input data is immediately detected</div>
+                    <div class="benefit">✓ Algorithm verification: Ensures the AI equation hasn't been modified</div>
+                    <div class="benefit">✓ Output validation: Confirms results match the computation</div>
+                    <div class="benefit">✓ Self-verification: Detects tampering with the proof tag itself</div>
+                    <div class="benefit">✓ Privacy preservation: Only hashes stored, original data stays private</div>
+                </div>
+                <div class="use-cases">
+                    <h4>🎯 Use Cases:</h4>
+                    <p>AI model output verification • Scientific computation integrity • Financial calculation auditing • Legal document processing • Healthcare data analysis</p>
+                </div>
+                <div class="security-note">
+                    🔒 <strong>Security:</strong> SHA-256 cryptographic hashing ensures tampering detection. Any modification breaks the cryptographic chain of trust.
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

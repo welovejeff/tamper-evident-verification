@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Luhn Algorithm - Credit Card Validation</title>
+    <link rel="stylesheet" href="intro.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>💳 The Luhn Algorithm</h1>
+            <p class="subtitle">How math validates your credit card number</p>
+        </header>
+
+        <div class="animation-container">
+            <!-- Step 0: Introduction -->
+            <div class="step" id="step-0">
+                <h2>💳 Understanding Credit Card Numbers</h2>
+                <p>Every credit card number tells a story...</p>
+                
+                <div class="card-visual-container">
+                    <div class="card-labels-top">
+                        <div class="label-indicator major-industry">Major Industry</div>
+                        <div class="label-indicator issuer-id">Issuer Identifier</div>
+                    </div>
+                    
+                    <div class="beautiful-card">
+                        <div class="card-number-display">
+                            <span class="digit-group major-industry-group">4</span>
+                            <span class="digit-group issuer-group">024</span>
+                            <span class="space"> </span>
+                            <span class="digit-group issuer-group">60</span>
+                            <span class="digit-group account-group">72</span>
+                            <span class="space"> </span>
+                            <span class="digit-group account-group">3695</span>
+                            <span class="space"> </span>
+                            <span class="digit-group account-group">074</span>
+                            <span class="digit-group check-digit-group">8</span>
+                        </div>
+                    </div>
+                    
+                    <div class="card-labels-bottom">
+                        <div class="label-indicator account-number">Your Account Number</div>
+                        <div class="label-indicator check-digit">Check Digit</div>
+                    </div>
+                </div>
+                
+                <p>The last digit is special - it's calculated from all the others!</p>
+            </div>
+
+            <!-- Step 1: Focus on check digit -->
+            <div class="step" id="step-1" style="display: none;">
+                <h2>🔍 The Magic Check Digit</h2>
+                <p>The last digit proves the entire number is valid</p>
+                
+                <div class="card-visual-container">
+                    <div class="beautiful-card check-digit-focus">
+                        <div class="card-number-display">
+                            <span class="digit-group faded">4024</span>
+                            <span class="space"> </span>
+                            <span class="digit-group faded">6072</span>
+                            <span class="space"> </span>
+                            <span class="digit-group faded">3695</span>
+                            <span class="space"> </span>
+                            <span class="digit-group faded">074</span>
+                            <span class="digit-group check-digit-highlight">8</span>
+                        </div>
+                    </div>
+                    
+                    <div class="explanation-box">
+                        <p>This <strong>8</strong> is calculated from all the other digits using a mathematical formula.</p>
+                        <p>If you change ANY digit, the math breaks and we know there's an error!</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 2: Show the algorithm visually -->
+            <div class="step" id="step-2" style="display: none;">
+                <h2>🎯 The Luhn Algorithm</h2>
+                <p>Here's how the computer checks your number:</p>
+                
+                <div class="card-visual-container">
+                    <div class="beautiful-card algorithm-demo">
+                        <div class="card-number-display">
+                            <span class="digit individual" data-position="16">4</span>
+                            <span class="digit individual" data-position="15">0</span>
+                            <span class="digit individual" data-position="14">2</span>
+                            <span class="digit individual" data-position="13">4</span>
+                            <span class="space"> </span>
+                            <span class="digit individual" data-position="12">6</span>
+                            <span class="digit individual" data-position="11">0</span>
+                            <span class="digit individual" data-position="10">7</span>
+                            <span class="digit individual" data-position="9">2</span>
+                            <span class="space"> </span>
+                            <span class="digit individual" data-position="8">3</span>
+                            <span class="digit individual" data-position="7">6</span>
+                            <span class="digit individual" data-position="6">9</span>
+                            <span class="digit individual" data-position="5">5</span>
+                            <span class="space"> </span>
+                            <span class="digit individual" data-position="4">0</span>
+                            <span class="digit individual" data-position="3">7</span>
+                            <span class="digit individual" data-position="2">4</span>
+                            <span class="digit individual check-digit" data-position="1">8</span>
+                        </div>
+                    </div>
+                    
+                    <div class="algorithm-explanation">
+                        <p><strong>Step 1:</strong> Starting from the right, we double every second digit...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 3: Show doubling with math flow -->
+            <div class="step" id="step-3" style="display: none;">
+                <h2>✖️ Step 2: Double every other digit</h2>
+                
+                <div class="math-flow-container">
+                    <!-- Original number -->
+                    <div class="math-step-header">Start with the credit card number (excluding check digit):</div>
+                    <div class="number-row original">
+                        <span class="digit">4</span>
+                        <span class="digit highlight">0</span>
+                        <span class="digit">2</span>
+                        <span class="digit highlight">4</span>
+                        <span class="space-gap"></span>
+                        <span class="digit">6</span>
+                        <span class="digit highlight">0</span>
+                        <span class="digit">7</span>
+                        <span class="digit highlight">2</span>
+                        <span class="space-gap"></span>
+                        <span class="digit">3</span>
+                        <span class="digit highlight">6</span>
+                        <span class="digit">9</span>
+                        <span class="digit highlight">5</span>
+                        <span class="space-gap"></span>
+                        <span class="digit">0</span>
+                        <span class="digit highlight">7</span>
+                        <span class="digit">4</span>
+                    </div>
+                    
+                    <!-- Step explanation -->
+                    <div class="math-instruction">
+                        Double the value of every other digit (highlighted in blue)
+                    </div>
+                    
+                    <!-- Arrows -->
+                    <div class="arrows-container">
+                        <span class="arrow">↓</span>
+                        <span class="arrow blue">↓</span>
+                        <span class="arrow">↓</span>
+                        <span class="arrow blue">↓</span>
+                        <span class="space-gap"></span>
+                        <span class="arrow">↓</span>
+                        <span class="arrow blue">↓</span>
+                        <span class="arrow">↓</span>
+                        <span class="arrow blue">↓</span>
+                        <span class="space-gap"></span>
+                        <span class="arrow">↓</span>
+                        <span class="arrow blue">↓</span>
+                        <span class="arrow">↓</span>
+                        <span class="arrow blue">↓</span>
+                        <span class="space-gap"></span>
+                        <span class="arrow">↓</span>
+                        <span class="arrow blue">↓</span>
+                        <span class="arrow">↓</span>
+                    </div>
+                    
+                    <!-- Result after doubling -->
+                    <div class="number-row result">
+                        <span class="digit">4</span>
+                        <span class="digit doubled">0</span>
+                        <span class="digit">2</span>
+                        <span class="digit doubled">8</span>
+                        <span class="space-gap"></span>
+                        <span class="digit">6</span>
+                        <span class="digit doubled">0</span>
+                        <span class="digit">7</span>
+                        <span class="digit doubled">4</span>
+                        <span class="space-gap"></span>
+                        <span class="digit">3</span>
+                        <span class="digit doubled big">12</span>
+                        <span class="digit">9</span>
+                        <span class="digit doubled big">10</span>
+                        <span class="space-gap"></span>
+                        <span class="digit">0</span>
+                        <span class="digit doubled big">14</span>
+                        <span class="digit">4</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 4: Fix big numbers -->
+            <div class="step" id="step-4" style="display: none;">
+                <h2>🔧 Step 3: Fix numbers bigger than 9</h2>
+                
+                <div class="math-flow-container">
+                    <div class="math-step-header">If any doubled result is bigger than 9, add its digits together:</div>
+                    
+                    <div class="fix-examples-container">
+                        <div class="fix-example">
+                            <span class="big-number">12</span>
+                            <span class="arrow-right">→</span>
+                            <span class="fix-calculation">1 + 2</span>
+                            <span class="equals">=</span>
+                            <span class="fixed-result">3</span>
+                        </div>
+                        
+                        <div class="fix-example">
+                            <span class="big-number">10</span>
+                            <span class="arrow-right">→</span>
+                            <span class="fix-calculation">1 + 0</span>
+                            <span class="equals">=</span>
+                            <span class="fixed-result">1</span>
+                        </div>
+                        
+                        <div class="fix-example">
+                            <span class="big-number">14</span>
+                            <span class="arrow-right">→</span>
+                            <span class="fix-calculation">1 + 4</span>
+                            <span class="equals">=</span>
+                            <span class="fixed-result">5</span>
+                        </div>
+                    </div>
+                    
+                    <div class="math-instruction">
+                        Now all our digits are single digits:
+                    </div>
+                    
+                    <div class="number-row final">
+                        <span class="digit">4</span>
+                        <span class="digit">0</span>
+                        <span class="digit">2</span>
+                        <span class="digit">8</span>
+                        <span class="space-gap"></span>
+                        <span class="digit">6</span>
+                        <span class="digit">0</span>
+                        <span class="digit">7</span>
+                        <span class="digit">4</span>
+                        <span class="space-gap"></span>
+                        <span class="digit">3</span>
+                        <span class="digit fixed">3</span>
+                        <span class="digit">9</span>
+                        <span class="digit fixed">1</span>
+                        <span class="space-gap"></span>
+                        <span class="digit">0</span>
+                        <span class="digit fixed">5</span>
+                        <span class="digit">4</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 5: Add all numbers -->
+            <div class="step" id="step-5" style="display: none;">
+                <h2>➕ Step 4: Add all resulting digits together</h2>
+                
+                <div class="math-flow-container">
+                    <div class="math-step-header">Add all the digits from our result:</div>
+                    
+                    <!-- The big addition equation -->
+                    <div class="addition-equation">
+                        <span class="term">4</span>
+                        <span class="plus">+</span>
+                        <span class="term">0</span>
+                        <span class="plus">+</span>
+                        <span class="term">2</span>
+                        <span class="plus">+</span>
+                        <span class="term">8</span>
+                        <span class="plus">+</span>
+                        <span class="term">6</span>
+                        <span class="plus">+</span>
+                        <span class="term">0</span>
+                        <span class="plus">+</span>
+                        <span class="term">7</span>
+                        <span class="plus">+</span>
+                        <span class="term">4</span>
+                        <span class="plus">+</span>
+                        <span class="term">3</span>
+                        <span class="plus">+</span>
+                        <span class="term">3</span>
+                        <span class="plus">+</span>
+                        <span class="term">9</span>
+                        <span class="plus">+</span>
+                        <span class="term">1</span>
+                        <span class="plus">+</span>
+                        <span class="term">0</span>
+                        <span class="plus">+</span>
+                        <span class="term">5</span>
+                        <span class="plus">+</span>
+                        <span class="term">4</span>
+                        <span class="equals-big">=</span>
+                        <span class="result-big">67</span>
+                    </div>
+                    
+                    <div class="math-instruction next-step">
+                        Add the check digit to the sum
+                    </div>
+                    
+                    <div class="arrow-down">↓</div>
+                    
+                    <div class="final-equation">
+                        <span class="sum">67</span>
+                        <span class="plus">+</span>
+                        <span class="check-digit-final">8</span>
+                        <span class="equals-big">=</span>
+                        <span class="final-result">75</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 6: Final test -->
+            <div class="step" id="step-6" style="display: none;">
+                <h2>🏁 The Final Test</h2>
+                
+                <div class="math-flow-container">
+                    <div class="math-step-header">If the result is not a multiple of 10, the number is invalid</div>
+                    
+                    <div class="validation-box invalid">
+                        <div class="validation-question">Is 75 divisible by 10?</div>
+                        <div class="validation-check">75 ÷ 10 = 7 remainder 5</div>
+                        <div class="validation-result invalid">❌ NOT VALID</div>
+                    </div>
+                    
+                    <div class="math-instruction">
+                        Our example number 4024 6072 3695 0748 is <strong>invalid</strong>!<br>
+                        Let's try with a valid credit card number...
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 7: Valid example with card visual -->
+            <div class="step" id="step-7" style="display: none;">
+                <h2>✅ With a Valid Number</h2>
+                
+                <div class="card-visual-container">
+                    <div class="beautiful-card">
+                        <div class="card-number-display">
+                            <span class="digit-group major-industry-group">4</span>
+                            <span class="digit-group issuer-group">532</span>
+                            <span class="space"> </span>
+                            <span class="digit-group issuer-group">01</span>
+                            <span class="digit-group account-group">58</span>
+                            <span class="space"> </span>
+                            <span class="digit-group account-group">8926</span>
+                            <span class="space"> </span>
+                            <span class="digit-group account-group">143</span>
+                            <span class="digit-group check-digit-group">9</span>
+                        </div>
+                    </div>
+                    
+                    <div class="math-explanation">
+                        <div class="valid-result">
+                            <p><strong>Following the same steps:</strong></p>
+                            <div class="quick-result">Total sum = <strong>60</strong></div>
+                            <div class="final-check">60 ÷ 10 = 6 remainder <strong>0</strong></div>
+                            <div class="result valid">✅ VALID!</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 8: Connection to main demo -->
+            <div class="step" id="step-8" style="display: none;">
+                <h2>🎯 This is Data Integrity!</h2>
+                <div class="concept-connection">
+                    <div class="principle">
+                        <h3>What we just learned:</h3>
+                        <ul>
+                            <li>✓ Math can catch typing mistakes instantly</li>
+                            <li>✓ One wrong digit breaks the whole calculation</li>
+                            <li>✓ Simple rules can protect important data</li>
+                        </ul>
+                    </div>
+                    <div class="next-step">
+                        <p>Now imagine using this idea for <strong>any important data</strong>:</p>
+                        <p>💊 Medical records • 💰 Financial data • 🤖 AI results</p>
+                    </div>
+                </div>
+                <p><strong>Ready to see how we protect complex data?</strong></p>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button id="prev-btn" class="btn btn-secondary" style="display: none;">← Previous</button>
+            <button id="next-btn" class="btn btn-primary">Next →</button>
+            <button id="demo-btn" class="btn btn-success" style="display: none;">Go to Advanced Demo →</button>
+            <button id="skip-btn" class="btn btn-outline">Skip to Demo</button>
+        </div>
+
+        <div class="progress-bar">
+            <div class="progress" id="progress"></div>
+            <div class="step-indicator">
+                <span class="step-dot active" data-step="0"></span>
+                <span class="step-dot" data-step="1"></span>
+                <span class="step-dot" data-step="2"></span>
+                <span class="step-dot" data-step="3"></span>
+                <span class="step-dot" data-step="4"></span>
+                <span class="step-dot" data-step="5"></span>
+                <span class="step-dot" data-step="6"></span>
+                <span class="step-dot" data-step="7"></span>
+                <span class="step-dot" data-step="8"></span>
+            </div>
+        </div>
+    </div>
+
+    <script src="intro.js"></script>
+</body>
+</html>
