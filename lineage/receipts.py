@@ -120,34 +120,59 @@ def build_transform_receipt(
 
 
 # ---------------------------------------------------------------------------
-# Hash accessors that paper over the source vs. transform field naming
+# Hash accessors that paper over the source vs. transform field naming.
+#
+# These are deliberately defensive: receipt JSON is attacker-controlled, so a
+# malformed receipt must make verify_chain report a clean failure rather than
+# crash with KeyError/TypeError. Missing/wrong-typed hashes return distinct
+# sentinels (an output can never equal an input sentinel, so two malformed
+# receipts never look "linked"), and totals always returns a dict.
 # ---------------------------------------------------------------------------
+_MISSING_OUTPUT = "<missing-output-hash>"
+_MISSING_INPUT = "<missing-input-hash>"
+
+
+def _str_at(receipt: Any, *keys: str, default: str) -> str:
+    """Follow `keys` into nested dicts; return default unless a str is found."""
+    cur = receipt
+    for key in keys:
+        if not isinstance(cur, dict) or key not in cur:
+            return default
+        cur = cur[key]
+    return cur if isinstance(cur, str) else default
+
+
+def _kind(receipt: Any) -> Any:
+    return receipt.get("kind") if isinstance(receipt, dict) else None
+
+
 def output_hash_of(receipt: dict[str, Any]) -> str:
     """The hash a receipt hands to the next link (its output)."""
-    if receipt["kind"] == "source_manifest":
-        return receipt["semantic_hash"]
-    return receipt["output_semantic_hash"]
+    if _kind(receipt) == "source_manifest":
+        return _str_at(receipt, "semantic_hash", default=_MISSING_OUTPUT)
+    return _str_at(receipt, "output_semantic_hash", default=_MISSING_OUTPUT)
 
 
 def input_hash_of(receipt: dict[str, Any]) -> str | None:
     """The hash a receipt expects from the previous link, or None for source."""
-    if receipt["kind"] == "source_manifest":
+    if _kind(receipt) == "source_manifest":
         return None
-    return receipt["input_semantic_hash"]
+    return _str_at(receipt, "input_semantic_hash", default=_MISSING_INPUT)
 
 
 def totals_of(receipt: dict[str, Any]) -> dict[str, Any]:
-    """The control totals describing a receipt's output."""
-    if receipt["kind"] == "source_manifest":
-        return receipt["control_totals"]
-    return receipt["output_control_totals"]
+    """The control totals describing a receipt's output (always a dict)."""
+    key = "control_totals" if _kind(receipt) == "source_manifest" else "output_control_totals"
+    value = receipt.get(key) if isinstance(receipt, dict) else None
+    return value if isinstance(value, dict) else {}
 
 
 def stage_name_of(receipt: dict[str, Any]) -> str:
-    """Human-legible stage name for a receipt."""
-    if receipt["kind"] == "source_manifest":
+    """Human-legible stage name for a receipt, with a safe fallback."""
+    if _kind(receipt) == "source_manifest":
         return "source"
-    return receipt["transform"]["name"]
+    name = _str_at(receipt, "transform", "name", default="")
+    return name or "<unknown>"
 
 
 # ---------------------------------------------------------------------------

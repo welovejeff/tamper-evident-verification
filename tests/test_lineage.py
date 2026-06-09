@@ -331,6 +331,32 @@ def test_totals_delta_survives_bad_decimal():
     assert any("spend" in line for line in lines)
 
 
+def test_accessors_are_defensive():
+    from lineage.receipts import (
+        input_hash_of,
+        output_hash_of,
+        stage_name_of,
+        totals_of,
+    )
+
+    # Missing fields return sentinels, and output != input sentinel so two
+    # malformed receipts never look "linked".
+    assert output_hash_of({}) != input_hash_of({"kind": "transform_receipt"})
+    assert totals_of({"kind": "x", "output_control_totals": "not-a-dict"}) == {}
+    assert stage_name_of({"kind": "transform_receipt"}) == "<unknown>"
+    assert stage_name_of("not-a-dict") == "<unknown>"
+
+
+def test_verify_chain_does_not_crash_on_malformed_receipt(keypair):
+    # An invalid-signature receipt that is also missing fields must produce a
+    # clean failure report (using the fallbacks), not raise.
+    _private, public_hex = keypair
+    bogus = {"kind": "transform_receipt", "signature": {"value": "00"}}
+    result = verify_chain([bogus], public_hex)
+    assert not result.ok
+    assert any("SIGNATURE INVALID" in line for line in result.lines)
+
+
 def test_negative_zero_collapses():
     from decimal import Decimal
 

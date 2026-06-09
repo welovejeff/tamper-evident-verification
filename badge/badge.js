@@ -117,11 +117,20 @@ async function verifySignature(receipt, pubKeyHex) {
   return crypto.subtle.verify({ name: "Ed25519" }, key, sig, message);
 }
 
+// chain.receipts is attacker-controlled, so receipt names are restricted to a
+// bare filename next to chain.json (matching how they are generated and the
+// Python read_receipt guard). This blocks absolute URLs and ../ traversal that
+// could make the viewer's browser fetch arbitrary / cross-origin resources.
+const SAFE_RECEIPT_NAME = /^[A-Za-z0-9._-]+$/;
+
 async function loadChain(chainUrl) {
   const base = new URL(chainUrl, window.location.href);
   const chain = await (await fetch(base)).json();
   const receipts = [];
-  for (const name of chain.receipts) {
+  for (const name of chain.receipts || []) {
+    if (typeof name !== "string" || !SAFE_RECEIPT_NAME.test(name)) {
+      throw new Error("unsafe receipt name in chain: " + name);
+    }
     const url = new URL(name, base);
     receipts.push(await (await fetch(url)).json());
   }
