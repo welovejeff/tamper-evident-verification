@@ -49,6 +49,11 @@ def decimal_to_plain_string(value: Decimal) -> str:
     helper guards against that by formatting with an explicit exponent of zero.
     """
     quantized = value.quantize(_QUANT, rounding=ROUND_HALF_EVEN)
+    # Collapse negative/positive zero to a single "0" so -0.0 and 0.0 (and any
+    # value that quantizes to zero) share one canonical form. Without this the
+    # sign branch below would emit "-0", giving two representations for zero.
+    if quantized == 0:
+        return "0"
     # normalize() collapses trailing zeros (1.000000 -> 1) but may yield "1E+2".
     normalized = quantized.normalize()
     sign, digits, exponent = normalized.as_tuple()

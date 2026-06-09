@@ -331,6 +331,40 @@ def test_totals_delta_survives_bad_decimal():
     assert any("spend" in line for line in lines)
 
 
+def test_negative_zero_collapses():
+    from decimal import Decimal
+
+    assert decimal_to_plain_string(Decimal("-0.0")) == "0"
+    assert decimal_to_plain_string(Decimal("-0.0000001")) == "0"  # quantizes to 0
+    # -0.0 and 0.0 must hash identically.
+    assert semantic_hash([{"x": -0.0}]) == semantic_hash([{"x": 0.0}])
+
+
+def test_wrapper_refuses_to_extend_broken_chain(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    generate_keys("keys")
+    private = load_private_key("keys/signing.key")
+    public_hex = public_hex_from_private(private)
+    records = sample_records()
+    manifest = build_source_manifest(
+        filename="s.xlsx", evidence_hash="00", byte_size=1, declared_origin="t",
+        semantic_hash=semantic_hash(records), records=records, private_key=private,
+    )
+    from lineage.receipts import write_chain, write_receipt, SOURCE_RECEIPT_NAME
+
+    # Corrupt the manifest's signature so the existing chain fails verification.
+    manifest["signature"]["value"] = "00" * 64
+    write_receipt("receipts", SOURCE_RECEIPT_NAME, manifest)
+    write_chain("receipts", [SOURCE_RECEIPT_NAME], public_hex)
+
+    @lineage_step(chain_dir="receipts", key_path="keys/signing.key")
+    def step(records):
+        return records
+
+    with pytest.raises(ChainTailMismatch):
+        step(records)
+
+
 def test_wrapper_appends_linked_receipt(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     generate_keys("keys")

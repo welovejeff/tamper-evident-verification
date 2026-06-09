@@ -23,6 +23,7 @@ from .receipts import (
     next_receipt_filename,
     output_hash_of,
     read_chain_files,
+    verify_chain,
     write_chain,
     write_receipt,
 )
@@ -69,8 +70,24 @@ def lineage_step(
                     f"No chain found in {chain_dir!r}; run `lineage ingest` first."
                 )
 
+            # Load the key up front so we can verify the existing chain with the
+            # same key we will sign the new receipt with.
+            private_key = load_private_key(key_path)
+            public_hex = public_hex_from_private(private_key)
+
+            # Verify the existing chain (signatures + links) BEFORE extending it,
+            # so we never append onto a chain that is already broken or carries
+            # invalid signatures.
+            receipts = load_receipts(chain_dir)
+            chain_result = verify_chain(receipts, public_hex)
+            if not chain_result.ok:
+                raise ChainTailMismatch(
+                    "Existing chain failed verification; refusing to extend it:\n"
+                    + "\n".join(chain_result.lines)
+                )
+
             # Assert the input descends from the chain tail BEFORE running.
-            tail = load_receipts(chain_dir)[-1]
+            tail = receipts[-1]
             tail_output = output_hash_of(tail)
             input_hash = semantic_hash(records)
             if input_hash != tail_output:
@@ -85,7 +102,6 @@ def lineage_step(
             output = func(records, *args, **kwargs)
             output_hash = semantic_hash(output)
 
-            private_key = load_private_key(key_path)
             # functools.wraps sets __wrapped__ to the undecorated function, so we
             # hash the original source even when other decorators stack on top.
             undecorated = getattr(func, "__wrapped__", func)
@@ -101,7 +117,6 @@ def lineage_step(
 
             filename = next_receipt_filename(chain_dir, func.__name__)
             write_receipt(chain_dir, filename, receipt)
-            public_hex = public_hex_from_private(private_key)
             write_chain(chain_dir, existing + [filename], public_hex)
             return output
 
