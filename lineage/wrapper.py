@@ -12,18 +12,16 @@ from __future__ import annotations
 import functools
 import inspect
 import os
-from pathlib import Path
 from typing import Any, Callable
 
 from .canonical import semantic_hash
-from .keys import load_private_key
+from .keys import load_private_key, public_hex_from_private
 from .receipts import (
     build_transform_receipt,
     code_hash_of,
     load_receipts,
     next_receipt_filename,
     output_hash_of,
-    public_hex_from_private,
     read_chain_files,
     write_chain,
     write_receipt,

@@ -14,7 +14,6 @@ import sys
 from pathlib import Path
 
 from .canonical import (
-    canonicalize,
     evidence_hash,
     load_xlsx,
     semantic_hash,

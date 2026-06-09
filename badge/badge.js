@@ -34,6 +34,12 @@ function receiptBody(receipt) {
 }
 
 function hexToBytes(hex) {
+  // Reject malformed hex (odd length / non-hex chars) so the browser fails
+  // closed exactly like Python's bytes.fromhex, instead of silently coercing
+  // NaN to 0 and accepting a signature/key that Python would reject.
+  if (typeof hex !== "string" || hex.length % 2 !== 0 || !/^[0-9a-fA-F]*$/.test(hex)) {
+    throw new Error("invalid hex");
+  }
   const out = new Uint8Array(hex.length / 2);
   for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.substr(i * 2, 2), 16);
   return out;
