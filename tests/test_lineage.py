@@ -254,6 +254,38 @@ def test_wrapper_rejects_mismatched_input(tmp_path, monkeypatch):
     assert out == records
 
 
+# ---------------------------------------------------------------------------
+# Hardening (from PR review)
+# ---------------------------------------------------------------------------
+def test_control_totals_accepts_non_normalized_keys():
+    # canonicalize() supports non-normalized keys, so totals must agree.
+    records = [
+        {"Total Spend (USD)": 10, "Channel": "fb"},
+        {"Total Spend (USD)": 20, "Channel": "ig"},
+    ]
+    totals = control_totals(records)
+    assert totals["numeric_sums"]["total_spend_(usd)"] == "30"
+    assert totals["column_count"] == 2
+
+
+def test_verify_returns_false_on_malformed_hex():
+    from lineage.keys import verify
+
+    # Non-hex public key / signature must fail, not raise.
+    assert verify("not-hex", b"msg", "also-not-hex") is False
+    assert verify("00" * 32, b"msg", "zz") is False
+
+
+def test_read_receipt_blocks_path_traversal(tmp_path):
+    from lineage.receipts import read_receipt
+
+    (tmp_path / "secret.txt").write_text("{}", encoding="utf-8")
+    chain_dir = tmp_path / "receipts"
+    chain_dir.mkdir()
+    with pytest.raises(ValueError):
+        read_receipt(str(chain_dir), "../secret.txt")
+
+
 def test_wrapper_appends_linked_receipt(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     generate_keys("keys")

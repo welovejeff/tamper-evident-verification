@@ -200,7 +200,10 @@ def _serve_badge(port: int) -> None:
     print("Press Ctrl+C to stop.")
     handler = http.server.SimpleHTTPRequestHandler
     try:
-        with socketserver.TCPServer(("", port), handler) as httpd:
+        # Bind to localhost only: this serves the whole repo directory
+        # (including generated receipts), so it should not be reachable from
+        # other machines on the network.
+        with socketserver.TCPServer(("127.0.0.1", port), handler) as httpd:
             httpd.serve_forever()
     except KeyboardInterrupt:
         print("\nStopped.")

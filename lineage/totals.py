@@ -38,16 +38,15 @@ def _columns(records: list[dict[str, Any]]) -> list[str]:
 
 
 def _try_date(value: Any) -> bool:
-    """Whether a value normalizes to an ISO date or datetime string."""
-    if isinstance(value, (dt.date, dt.datetime)):
-        return True
-    normalized = normalize_cell(value)
-    if not isinstance(normalized, str) or normalized == "":
-        return False
-    # normalize_cell only emits the two ISO shapes for genuine date/datetimes;
-    # string cells that merely look date-like are NOT reparsed here, matching
-    # the rule that date detection runs on canonicalized values.
-    return False
+    """True only for real date/datetime objects.
+
+    Date detection runs on canonicalized values. A date/datetime serializes to
+    an ISO string, but a cell that is merely a date-shaped *string* stays a
+    string under canonicalization (its semantic hash is a string too), so it is
+    intentionally NOT counted as a date here. That makes this a straight type
+    check rather than a parse.
+    """
+    return isinstance(value, (dt.date, dt.datetime))
 
 
 def control_totals(records: list[dict[str, Any]]) -> dict[str, Any]:
@@ -60,6 +59,13 @@ def control_totals(records: list[dict[str, Any]]) -> dict[str, Any]:
     columns = _columns(records)
     row_count = len(records)
 
+    # Look up cells by normalized key so totals follow the same normalization
+    # rules as hashing. canonicalize() accepts non-normalized list-of-dicts, so
+    # totals must too, otherwise non-normalized keys would all read as null.
+    norm_records = [
+        {normalize_header(k): v for k, v in record.items()} for record in records
+    ]
+
     null_counts: dict[str, int] = {}
     numeric_sums: dict[str, str] = {}
     date_ranges: dict[str, dict[str, str]] = {}
@@ -67,7 +73,7 @@ def control_totals(records: list[dict[str, Any]]) -> dict[str, Any]:
     for column in columns:
         non_null: list[Any] = []
         nulls = 0
-        for record in records:
+        for record in norm_records:
             value = record.get(column)
             normalized = normalize_cell(value)
             if normalized is None:

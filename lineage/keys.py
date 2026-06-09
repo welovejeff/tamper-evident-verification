@@ -101,10 +101,15 @@ def sign(private_key: Ed25519PrivateKey, message: bytes) -> str:
 
 
 def verify(public_hex: str, message: bytes, signature_hex: str) -> bool:
-    """Verify a hex signature over message bytes with a raw-hex public key."""
-    public_key = public_key_from_hex(public_hex)
+    """Verify a hex signature over message bytes with a raw-hex public key.
+
+    Returns False (never raises) for a bad signature OR for malformed inputs:
+    receipt JSON is attacker-controlled in the tamper-evident model, so non-hex
+    or wrong-length key/signature material must verify as failure, not crash.
+    """
     try:
+        public_key = public_key_from_hex(public_hex)
         public_key.verify(bytes.fromhex(signature_hex), message)
         return True
-    except InvalidSignature:
+    except (InvalidSignature, ValueError):
         return False

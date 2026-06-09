@@ -167,7 +167,14 @@ def write_receipt(chain_dir: str, filename: str, receipt: dict[str, Any]) -> Pat
 
 
 def read_receipt(chain_dir: str, filename: str) -> dict[str, Any]:
-    return json.loads((Path(chain_dir) / filename).read_text(encoding="utf-8"))
+    # Receipt filenames come from chain.json, which is attacker-controlled in
+    # the tamper-evident model. Confine reads to chain_dir so a crafted entry
+    # like "../../etc/passwd" cannot make `verify` read arbitrary files.
+    base = Path(chain_dir).resolve()
+    target = (base / filename).resolve()
+    if target.parent != base:
+        raise ValueError(f"Unsafe receipt path outside chain directory: {filename!r}")
+    return json.loads(target.read_text(encoding="utf-8"))
 
 
 def read_chain(chain_path: str) -> dict[str, Any]:
