@@ -292,7 +292,7 @@ def test_line_separators_kept_literal_for_js_parity():
     # also keep them literal for the canonical bytes to match the browser.
     from lineage.canonical import canonical_json_bytes
 
-    out = canonical_json_bytes({"o": "x y z"})
+    out = canonical_json_bytes({"o": "x\u2028y\u2029z"})
     assert "\\u2028" not in out.decode("utf-8")
     assert b"\xe2\x80\xa8" in out  # literal UTF-8 of U+2028
     assert b"\xe2\x80\xa9" in out  # literal UTF-8 of U+2029
@@ -304,7 +304,7 @@ def test_unicode_origin_signs_and_verifies(keypair):
     records = sample_records()
     manifest = build_source_manifest(
         filename="s.xlsx", evidence_hash="00", byte_size=1,
-        declared_origin="May 2026 export", semantic_hash=semantic_hash(records),
+        declared_origin="May 2026\u2028export", semantic_hash=semantic_hash(records),
         records=records, private_key=private,
     )
     assert verify_signature(manifest, public_hex)

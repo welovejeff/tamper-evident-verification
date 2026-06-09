@@ -17,7 +17,12 @@ function canonicalize(value) {
   if (value === null) return "null";
   const t = typeof value;
   if (t === "boolean") return value ? "true" : "false";
-  if (t === "number") return String(value); // integers only by construction
+  if (t === "number") {
+    // Python's JCS only serializes integers (floats/NaN/Infinity raise). Match
+    // that so the badge never shows green for a receipt Python would refuse.
+    if (!Number.isSafeInteger(value)) throw new Error("non-integer number leaf");
+    return String(value);
+  }
   if (t === "string") return JSON.stringify(value);
   if (Array.isArray(value)) return "[" + value.map(canonicalize).join(",") + "]";
   if (t === "object") {
@@ -53,17 +58,36 @@ const totalsOf = (r) =>
   r.kind === "source_manifest" ? r.control_totals : r.output_control_totals;
 const stageNameOf = (r) => (r.kind === "source_manifest" ? "source" : r.transform.name);
 
-// --- Minimal totals delta, mirroring lineage/totals.py for the red expand. ---
+// --- Totals delta, mirroring lineage/totals.py for the red expand. Reports
+// row_count, column_count, numeric_sums and null_counts, with sorted (so
+// deterministic) column ordering to stay consistent with the CLI verifier. The
+// numeric diff is shown as before -> after (no Decimal arithmetic in-browser).
+const sortedUnion = (a, b) => [...new Set([...Object.keys(a), ...Object.keys(b)])].sort();
+
 function totalsDelta(up, down) {
   const lines = [];
   if (up.row_count !== down.row_count) {
     const d = down.row_count - up.row_count;
     lines.push(`row_count ${up.row_count} -> ${down.row_count} (${d >= 0 ? "+" : ""}${d})`);
   }
+  if (up.column_count !== down.column_count) {
+    const d = down.column_count - up.column_count;
+    lines.push(`column_count ${up.column_count} -> ${down.column_count} (${d >= 0 ? "+" : ""}${d})`);
+  }
   const us = up.numeric_sums || {};
   const ds = down.numeric_sums || {};
-  for (const col of new Set([...Object.keys(us), ...Object.keys(ds)])) {
+  for (const col of sortedUnion(us, ds)) {
     if (us[col] !== ds[col]) lines.push(`${col} ${us[col] ?? "(added)"} -> ${ds[col] ?? "(removed)"}`);
+  }
+  const un = up.null_counts || {};
+  const dn = down.null_counts || {};
+  for (const col of sortedUnion(un, dn)) {
+    const before = un[col] ?? 0;
+    const after = dn[col] ?? 0;
+    if (before !== after) {
+      const d = after - before;
+      lines.push(`null_counts[${col}] ${before} -> ${after} (${d >= 0 ? "+" : ""}${d})`);
+    }
   }
   return lines;
 }
