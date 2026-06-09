@@ -174,7 +174,12 @@ def read_receipt(chain_dir: str, filename: str) -> dict[str, Any]:
     target = (base / filename).resolve()
     if target.parent != base:
         raise ValueError(f"Unsafe receipt path outside chain directory: {filename!r}")
-    return json.loads(target.read_text(encoding="utf-8"))
+    # A crafted or corrupted chain.json should surface as a clean ValueError,
+    # not an unhandled FileNotFoundError / JSONDecodeError.
+    try:
+        return json.loads(target.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(f"Could not read receipt {filename!r}: {exc}") from exc
 
 
 def read_chain(chain_path: str) -> dict[str, Any]:
@@ -235,7 +240,13 @@ def verify_signature(receipt: dict[str, Any], public_hex: str) -> bool:
     signature = receipt.get("signature")
     if not signature or "value" not in signature:
         return False
-    message = canonical_json_bytes(_receipt_body(receipt))
+    try:
+        # Receipt JSON is attacker-controlled: a body with floats or unknown
+        # types makes canonical_json_bytes raise, so fail closed rather than
+        # crash verification.
+        message = canonical_json_bytes(_receipt_body(receipt))
+    except (TypeError, ValueError):
+        return False
     return verify(public_hex, message, signature["value"])
 
 

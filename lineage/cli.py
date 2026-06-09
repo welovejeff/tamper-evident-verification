@@ -23,8 +23,8 @@ from .keys import generate_keys, load_private_key, load_public_key_hex, public_h
 from .receipts import (
     SOURCE_RECEIPT_NAME,
     build_source_manifest,
-    load_receipts,
     read_chain,
+    read_receipt,
     verify_chain,
     write_chain,
     write_receipt,
@@ -75,7 +75,14 @@ def cmd_ingest(args: argparse.Namespace) -> int:
 def cmd_verify(args: argparse.Namespace) -> int:
     chain = read_chain(args.chain)
     chain_dir = str(Path(args.chain).parent)
-    receipts = load_receipts(chain_dir)
+    # Load exactly the receipts named in the chain file the user pointed at,
+    # rather than re-reading chain_dir/chain.json, so verify validates the set
+    # the user asked for. Fail cleanly if any receipt cannot be loaded.
+    try:
+        receipts = [read_receipt(chain_dir, name) for name in chain.get("receipts", [])]
+    except ValueError as exc:
+        print(f"Cannot load chain: {exc}", file=sys.stderr)
+        return 1
 
     # Public key precedence: explicit --pub, else the key embedded in chain.json.
     public_hex = load_public_key_hex(args.pub) if args.pub else chain.get("public_key")

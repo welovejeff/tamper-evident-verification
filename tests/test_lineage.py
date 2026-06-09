@@ -286,6 +286,51 @@ def test_read_receipt_blocks_path_traversal(tmp_path):
         read_receipt(str(chain_dir), "../secret.txt")
 
 
+def test_line_separators_kept_literal_for_js_parity():
+    # RFC 8785 keeps chars >= 0x20 literal; JS JSON.stringify does NOT escape
+    # U+2028/U+2029 either (verified: it emits the literal char). So Python must
+    # also keep them literal for the canonical bytes to match the browser.
+    from lineage.canonical import canonical_json_bytes
+
+    out = canonical_json_bytes({"o": "x y z"})
+    assert "\\u2028" not in out.decode("utf-8")
+    assert b"\xe2\x80\xa8" in out  # literal UTF-8 of U+2028
+    assert b"\xe2\x80\xa9" in out  # literal UTF-8 of U+2029
+
+
+def test_unicode_origin_signs_and_verifies(keypair):
+    # A receipt field containing U+2028 must still round-trip through signing.
+    private, public_hex = keypair
+    records = sample_records()
+    manifest = build_source_manifest(
+        filename="s.xlsx", evidence_hash="00", byte_size=1,
+        declared_origin="May 2026 export", semantic_hash=semantic_hash(records),
+        records=records, private_key=private,
+    )
+    assert verify_signature(manifest, public_hex)
+
+
+def test_verify_signature_fails_closed_on_bad_body(keypair):
+    # A malformed body (float leaf) must verify as False, not raise.
+    private, public_hex = keypair
+    records = sample_records()
+    manifest = build_source_manifest(
+        filename="s.xlsx", evidence_hash="00", byte_size=1, declared_origin="t",
+        semantic_hash=semantic_hash(records), records=records, private_key=private,
+    )
+    manifest["unexpected_float"] = 1.5  # not part of the signed body shape
+    assert verify_signature(manifest, public_hex) is False
+
+
+def test_totals_delta_survives_bad_decimal():
+    from lineage.totals import totals_delta
+
+    up = {"numeric_sums": {"spend": "10"}}
+    down = {"numeric_sums": {"spend": "not-a-number"}}
+    lines = totals_delta(up, down)  # must not raise
+    assert any("spend" in line for line in lines)
+
+
 def test_wrapper_appends_linked_receipt(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     generate_keys("keys")

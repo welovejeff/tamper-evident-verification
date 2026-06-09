@@ -111,5 +111,7 @@ def verify(public_hex: str, message: bytes, signature_hex: str) -> bool:
         public_key = public_key_from_hex(public_hex)
         public_key.verify(bytes.fromhex(signature_hex), message)
         return True
-    except (InvalidSignature, ValueError):
+    except (InvalidSignature, ValueError, TypeError):
+        # ValueError: non-hex or wrong-length material. TypeError: non-string
+        # hex (e.g. a JSON number where a hex string was expected).
         return False

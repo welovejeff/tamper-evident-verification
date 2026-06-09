@@ -9,7 +9,7 @@ never floats.
 from __future__ import annotations
 
 import datetime as dt
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from .canonical import (
@@ -140,10 +140,16 @@ def totals_delta(upstream: dict[str, Any], downstream: dict[str, Any]) -> list[s
         after = down_sums.get(column)
         if before != after:
             if before is not None and after is not None:
-                diff = Decimal(after) - Decimal(before)
-                lines.append(
-                    f"{column} {before} -> {after} ({decimal_to_plain_string(diff)})"
-                )
+                try:
+                    diff = Decimal(after) - Decimal(before)
+                    lines.append(
+                        f"{column} {before} -> {after} ({decimal_to_plain_string(diff)})"
+                    )
+                except InvalidOperation:
+                    # Sums in receipt JSON are attacker-controlled; if either
+                    # side is not a valid decimal, still report before/after but
+                    # omit the computed diff rather than crashing `verify`.
+                    lines.append(f"{column} {before} -> {after}")
             elif after is None:
                 lines.append(f"{column} {before} -> (removed)")
             else:
