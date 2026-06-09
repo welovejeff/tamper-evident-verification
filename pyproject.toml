@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lineage-receipts"
+version = "1.0.0"
+description = "A signed data lineage chain for analytics pipelines: signed receipts at every stage, with verifiable continuity."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "openpyxl>=3.1",
+    "cryptography>=42.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+lineage = "lineage.cli:main"
+
+[tool.setuptools]
+packages = ["lineage"]

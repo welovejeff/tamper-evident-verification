@@ -1,9 +1,7 @@
 {
-  "name": "tamper-proof-demo",
+  "name": "lineage-receipts",
   "version": "1.0.0",
-  "type": "module",
-  "scripts": {
-    "dev": "node server.js",
-    "build": "mkdir -p dist && cp *.html *.css *.js dist/ && echo 'Build complete - static files ready in dist/'"
-  }
+  "description": "Signed data lineage receipts. The browser badge (badge/) is dependency-free and needs no build step.",
+  "private": true,
+  "type": "module"
 }

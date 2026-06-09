@@ -1,80 +1,88 @@
-## Tamper‑Evident AI Proof Verification
+# lineage-receipts
 
-An interactive, zero-dependency web demo (plus a Python console demo) that shows how to generate and verify tamper‑evident proof tags for AI/computation outputs. Start with a visual primer on the Luhn check digit, then step into an advanced demo that proves data integrity, algorithm integrity, output validity, and proof self‑consistency — all with SHA‑256 hashes.
+A signed data lineage chain for analytics pipelines. A marketing team downloads a large xlsx export from a social tool (Sprinklr, Meta, and the like), runs it through LLM-generated transform scripts, and renders it in a live dashboard. Today there is no way to prove the dashboard numbers descend from the original export, or to locate where a discrepancy was introduced. This project gives each pipeline stage a signed receipt containing the hash of its input, the hash of its code, the hash of its output, and human-legible control totals. Receipts link because each stage's input hash must equal the prior stage's output hash, and a verifier replays the chain and reports PASS, or FAIL with the exact broken link.
 
-### What this project includes
-- **Intro walkthrough**: `intro.html` explains the Luhn algorithm visually to build intuition for integrity checks.
-- **Advanced web demo**: `index.html` + `script.js` generate a proof tag and detect any tampering with the data, the algorithm, or the proof itself.
-- **Minimal server**: `server.js` serves static files and defaults to the intro page.
-- **Python console demo**: `app.py` mirrors the same proof generation and verification logic using only the Python standard library.
-
-## Quick start (Web demo)
-Prerequisites: Node.js 18+ (ES modules enabled).
+## Quick start
 
 ```bash
-npm run dev
+pip install -e .
+lineage demo
 ```
 
-Open the intro in your browser: [http://localhost:3000](http://localhost:3000)
+`lineage demo` runs the whole pipeline end to end: it generates a messy sample export, ingests it, runs two transforms through the `@lineage_step` wrapper, verifies the chain (PASS), then tampers with the dashboard file and verifies again (FAIL, with the totals delta that pinpoints the change). It then serves a browser badge at `http://localhost:8000/badge/badge.html` that re-verifies the chain in your browser.
 
-From the intro, click “Go to Advanced Demo” to open `index.html`. Then:
-1. Click “Process Data with AI” to compute averages and final output
-2. Inspect the generated proof tag
-3. Click “Verify Integrity” (should pass)
-4. Use the “Simulate Data Tampering” or “Simulate Proof Tampering” buttons and verify again to see failures
-
-## Python console demo (optional)
-Prerequisites: Python 3.8+
+## Commands
 
 ```bash
-python3 app.py
+lineage keygen --out keys/
+lineage ingest sample_export.xlsx --origin "Sprinklr export, May 2026" --key keys/signing.key --out receipts/
+lineage verify receipts/chain.json --pub keys/signing.pub --data dashboard.xlsx
 ```
 
-You’ll see the same phases (generation, verification, and tampering simulations) in your terminal with a formatted table and results.
+Transforms record their own receipts by wrapping a list-of-dicts to list-of-dicts function:
 
-## How it works
-The advanced demo creates a proof tag that captures the integrity of three things:
-- **Input data**: SHA‑256 of the CSV‑like canonical string of the input table
-- **Algorithm ("equation")**: SHA‑256 of the algorithm’s source code string
-- **Final output**: The numeric result computed from the processed data
+```python
+from lineage import lineage_step
 
-The proof tag is then self‑hashed to become tamper‑evident as a whole.
+@lineage_step(chain_dir="receipts/", key_path="keys/signing.key")
+def transform_clean(records):
+    return [r for r in records if r.get("campaign_name")]
+```
 
-Example proof tag shape:
+The wrapper verifies the chain tail, asserts the input hash matches the tail's output hash (it refuses to run otherwise), runs the function, then signs and appends a receipt.
+
+## Receipt shapes
+
+Source manifest (ingest):
 
 ```json
 {
-  "input_data_hash": "<sha256>",
-  "equation_hash": "<sha256>",
-  "final_output": 205.30,
-  "proof_tag_hash": "<sha256 of the object above>"
+  "kind": "source_manifest",
+  "spec_version": "1.0",
+  "created_at": "2026-06-09T14:30:00Z",
+  "source": {
+    "filename": "sprinklr_export_may.xlsx",
+    "evidence_hash": "<sha256 of raw bytes>",
+    "byte_size": 18734221,
+    "declared_origin": "Sprinklr export, May 2026"
+  },
+  "semantic_hash": "<sha256 of canonical data>",
+  "control_totals": { "row_count": 48212, "column_count": 9, "numeric_sums": {}, "date_ranges": {}, "null_counts": {} },
+  "signature": { "alg": "ed25519", "key_fingerprint": "...", "value": "<hex>" }
 }
 ```
 
-Verification recomputes all hashes and the final output and compares them to the proof tag. Any modification breaks one or more checks.
+Transform receipt:
 
-## Project structure
-- `server.js` — tiny static server (defaults route `/` to `intro.html`)
-- `package.json` — Node ESM config with `dev` script
-- `intro.html`, `intro.css`, `intro.js` — visual Luhn primer
-- `index.html`, `style.css`, `script.js` — advanced tamper‑evident demo
-- `app.py` — Python console version of the demo
-- `index.js` — simple Node hello file (not used by the demo)
+```json
+{
+  "kind": "transform_receipt",
+  "spec_version": "1.0",
+  "created_at": "...",
+  "transform": { "name": "transform_clean", "code_hash": "<sha256 of source>", "code_file": "examples/transform_clean.py" },
+  "input_semantic_hash": "<equals previous receipt's output hash>",
+  "output_semantic_hash": "...",
+  "output_control_totals": { },
+  "signature": { }
+}
+```
 
-## Implementation notes
-- **Cryptography**: uses SHA‑256
-  - Browser: Web Crypto API (`crypto.subtle.digest`)
-  - Python: `hashlib.sha256`
-- **Privacy**: only hashes are stored in the proof tag; original data never leaves the page
-- **Dependencies**: none for the web demo; the server is Node’s built‑in `http` module
+Two hashes exist per artifact. The **evidence hash** is SHA-256 of the raw file bytes, computed once at ingest to anchor the original file. The **semantic hash** is SHA-256 of the canonicalized data content, stable across format round-trips (xlsx re-save, xlsx to CSV, xlsx to JSON) so long as the values are unchanged. Row order is not part of integrity: rows are sorted before hashing.
 
-## Troubleshooting
-- If the server doesn’t start, ensure you’re on Node 18+ and run the command from the repo root.
-- You can also open `intro.html` or `index.html` directly in a browser without the server. The server simply provides a convenient default route.
+## Browser badge
 
-## Roadmap ideas
-- Pluggable algorithms beyond the average/sum example
-- Export/import proof tags and datasets
-- Optional anchoring of proof hashes to external ledgers
+`badge/badge.js` exports `renderLineageBadge(containerEl, chainUrl, pubKeyHex)`. It fetches the chain and every receipt, re-verifies all signatures with Web Crypto Ed25519, and re-checks every hash link. It re-links hashes only; it does not re-canonicalize xlsx in the browser. If the browser lacks Ed25519 it renders an amber "verification unsupported" state.
 
-tamper-evident-verification
+![Lineage badge: green intact chain and red broken chain](badge/badge-demo.png)
+
+## What this proves, and what it does not prove
+
+This proves **continuity, not correctness**. The chain shows that the dashboard numbers descend from the ingested export through a known sequence of code, and it locates the exact stage where a number changed unexpectedly. If the source export is itself wrong, the chain faithfully verifies wrong numbers. It is not a data-quality tool and makes no claim about whether the source data is accurate.
+
+## Relation to OpenLineage, dbt, and Great Expectations
+
+OpenLineage and dbt model lineage and transformations at the warehouse and orchestration layer; Great Expectations validates data quality against declared expectations. This project is narrower and lighter: a signed, file-based receipt chain that a small analytics team can drop in front of an ad-hoc xlsx-to-dashboard pipeline to get cryptographic continuity without a database, a server, or a metadata catalog. It is a complement for the gap before those tools are in place, not a replacement for them.
+
+## Legacy demo
+
+The original Luhn and single-computation hash demo now lives unchanged in `legacy/` and is no longer on the main path.

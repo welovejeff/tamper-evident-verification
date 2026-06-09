@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Lineage Receipts Badge</title>
+    <style>
+      body {
+        font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+        color: #1d2939;
+        max-width: 720px;
+        margin: 48px auto;
+        padding: 0 20px;
+        line-height: 1.5;
+      }
+      h1 {
+        font-size: 20px;
+      }
+      h2 {
+        font-size: 14px;
+        color: #475467;
+        margin: 28px 0 10px;
+        font-weight: 600;
+      }
+      p {
+        color: #475467;
+        font-size: 14px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Lineage Receipts</h1>
+    <p>
+      Each badge re-verifies the signatures and hash links of a receipt chain in
+      your browser. It proves continuity (the dashboard numbers descend from the
+      ingested export), not that the source numbers are correct.
+    </p>
+
+    <h2>Intact chain</h2>
+    <div id="badge-intact"></div>
+
+    <h2>After tamper</h2>
+    <div id="badge-tampered"></div>
+
+    <script type="module">
+      import { renderLineageBadge } from "./badge.js";
+
+      // Default to the demo directories one level up from /badge/. Override the
+      // intact chain with ?chain=<url> for other receipt sets.
+      const params = new URLSearchParams(window.location.search);
+      const intact = params.get("chain") || "../receipts/chain.json";
+
+      renderLineageBadge(document.getElementById("badge-intact"), intact);
+      renderLineageBadge(
+        document.getElementById("badge-tampered"),
+        "../receipts_tampered/chain.json"
+      );
+    </script>
+  </body>
+</html>
