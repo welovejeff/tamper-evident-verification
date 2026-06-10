@@ -236,3 +236,5 @@ say so honestly.
 | `examples/chains/` | Committed known-good and known-broken demo chains |
 | `designs/` | Working HTML mockups for the signal, console, and Data tab |
 | `docs/MESSAGING.md` | Copy rules; the source of truth for any words you write |
+| `docs/solutions/` | Documented solutions to past problems (bugs, patterns, conventions), organized by category with YAML frontmatter (`module`, `tags`, `problem_type`); relevant when working in documented areas |
+| `CONCEPTS.md` | Shared domain vocabulary (entities, named processes, status concepts); relevant when orienting to the codebase |
