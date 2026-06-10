@@ -48,12 +48,28 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       id-token: write
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
           registry-url: "https://registry.npmjs.org"
-      - run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      # Skip cleanly (instead of failing the release) when the version is
+      # already on npm (e.g. published manually) or no token is configured.
+      - name: Decide whether to publish
+        id: gate
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "no NPM_TOKEN secret; skipping npm publish"
+            echo "go=false" >> "$GITHUB_OUTPUT"
+          elif npm view "tamper-signal@$VERSION" version >/dev/null 2>&1; then
+            echo "tamper-signal@$VERSION already on npm; skipping"
+            echo "go=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "go=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.gate.outputs.go == 'true'
+        run: npm publish --provenance --access public
