@@ -14,7 +14,7 @@ from __future__ import annotations
 from pathlib import Path
 from types import SimpleNamespace
 
-from .integrations import ASSET_NAMES, asset_text, signal_snippet
+from .integrations import ASSET_NAMES, asset_text, console_page, signal_snippet
 
 
 def attach(
@@ -42,8 +42,14 @@ def attach(
         return Response(asset_text(filename), media_type="text/javascript")
 
     chain_url = f"{url_prefix}/chain.json"
+
+    @app.get(assets_prefix + "/console")
+    def _console() -> Response:
+        return Response(console_page(chain_url, assets_prefix=assets_prefix), media_type="text/html")
+
     return SimpleNamespace(
         chain_url=chain_url,
         assets_prefix=assets_prefix,
+        console_url=f"{assets_prefix}/console",
         snippet=signal_snippet(chain_url, assets_prefix=assets_prefix, selector=selector),
     )

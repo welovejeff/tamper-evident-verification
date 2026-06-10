@@ -4,6 +4,6 @@
   "receipts": [
     "000_source.json",
     "001_clean.json",
-    "002_aggregate.json"
+    "003_aggregate.json"
   ]
 }

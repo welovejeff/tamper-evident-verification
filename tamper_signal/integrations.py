@@ -12,7 +12,7 @@ from importlib import resources
 
 # The assets the helpers serve. light.js and table.js import ./badge.js, and
 # element.js imports ./light.js, so they must be served side by side.
-ASSET_NAMES = ("badge.js", "light.js", "element.js", "table.js")
+ASSET_NAMES = ("badge.js", "light.js", "element.js", "table.js", "console.js")
 
 
 def asset_text(name: str) -> str:
@@ -40,3 +40,22 @@ def signal_snippet(
         f"{chain_url!r});"
         "</script>"
     )
+
+
+def console_page(
+    chain_url: str = "/receipts/chain.json",
+    *,
+    assets_prefix: str = "/tamper-signal",
+) -> str:
+    """A minimal HTML page hosting the verification console for a chain."""
+    return f"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Tamper Signal console</title>
+<style>body{{margin:0;background:#07090d;padding:24px}}</style></head>
+<body><div id="console"></div>
+<script type="module">
+import {{ mountReceiptConsole }} from "{assets_prefix}/console.js";
+mountReceiptConsole(document.getElementById("console"), {chain_url!r});
+</script></body></html>
+"""

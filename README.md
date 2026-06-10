@@ -28,7 +28,7 @@ The badge and the verifier reduce the whole chain to one state:
 
 *The inline status light: a small dark instrument in your dashboard's header. When the chain breaks, it reaches into the page and flags the exact metric that no longer descends from the source.*
 
-Honest status: all three verdicts are implemented in `receipts verify` and the browser badge. Yellow today covers two detectable caveats (a coverage gap in the receipt numbering, and signatures that only verify under the chain's embedded key rather than the key you trust) plus opt-in control-total drift via `--warn-drift`. The Data tab and console animations in this README are design previews of later interface tiers, built from the working mockups in `designs/`. The badge also renders a separate amber state ("could not load" or "verification unsupported in this browser"); that is a capability fallback that says nothing about the chain, not the yellow verdict.
+Honest status: all three verdicts are implemented in `receipts verify` and the browser badge. Yellow today covers two detectable caveats (a coverage gap in the receipt numbering, and signatures that only verify under the chain's embedded key rather than the key you trust) plus opt-in control-total drift via `--warn-drift`. The animations in this README are renders of the design mockups in `designs/`; the interfaces they depict have since shipped (`badge/light.js`, `badge/table.js`, `badge/console.js`). The badge also renders a separate amber state ("could not load" or "verification unsupported in this browser"); that is a capability fallback that says nothing about the chain, not the yellow verdict.
 
 ## 60-second quickstart
 
@@ -152,6 +152,14 @@ It ships: `receipts export` writes the canonical table document next to the chai
 
 *Design preview: install the verification layer and your dashboard grows a Data tab. When the chain breaks, the break is localized to the column and total that no longer verify, right in the table.*
 
+## The console
+
+The light answers "is it fine?"; the console answers "where, exactly, and by how much?" `mountReceiptConsole(el, "/receipts/chain.json")` from `badge/console.js` (npm: `tamper-signal/console`) renders the chain as an inspectable pipeline: links carry the hash they proved, a break severs the link with the break card pinned at it, coverage gaps appear as ghost nodes at their position, and the event log mirrors `receipts verify` line for line. Every attach helper also serves it ready-made at `/tamper-signal/console`. Live demo: `badge/console.html`.
+
+![The verification console: a pipeline of signed receipts where a tampered stage severs the chain at the exact link](docs/media/console.gif)
+
+*The verification console: calm when green, surgical when red.*
+
 ## What this proves, and what it doesn't
 
 This proves **continuity, not correctness**. It can't tell you the data is right, but it can prove nobody changed it. The chain shows the dashboard numbers descend from the ingested export through a known sequence of code, and it locates the exact stage where a number changed unexpectedly. If the source export is itself wrong, the chain faithfully verifies wrong numbers. It is not a data-quality tool.
@@ -162,11 +170,7 @@ Also worth knowing: the signing key lives on your machine, and today that local 
 
 - **Richer yellow taxonomy.** Yellow currently detects coverage gaps, unrecognized signing keys, and opt-in totals drift. Distinct severities and smarter drift heuristics are open questions (see `designs/01-NOTES.md`).
 - **External anchoring.** Sigstore transparency logs or RFC 3161 timestamps, so a chain can't be silently re-signed after the fact. The attachment points are already marked `FUTURE:` in `tamper_signal/keys.py` and `tamper_signal/receipts.py`.
-- **Verification console.** A devtools-for-data window: the receipt chain as an inspectable pipeline, an event log of verify runs, and the break pinned at the severed link.
 
-![The verification console: a pipeline of signed receipts where a tampered stage severs the chain at the exact link](docs/media/console.gif)
-
-*Design preview of the verification console: calm when green, surgical when red.*
 
 ## Relation to OpenLineage, dbt, and Great Expectations
 

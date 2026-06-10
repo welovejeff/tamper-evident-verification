@@ -54,8 +54,19 @@ test("tamperSignal wires an app and returns the snippet", () => {
   const uses = [];
   const app = { use: (prefix, fn) => uses.push([prefix, fn.name]) };
   const handle = tamperSignal(app, { receiptsDir: intactDir });
-  assert.deepEqual(uses.map(([p]) => p), ["/receipts", "/tamper-signal"]);
+  assert.deepEqual(uses.map(([p]) => p), ["/receipts", "/tamper-signal", "/tamper-signal"]);
   assert.equal(handle.chainUrl, "/receipts/chain.json");
   assert.match(handle.snippet, /mountTamperSignal/);
   assert.match(signalSnippet(), /light\.js/);
+});
+
+test("tamperSignal serves the console page", async () => {
+  const handlers = [];
+  const app = { use: (prefix, fn) => handlers.push([prefix, fn]) };
+  const handle = tamperSignal(app, { receiptsDir: intactDir });
+  assert.equal(handle.consoleUrl, "/tamper-signal/console");
+  const consoleHandler = handlers.find(([p, f]) => p === "/tamper-signal" && f.name === "tamperSignalConsole")[1];
+  const { res, body } = await run(consoleHandler, "/console");
+  assert.equal(res.statusCode, 200);
+  assert.match(body, /mountReceiptConsole/);
 });

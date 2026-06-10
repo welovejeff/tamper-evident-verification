@@ -17,7 +17,7 @@ import { createReadStream, existsSync, statSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const ASSET_NAMES = ["badge.js", "light.js", "element.js", "table.js"];
+const ASSET_NAMES = ["badge.js", "light.js", "element.js", "table.js", "console.js"];
 const ASSET_DIR = fileURLToPath(new URL("../badge/", import.meta.url));
 
 const TYPES = { ".json": "application/json", ".js": "text/javascript", ".pub": "text/plain" };
@@ -64,18 +64,40 @@ export function signalSnippet(chainUrl = "/receipts/chain.json", { assetsPrefix 
   );
 }
 
+export function consolePage(chainUrl = "/receipts/chain.json", { assetsPrefix = "/tamper-signal" } = {}) {
+  return `<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Tamper Signal console</title>
+<style>body{margin:0;background:#07090d;padding:24px}</style></head>
+<body><div id="console"></div>
+<script type="module">
+import { mountReceiptConsole } from "${assetsPrefix}/console.js";
+mountReceiptConsole(document.getElementById("console"), ${JSON.stringify(chainUrl)});
+</script></body></html>
+`;
+}
+
 export function tamperSignal(app, {
   receiptsDir = "receipts/",
   urlPrefix = "/receipts",
   assetsPrefix = "/tamper-signal",
   selector = "header",
 } = {}) {
-  app.use(urlPrefix, receiptsMiddleware({ receiptsDir }));
-  app.use(assetsPrefix, assetsMiddleware());
   const chainUrl = `${urlPrefix}/chain.json`;
+  app.use(urlPrefix, receiptsMiddleware({ receiptsDir }));
+  app.use(assetsPrefix, function tamperSignalConsole(req, res, next) {
+    const name = decodeURIComponent(req.url.split("?")[0].replace(/^\/+/, ""));
+    if ((req.method !== "GET" && req.method !== "HEAD") || name !== "console") return next();
+    res.statusCode = 200;
+    res.setHeader("Content-Type", "text/html");
+    res.end(consolePage(chainUrl, { assetsPrefix }));
+  });
+  app.use(assetsPrefix, assetsMiddleware());
   return {
     chainUrl,
     assetsPrefix,
+    consoleUrl: `${assetsPrefix}/console`,
     snippet: signalSnippet(chainUrl, { assetsPrefix, selector }),
   };
 }

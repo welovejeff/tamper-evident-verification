@@ -250,6 +250,12 @@ These verify SERVER-SIDE with the Python verifier and the pill says so;
 Streamlit cannot serve the receipts directory for the in-browser walk, and
 faking the stronger claim would violate rule 1.
 
+Every attach helper also serves the verification console at
+`<assets_prefix>/console` (e.g. `/tamper-signal/console`): the chain as an
+inspectable pipeline with the break pinned at the severed link, for the
+dashboard's builder and for auditors. Mention it to the user when handing
+over; it is the page to open when the light is anything but green.
+
 Manual fallback when no helper fits: serve the directory statically (Flask
 `static_folder="receipts"`, FastAPI `StaticFiles`, Express
 `express.static("receipts")`), or copy `receipts/` into the public dir of a

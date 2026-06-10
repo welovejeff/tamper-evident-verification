@@ -16,6 +16,7 @@ Run from the repo root: python examples/make_demo_chains.py
 
 from __future__ import annotations
 
+import pathlib
 import shutil
 import sys
 import tempfile
@@ -42,10 +43,11 @@ from tamper_signal.wrapper import receipt_step
 
 INTACT_DIR = "examples/chains/intact"
 TAMPERED_DIR = "examples/chains/tampered"
+GAP_DIR = "examples/chains/gap"
 
 
 def main() -> int:
-    for path in (INTACT_DIR, TAMPERED_DIR):
+    for path in (INTACT_DIR, TAMPERED_DIR, GAP_DIR):
         shutil.rmtree(path, ignore_errors=True)
 
     with tempfile.TemporaryDirectory() as tmp:
@@ -105,6 +107,22 @@ def main() -> int:
         print(f"{INTACT_DIR}: {result.lines[0]}")
 
         _write_tampered_chain_to(INTACT_DIR, TAMPERED_DIR, private_key, public_hex)
+
+        # Coverage-gap fixture (yellow): same receipts, but 002 is renamed to
+        # 003 so the numbering jumps while every link still verifies. This is
+        # the ghost-node case in the console.
+        shutil.copytree(INTACT_DIR, GAP_DIR)
+        gap = pathlib.Path(GAP_DIR)
+        (gap / "002_aggregate.json").rename(gap / "003_aggregate.json")
+        chain_doc = json.loads((gap / "chain.json").read_text())
+        chain_doc["receipts"] = ["000_source.json", "001_clean.json", "003_aggregate.json"]
+        (gap / "chain.json").write_text(json.dumps(chain_doc, indent=2) + "\n")
+        gap_result = verify_chain(
+            load_receipts(GAP_DIR), public_hex,
+            receipt_names=chain_doc["receipts"],
+        )
+        assert gap_result.verdict == "yellow", gap_result.lines
+        print(f"{GAP_DIR}: {gap_result.lines[0]}")
         # The tampered dir keeps the same table data; the chain itself is
         # what's broken there. (copytree already carried table.json over.)
         broken = verify_chain(load_receipts(TAMPERED_DIR), public_hex)

@@ -66,3 +66,18 @@ def test_fastapi_attach_serves_chain_and_assets(tmp_path, monkeypatch):
     asset = client.get(f"{handle.assets_prefix}/light.js")
     assert asset.status_code == 200 and "mountTamperSignal" in asset.text
     assert client.get(f"{handle.assets_prefix}/evil.js").status_code == 404
+
+
+def test_console_routes(tmp_path, monkeypatch):
+    flask = pytest.importorskip("flask")
+    monkeypatch.chdir(tmp_path)
+    _seed_chain(tmp_path)
+
+    from tamper_signal.flask_ext import attach
+
+    app = flask.Flask(__name__)
+    handle = attach(app, receipts_dir=str(tmp_path / "receipts"))
+    client = app.test_client()
+    page = client.get(handle.console_url)
+    assert page.status_code == 200 and b"mountReceiptConsole" in page.data
+    assert client.get(f"{handle.assets_prefix}/console.js").status_code == 200

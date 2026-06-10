@@ -16,7 +16,7 @@ from __future__ import annotations
 from pathlib import Path
 from types import SimpleNamespace
 
-from .integrations import ASSET_NAMES, asset_text, signal_snippet
+from .integrations import ASSET_NAMES, asset_text, console_page, signal_snippet
 
 
 def attach(
@@ -48,10 +48,16 @@ def attach(
             abort(404)
         return Response(asset_text(filename), mimetype="text/javascript")
 
-    app.register_blueprint(blueprint)
     chain_url = f"{url_prefix}/chain.json"
+
+    @blueprint.get(f"{assets_prefix}/console")
+    def _console():
+        return Response(console_page(chain_url, assets_prefix=assets_prefix), mimetype="text/html")
+
+    app.register_blueprint(blueprint)
     return SimpleNamespace(
         chain_url=chain_url,
         assets_prefix=assets_prefix,
+        console_url=f"{assets_prefix}/console",
         snippet=signal_snippet(chain_url, assets_prefix=assets_prefix, selector=selector),
     )

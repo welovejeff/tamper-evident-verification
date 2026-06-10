@@ -1,6 +1,6 @@
 {
   "name": "tamper-signal",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Signed receipts for vibe-coded data pipelines. Proves nobody changed your data, and shows the exact link if they did.",
   "type": "module",
   "license": "MIT",
@@ -15,6 +15,7 @@
     "./badge": "./badge/badge.js",
     "./element": "./badge/element.js",
     "./table": "./badge/table.js",
+    "./console": "./badge/console.js",
     "./express": "./node/express.js",
     "./react": "./badge/light-react.js"
   },
@@ -27,6 +28,7 @@
     "badge/light.js",
     "badge/element.js",
     "badge/table.js",
+    "badge/console.js",
     "badge/light-react.js",
     "AGENTS.md"
   ],

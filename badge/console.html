@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Tamper Signal: the verification console</title>
+    <style>
+      body {
+        margin: 0;
+        background: #07090d;
+        font-family: ui-monospace, "SF Mono", Menlo, monospace;
+        color: #8b98a5;
+        padding: 32px 20px 80px;
+      }
+      .note { max-width: 1020px; margin: 0 auto 16px; font-size: 12px; line-height: 1.5; }
+      .note strong { color: #e5e7eb; }
+      .pick { max-width: 1020px; margin: 0 auto 16px; display: flex; gap: 10px; }
+      .pick button {
+        font: 11px ui-monospace, Menlo, monospace;
+        border: 1px solid #1f2937; background: #11161d; color: #8b98a5;
+        border-radius: 8px; padding: 8px 14px; cursor: pointer;
+        display: inline-flex; align-items: center; gap: 8px;
+      }
+      .pick button i { width: 8px; height: 8px; border-radius: 50%; display: block; }
+      .pick button[data-c="intact"] i { background: #34d399; }
+      .pick button[data-c="gap"] i { background: #fbbf24; }
+      .pick button[data-c="tampered"] i { background: #f87171; }
+      .pick button[aria-pressed="true"] { border-color: #3d4854; color: #e5e7eb; background: #161d26; }
+      .stage { max-width: 1020px; margin: 0 auto; }
+    </style>
+  </head>
+  <body>
+    <p class="note">
+      <strong>THE VERIFICATION CONSOLE, LIVE.</strong>
+      Devtools-for-data: the chain as a pipeline, the break pinned at the
+      severed link, coverage gaps as ghost nodes, and an event log that
+      mirrors <strong>receipts verify</strong>. Every render is a real
+      Web Crypto verification of a committed chain. Click a node to inspect
+      its receipt.
+    </p>
+    <div class="pick">
+      <button type="button" data-c="intact" aria-pressed="true"><i></i>INTACT</button>
+      <button type="button" data-c="gap" aria-pressed="false"><i></i>COVERAGE GAP</button>
+      <button type="button" data-c="tampered" aria-pressed="false"><i></i>TAMPERED</button>
+    </div>
+    <div class="stage" id="stage"></div>
+
+    <script type="module">
+      import { mountReceiptConsole } from "./console.js";
+
+      const stage = document.getElementById("stage");
+      const buttons = [...document.querySelectorAll(".pick button")];
+      let handle = null;
+
+      function show(name) {
+        buttons.forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.c === name)));
+        if (handle) handle.destroy();
+        handle = mountReceiptConsole(stage, `../examples/chains/${name}/chain.json`);
+      }
+      buttons.forEach((b) => b.addEventListener("click", () => show(b.dataset.c)));
+      show("intact");
+    </script>
+  </body>
+</html>
