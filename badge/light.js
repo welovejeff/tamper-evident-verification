@@ -7,7 +7,10 @@
 // mountTamperSignal(hostEl, chainUrl, pubKeyHex?, opts?)
 //   Same argument contract as renderReceiptBadge, with the light appended to
 //   hostEl rather than replacing its contents. Returns a handle:
-//   { el, refresh(), destroy(), getState() }.
+//   { el, ready, refresh(), destroy(), getState(), setOpen(open) }.
+//   `ready` resolves with the first verification result; setOpen() opens or
+//   closes the popover programmatically (demo pages use it to present the
+//   verdict without waiting for a click).
 //
 //   opts:
 //     watch        re-verify every N ms and pulse on state transitions
@@ -414,6 +417,7 @@ export function mountTamperSignal(hostEl, chainUrl, pubKeyHex, opts) {
     ready,
     refresh,
     getState: () => state,
+    setOpen,
     destroy() {
       destroyed = true;
       if (timer) clearInterval(timer);
