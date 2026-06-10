@@ -157,6 +157,14 @@ def normalize_cell(value: Any) -> str | bool | None:
             return decimal_to_plain_string(d)
         return _normalize_string(str(value))
     if isinstance(value, str):
+        # Numeric-looking text canonicalizes as the number it parses to, so a
+        # format round-trip that stringifies numbers (xlsx -> CSV -> JSON)
+        # cannot move the hash. Tradeoff: text differing from a number only by
+        # leading zeros or trailing decimal zeros ("030", "30.00") collapses
+        # to the canonical numeric form. Non-numeric text is untouched.
+        d = _coerce_decimal(value)
+        if d is not None:
+            return decimal_to_plain_string(d)
         return _normalize_string(value)
     # Fallback for any other openpyxl-returned type: stringify and normalize.
     return _normalize_string(str(value))
@@ -391,6 +399,108 @@ def write_xlsx(records: list[dict[str, Any]], path: str, sheet: str = "Sheet1") 
         worksheet.append([record.get(column) for column in columns])
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     workbook.save(path)
+
+
+# ---------------------------------------------------------------------------
+# CSV / JSON loading
+# ---------------------------------------------------------------------------
+def load_csv(path: str, *, delimiter: str = ",") -> list[dict[str, Any]]:
+    """Parse a CSV into a list-of-dicts keyed by normalized headers.
+
+    First row is headers. Cells arrive as strings; numeric-looking text hashes
+    identically to real numbers by design, and date-shaped text matches the
+    canonical form xlsx dates normalize to, so an xlsx -> CSV round-trip keeps
+    the semantic hash stable. Empty cells become None to match how empty xlsx
+    cells parse (otherwise the same data would hash differently per format).
+    Reads utf-8-sig so the BOM Excel prepends to CSV exports is not folded
+    into the first header.
+    """
+    import csv
+
+    with open(path, newline="", encoding="utf-8-sig") as handle:
+        reader = csv.reader(handle, delimiter=delimiter)
+        try:
+            header_row = next(reader)
+        except StopIteration:
+            return []
+        headers = normalize_headers(list(header_row))
+        records: list[dict[str, Any]] = []
+        for raw in reader:
+            if not raw or all(cell == "" for cell in raw):
+                continue
+            padded = list(raw) + [""] * (len(headers) - len(raw))
+            records.append(
+                {headers[i]: (padded[i] if padded[i] != "" else None) for i in range(len(headers))}
+            )
+        return records
+
+
+def load_json_records(path: str) -> list[dict[str, Any]]:
+    """Parse a JSON file holding an array of flat objects.
+
+    The only accepted shape is a top-level array of objects (the shape
+    `json.dump(records)` produces). Values should be scalars; nested
+    structures are stringified deterministically rather than rejected.
+    """
+    import json
+
+    data = json.loads(Path(path).read_text(encoding="utf-8-sig"))
+    if not isinstance(data, list) or not all(isinstance(item, dict) for item in data):
+        raise ValueError(
+            f"{path}: expected a JSON array of objects "
+            "(for line-delimited JSON use a .ndjson/.jsonl file)"
+        )
+    return data
+
+
+def load_ndjson(path: str) -> list[dict[str, Any]]:
+    """Parse newline-delimited JSON (one object per non-empty line)."""
+    import json
+
+    records: list[dict[str, Any]] = []
+    with open(path, encoding="utf-8-sig") as handle:
+        for line_number, line in enumerate(handle, start=1):
+            text = line.strip()
+            if not text:
+                continue
+            item = json.loads(text)
+            if not isinstance(item, dict):
+                raise ValueError(f"{path}:{line_number}: expected a JSON object per line")
+            records.append(item)
+    return records
+
+
+_LOADERS = {
+    ".xlsx": "xlsx",
+    ".xlsm": "xlsx",
+    ".csv": "csv",
+    ".tsv": "tsv",
+    ".json": "json",
+    ".ndjson": "ndjson",
+    ".jsonl": "ndjson",
+}
+
+
+def load_records(path: str, sheet: str | None = None) -> list[dict[str, Any]]:
+    """Load a data file into list-of-dicts, dispatching on file extension.
+
+    Supports .xlsx/.xlsm (first worksheet or `sheet`), .csv, .tsv, .json
+    (array of objects), and .ndjson/.jsonl. All formats canonicalize through
+    the same path, so the same values hash identically regardless of format.
+    """
+    kind = _LOADERS.get(Path(path).suffix.lower())
+    if kind == "xlsx":
+        return load_xlsx(path, sheet=sheet)
+    if kind == "csv":
+        return load_csv(path)
+    if kind == "tsv":
+        return load_csv(path, delimiter="\t")
+    if kind == "json":
+        return load_json_records(path)
+    if kind == "ndjson":
+        return load_ndjson(path)
+    supported = ", ".join(sorted(_LOADERS))
+    raise ValueError(f"Unsupported data file {path!r}: expected one of {supported}")
 
 
 # ---------------------------------------------------------------------------

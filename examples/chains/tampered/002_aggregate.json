@@ -1,10 +1,10 @@
 {
   "kind": "transform_receipt",
-  "spec_version": "1.0",
-  "created_at": "2026-06-10T17:46:58Z",
+  "spec_version": "1.1",
+  "created_at": "2026-06-10T19:28:11Z",
   "transform": {
     "name": "aggregate",
-    "code_hash": "e67fc4ebc7fc749973d6d38e1a625facafe9fa4b129c983f4b5c8400f876e23a",
+    "code_hash": "ba0968560b016c8743d8a247d847220b3bb42ede28abc904a4180bee232c3a22",
     "code_file": "examples/transform_aggregate.py"
   },
   "input_semantic_hash": "5f5e9017b95f6d71248fbc1bc6fd3e27cecfb8b7f59e615f04633f7373ef34f4",
@@ -22,7 +22,7 @@
   },
   "signature": {
     "alg": "ed25519",
-    "key_fingerprint": "89ad88b44c90e00c",
-    "value": "00b6f9e2f2193574329d41125855c6a8f1670a6ddbd2e19c9bdf37c5a8e6e793343a448686a11b0999f3ccdc53cd34dbb4b567b8b51c2bb1e374cd4e3d1a0705"
+    "key_fingerprint": "18e478591ce21373",
+    "value": "20a113b668c803406d4a6eeeade408013771137368129385de0a36c206927a1fc03c512eb874411a4bf06517e7d2f0c7fdb1bfaf1de5931e95351e45fa62ee07"
   }
 }

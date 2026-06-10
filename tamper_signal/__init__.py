@@ -10,7 +10,12 @@ This proves continuity, not correctness. If the source export is wrong, the
 chain faithfully verifies wrong numbers.
 """
 
-SPEC_VERSION = "1.0"
+# 1.1: numeric-looking text canonicalizes as the number it parses to (cell
+# normalization), so format round-trips that stringify numbers keep the
+# semantic hash stable. Chains recorded under 1.0 still verify; receipts
+# created for the same data before/after this change can differ in semantic
+# hash when text cells carry non-canonical numeric forms ("30.00" vs 30.0).
+SPEC_VERSION = "1.1"
 
 from .wrapper import receipt_step
 

@@ -69,6 +69,85 @@ def test_round_trip_xlsx_and_memory(tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# 1b. Cross-format stability: xlsx, CSV, JSON, NDJSON hash identically
+# ---------------------------------------------------------------------------
+def test_same_data_hashes_identically_across_formats(tmp_path):
+    import csv
+    import json
+
+    from tamper_signal.canonical import load_records
+
+    records = sample_records()
+    expected = semantic_hash(records)
+
+    xlsx_path = tmp_path / "data.xlsx"
+    write_xlsx(records, str(xlsx_path))
+
+    headers = list(records[0].keys())
+    iso = lambda v: v.isoformat() if hasattr(v, "isoformat") else v
+    csv_path = tmp_path / "data.csv"
+    with open(csv_path, "w", newline="", encoding="utf-8") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(headers)
+        for r in records:
+            # Dates as ISO strings, exactly how a CSV export carries them.
+            writer.writerow([iso(r[h]) for h in headers])
+
+    json_path = tmp_path / "data.json"
+    json_path.write_text(
+        json.dumps([{k: iso(v) for k, v in r.items()} for r in records]),
+        encoding="utf-8",
+    )
+
+    ndjson_path = tmp_path / "data.ndjson"
+    ndjson_path.write_text(
+        "\n".join(json.dumps({k: iso(v) for k, v in r.items()}) for r in records),
+        encoding="utf-8",
+    )
+
+    for path in (xlsx_path, csv_path, json_path, ndjson_path):
+        assert semantic_hash(load_records(str(path))) == expected, path.suffix
+
+
+def test_empty_csv_cell_matches_empty_xlsx_cell(tmp_path):
+    from tamper_signal.canonical import load_records
+
+    records = [{"a": 1, "b": None}, {"a": 2, "b": "x"}]
+    xlsx_path = tmp_path / "d.xlsx"
+    write_xlsx(records, str(xlsx_path))
+    (tmp_path / "d.csv").write_text("a,b\n1,\n2,x\n", encoding="utf-8")
+
+    assert (
+        semantic_hash(load_records(str(xlsx_path)))
+        == semantic_hash(load_records(str(tmp_path / "d.csv")))
+    )
+
+
+def test_csv_bom_is_not_folded_into_first_header(tmp_path):
+    from tamper_signal.canonical import load_records
+
+    (tmp_path / "bom.csv").write_text("﻿a,b\n1,2\n", encoding="utf-8")
+    records = load_records(str(tmp_path / "bom.csv"))
+    assert list(records[0].keys()) == ["a", "b"]
+
+
+def test_load_records_rejects_unknown_extension(tmp_path):
+    from tamper_signal.canonical import load_records
+
+    (tmp_path / "data.parquet").write_bytes(b"")
+    with pytest.raises(ValueError, match="Unsupported data file"):
+        load_records(str(tmp_path / "data.parquet"))
+
+
+def test_load_json_rejects_non_array(tmp_path):
+    from tamper_signal.canonical import load_json_records
+
+    (tmp_path / "obj.json").write_text('{"a": 1}', encoding="utf-8")
+    with pytest.raises(ValueError, match="array of objects"):
+        load_json_records(str(tmp_path / "obj.json"))
+
+
+# ---------------------------------------------------------------------------
 # 2. Sensitivity
 # ---------------------------------------------------------------------------
 def test_changing_a_cell_changes_hash():
@@ -92,6 +171,20 @@ def test_int_float_text_number_hash_identically():
     b = [{"x": 1.0}]
     c = [{"x": "1"}]
     assert semantic_hash(a) == semantic_hash(b) == semantic_hash(c)
+
+
+def test_numeric_text_collapses_to_canonical_form():
+    # Spec 1.1: "30.00" text must hash like 30.0 the float and "30" the text,
+    # so xlsx -> CSV conversions (which stringify numbers) keep the hash.
+    assert (
+        semantic_hash([{"x": "30.00"}])
+        == semantic_hash([{"x": 30.0}])
+        == semantic_hash([{"x": "30"}])
+        == semantic_hash([{"x": 30}])
+    )
+    # Non-numeric text is untouched, and non-finite numeric text stays text.
+    assert semantic_hash([{"x": "30x"}]) != semantic_hash([{"x": 30}])
+    assert semantic_hash([{"x": "Infinity"}]) != semantic_hash([{"x": "NaN"}])
 
 
 def test_float_quantizes_stably():

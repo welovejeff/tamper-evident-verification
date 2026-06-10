@@ -15,7 +15,7 @@ from pathlib import Path
 
 from .canonical import (
     evidence_hash,
-    load_xlsx,
+    load_records,
     semantic_hash,
 )
 from .keys import generate_keys, load_private_key, load_public_key_hex, public_hex_from_private
@@ -45,7 +45,7 @@ def cmd_keygen(args: argparse.Namespace) -> int:
 def cmd_ingest(args: argparse.Namespace) -> int:
     source_path = Path(args.file)
     raw = source_path.read_bytes()
-    records = load_xlsx(str(source_path), sheet=args.sheet)
+    records = load_records(str(source_path), sheet=args.sheet)
 
     private_key = load_private_key(args.key)
     public_hex = public_hex_from_private(private_key)
@@ -93,7 +93,7 @@ def cmd_verify(args: argparse.Namespace) -> int:
     data_hash = None
     data_totals = None
     if args.data:
-        records = load_xlsx(args.data, sheet=args.sheet)
+        records = load_records(args.data, sheet=args.sheet)
         data_hash = semantic_hash(records)
         data_totals = control_totals(records)
 
@@ -130,11 +130,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_keygen.set_defaults(func=cmd_keygen)
 
     p_ingest = sub.add_parser("ingest", help="Create a signed source manifest")
-    p_ingest.add_argument("file", help="Source .xlsx file")
+    p_ingest.add_argument("file", help="Source data file (.xlsx, .csv, .tsv, .json, .ndjson)")
     p_ingest.add_argument("--origin", default="", help="Free-text declared origin")
     p_ingest.add_argument("--key", default="keys/signing.key", help="Private key path")
     p_ingest.add_argument("--out", default="receipts/", help="Receipts directory")
-    p_ingest.add_argument("--sheet", default=None, help="Worksheet name (optional)")
+    p_ingest.add_argument("--sheet", default=None, help="Worksheet name (xlsx only, optional)")
     p_ingest.set_defaults(func=cmd_ingest)
 
     p_verify = sub.add_parser(
@@ -143,8 +143,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_verify.add_argument("chain", help="Path to chain.json")
     p_verify.add_argument("--pub", default=None, help="Public key (.pub) path")
-    p_verify.add_argument("--data", default=None, help="Current data file to check")
-    p_verify.add_argument("--sheet", default=None, help="Worksheet name (optional)")
+    p_verify.add_argument("--data", default=None, help="Current data file to check (.xlsx, .csv, .tsv, .json, .ndjson)")
+    p_verify.add_argument("--sheet", default=None, help="Worksheet name (xlsx only, optional)")
     p_verify.add_argument(
         "--warn-drift",
         action="store_true",

@@ -1,13 +1,13 @@
 {
   "kind": "transform_receipt",
-  "spec_version": "1.0",
-  "created_at": "2026-06-10T17:46:57Z",
+  "spec_version": "1.1",
+  "created_at": "2026-06-10T19:28:10Z",
   "transform": {
     "name": "clean",
-    "code_hash": "2d9ce472b84b4de2118a0b5cf22882e3a1e6af50cb8f620bc9166343f1d19496",
+    "code_hash": "d0ce5ce47e198f7b6cfc2f92643ff90f458aec500cfbd2646b47a935f7099ed1",
     "code_file": "examples/transform_clean.py"
   },
-  "input_semantic_hash": "1a05af341f9fabce925c6781d0711822b9c681df785a1606b676d99413465446",
+  "input_semantic_hash": "6112c042990f87f98d2e2d4cc0a03327f71525049118a10971c475904bb2354c",
   "output_semantic_hash": "5f5e9017b95f6d71248fbc1bc6fd3e27cecfb8b7f59e615f04633f7373ef34f4",
   "output_control_totals": {
     "row_count": 4987,
@@ -27,7 +27,7 @@
   },
   "signature": {
     "alg": "ed25519",
-    "key_fingerprint": "89ad88b44c90e00c",
-    "value": "5c4d882105add2a71ce7a0c70f41ee54581873353fd18e050ec58f777edc6f1d04771fce3acd37e946da8c3e62583a7cc8dd36a0742c90bcb3363496cc7fee0e"
+    "key_fingerprint": "18e478591ce21373",
+    "value": "4bc21d555456953b457ecb86c76a422e9474e99fe01c9e12b41f6f8d97e7a1469e6d1550f1bfeb28530044f459831a56192bd151fe4785d4e930c6116f7fcf0e"
   }
 }
