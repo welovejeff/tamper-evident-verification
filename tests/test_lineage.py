@@ -207,6 +207,113 @@ def test_tampered_intermediate_caught_at_link_with_delta(keypair):
 
 
 # ---------------------------------------------------------------------------
+# 5b. Yellow verdict: verifies, with caveats
+# ---------------------------------------------------------------------------
+def test_clean_chain_is_green(keypair):
+    private, public_hex = keypair
+    _records, chain = _identity_chain(private, public_hex)
+    result = verify_chain(
+        chain,
+        public_hex,
+        receipt_names=["000_source.json", "001_t1.json", "002_t2.json"],
+    )
+    assert result.verdict == "green"
+    assert result.ok
+    assert not result.caveats
+
+
+def test_unrecognized_signing_key_is_yellow(tmp_path):
+    # Chain signed by key A; the caller trusts key B but the chain embeds A.
+    generate_keys(str(tmp_path / "ka"))
+    generate_keys(str(tmp_path / "kb"))
+    a = load_private_key(str(tmp_path / "ka" / "signing.key"))
+    a_pub = public_hex_from_private(a)
+    b_pub = public_hex_from_private(load_private_key(str(tmp_path / "kb" / "signing.key")))
+    _records, chain = _identity_chain(a, a_pub)
+
+    result = verify_chain(chain, b_pub, chain_public_hex=a_pub)
+    assert result.verdict == "yellow"
+    assert result.ok  # verifiable, with caveats: not broken, not blessed
+    assert any("unrecognized signing key" in c for c in result.caveats)
+
+    # Without the chain key to fall back to, the same mismatch stays red.
+    result = verify_chain(chain, b_pub)
+    assert result.verdict == "red"
+
+
+def test_garbage_signature_is_red_even_with_chain_key_fallback(tmp_path):
+    generate_keys(str(tmp_path / "ka"))
+    a = load_private_key(str(tmp_path / "ka" / "signing.key"))
+    a_pub = public_hex_from_private(a)
+    _records, chain = _identity_chain(a, a_pub)
+    chain[1]["signature"]["value"] = "00" * 64
+
+    result = verify_chain(chain, a_pub, chain_public_hex=a_pub)
+    assert result.verdict == "red"
+    assert any("SIGNATURE INVALID" in line for line in result.lines)
+
+
+def test_coverage_gap_is_yellow(keypair):
+    private, public_hex = keypair
+    _records, chain = _identity_chain(private, public_hex)
+    result = verify_chain(
+        chain,
+        public_hex,
+        receipt_names=["000_source.json", "001_t1.json", "003_t2.json"],
+    )
+    assert result.verdict == "yellow"
+    assert any("coverage gap" in c for c in result.caveats)
+
+
+def test_unnumbered_receipt_names_are_not_flagged(keypair):
+    # Hand-named receipt sets opt out of numbering checks.
+    private, public_hex = keypair
+    _records, chain = _identity_chain(private, public_hex)
+    result = verify_chain(
+        chain, public_hex, receipt_names=["source.json", "t1.json", "t2.json"]
+    )
+    assert result.verdict == "green"
+
+
+def test_warn_drift_flags_totals_movement(keypair):
+    private, public_hex = keypair
+    records, chain = _identity_chain(private, public_hex)
+
+    # Rebuild the final receipt with one row fewer in its recorded totals while
+    # keeping the hash links intact: a signed, linking chain whose totals move.
+    h = output_hash_of(chain[1])
+    chain[2] = build_transform_receipt(
+        name="t2", code_hash="c2", code_file="f.py",
+        input_semantic_hash=h, output_semantic_hash=h,
+        output_records=records[:-1], private_key=private,
+    )
+
+    assert verify_chain(chain, public_hex).verdict == "green"
+    result = verify_chain(chain, public_hex, warn_drift=True)
+    assert result.verdict == "yellow"
+    assert any("totals drift" in c and "row_count" in c for c in result.caveats)
+
+
+def test_red_takes_precedence_over_caveats(keypair):
+    private, public_hex = keypair
+    records, chain = _identity_chain(private, public_hex)
+    # Break link 1 -> 2 and also present a numbering gap.
+    chain[2] = build_transform_receipt(
+        name="t2", code_hash="c2", code_file="f.py",
+        input_semantic_hash="f" * 64, output_semantic_hash=semantic_hash(records),
+        output_records=records, private_key=private,
+    )
+    result = verify_chain(
+        chain,
+        public_hex,
+        receipt_names=["000_source.json", "001_t1.json", "003_t2.json"],
+    )
+    assert result.verdict == "red"
+    assert result.broken_link == 2
+    assert not result.caveats
+
+
+# ---------------------------------------------------------------------------
 # 6. Code hash
 # ---------------------------------------------------------------------------
 def test_editing_function_changes_code_hash():

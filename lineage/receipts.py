@@ -248,16 +248,31 @@ def load_receipts(chain_dir: str) -> list[dict[str, Any]]:
 # Verification
 # ---------------------------------------------------------------------------
 class ChainResult:
-    """Outcome of verifying a chain."""
+    """Outcome of verifying a chain.
+
+    `ok` means the chain verifies (green or yellow). `verdict` is the traffic
+    light: "green" (intact, no caveats), "yellow" (verifies, with caveats a
+    human should look at), "red" (broken, with the exact link).
+    """
 
     def __init__(self) -> None:
         self.ok: bool = True
         self.lines: list[str] = []  # human-legible report lines
         self.broken_link: int | None = None  # downstream index of first break
+        self.caveats: list[str] = []  # yellow-verdict caveats, one per finding
+
+    @property
+    def verdict(self) -> str:
+        if not self.ok:
+            return "red"
+        return "yellow" if self.caveats else "green"
 
     def fail(self, *lines: str) -> None:
         self.ok = False
         self.lines.extend(lines)
+
+    def caveat(self, text: str) -> None:
+        self.caveats.append(text)
 
 
 def verify_signature(receipt: dict[str, Any], public_hex: str) -> bool:
@@ -275,11 +290,45 @@ def verify_signature(receipt: dict[str, Any], public_hex: str) -> bool:
     return verify(public_hex, message, signature["value"])
 
 
+def _fingerprint_or(public_hex: str | None, fallback: str = "<malformed key>") -> str:
+    """Fingerprint of a raw-hex public key, or a safe placeholder."""
+    try:
+        return key_fingerprint(bytes.fromhex(public_hex or ""))
+    except ValueError:
+        return fallback
+
+
+def _coverage_gaps(receipt_names: list[str]) -> list[str]:
+    """Gaps in the generated NNN_ receipt numbering, e.g. 000,001,003.
+
+    Only meaningful when every filename carries the numeric prefix the writer
+    generates; hand-named receipt sets opt out rather than getting flagged.
+    Returns one human-legible fragment per gap.
+    """
+    indices: list[int] = []
+    for name in receipt_names:
+        prefix = name.split("_", 1)[0]
+        if not (len(prefix) == 3 and prefix.isdigit()):
+            return []
+        indices.append(int(prefix))
+    gaps: list[str] = []
+    if indices and indices[0] != 0:
+        gaps.append(f"chain starts at {indices[0]:03d}, not 000")
+    for pos in range(1, len(indices)):
+        if indices[pos] != indices[pos - 1] + 1:
+            gaps.append(f"numbering jumps {indices[pos - 1]:03d} -> {indices[pos]:03d}")
+    return gaps
+
+
 def verify_chain(
     receipts: list[dict[str, Any]],
     public_hex: str,
     data_semantic_hash: str | None = None,
     data_totals: dict[str, Any] | None = None,
+    *,
+    chain_public_hex: str | None = None,
+    receipt_names: list[str] | None = None,
+    warn_drift: bool = False,
 ) -> ChainResult:
     """Verify signatures, links, and (optionally) a current-data hash.
 
@@ -287,6 +336,19 @@ def verify_chain(
     hash == receipt N-1 output hash); if data_semantic_hash is given, that it
     matches the final receipt's output hash. On the first broken link, emits the
     pinpointed report including the totals delta between adjacent receipts.
+
+    The keyword-only arguments feed the yellow verdict (verifies, with caveats):
+
+    - chain_public_hex: the key embedded in chain.json. A receipt whose
+      signature fails under the trusted `public_hex` but verifies under this
+      key makes the chain internally consistent yet vouched for by a key the
+      caller does not trust: the "unrecognized signing key" caveat, not a
+      broken chain. Signatures invalid under both keys are still red.
+    - receipt_names: the filenames listed in chain.json. A gap in their NNN_
+      numbering suggests a stage ran without leaving a receipt (coverage gap).
+    - warn_drift: flag any control-totals movement across intact links as a
+      caveat. Off by default because filters and aggregations legitimately
+      move totals; turn it on for pipelines expected to preserve them.
     """
     result = ChainResult()
 
@@ -294,14 +356,27 @@ def verify_chain(
         result.fail("✗ CHAIN EMPTY: no receipts to verify")
         return result
 
-    # 1) Signatures.
+    # 1) Signatures, against the trusted key first, the chain key as fallback.
+    unrecognized: list[int] = []
+    use_fallback = bool(chain_public_hex) and chain_public_hex != public_hex
     for index, receipt in enumerate(receipts):
-        if not verify_signature(receipt, public_hex):
-            result.fail(
-                f"✗ SIGNATURE INVALID on receipt {index} ({stage_name_of(receipt)})"
-            )
+        if verify_signature(receipt, public_hex):
+            continue
+        if use_fallback and verify_signature(receipt, chain_public_hex):
+            unrecognized.append(index)
+            continue
+        result.fail(
+            f"✗ SIGNATURE INVALID on receipt {index} ({stage_name_of(receipt)})"
+        )
     if not result.ok:
         return result
+    if unrecognized:
+        stages = ", ".join(stage_name_of(receipts[i]) for i in unrecognized)
+        result.caveat(
+            f"unrecognized signing key: {len(unrecognized)} receipt(s) ({stages}) "
+            f"verify under the chain's embedded key {_fingerprint_or(chain_public_hex)}, "
+            f"not the trusted key {_fingerprint_or(public_hex)}"
+        )
 
     # 2) Links.
     for index in range(1, len(receipts)):
@@ -341,12 +416,38 @@ def verify_chain(
             )
             return result
 
+    # 4) Yellow caveats. Only reachable when the chain itself verifies; red
+    # findings above return early and take precedence.
+    for gap in _coverage_gaps(receipt_names or []):
+        result.caveat(
+            f"coverage gap: receipt {gap}; a stage may have run "
+            "without leaving a receipt"
+        )
+
+    if warn_drift:
+        for index in range(1, len(receipts)):
+            delta = totals_delta(totals_of(receipts[index - 1]), totals_of(receipts[index]))
+            if delta:
+                result.caveat(
+                    f"totals drift at link {index - 1} -> {index} "
+                    f"({stage_name_of(receipts[index])}): " + ", ".join(delta)
+                )
+
     rows = totals_of(receipts[-1]).get("row_count", "?")
     transforms = sum(1 for r in receipts if r["kind"] == "transform_receipt")
-    result.lines.append(
-        f"✓ CHAIN INTACT: {len(receipts)} receipts, {transforms} transforms, "
-        f"final row_count {rows}"
-    )
+    if result.caveats:
+        result.lines.append(
+            f"⚠ CHAIN VERIFIES, WITH CAVEATS: {len(receipts)} receipts, "
+            f"{transforms} transforms, final row_count {rows}"
+        )
+        for caveat in result.caveats:
+            result.lines.append(f"  - {caveat}")
+        result.lines.append("  A human should look.")
+    else:
+        result.lines.append(
+            f"✓ CHAIN INTACT: {len(receipts)} receipts, {transforms} transforms, "
+            f"final row_count {rows}"
+        )
     return result
 
 

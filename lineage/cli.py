@@ -84,7 +84,8 @@ def cmd_verify(args: argparse.Namespace) -> int:
         return 1
 
     # Public key precedence: explicit --pub, else the key embedded in chain.json.
-    public_hex = load_public_key_hex(args.pub) if args.pub else chain.get("public_key")
+    chain_key = chain.get("public_key")
+    public_hex = load_public_key_hex(args.pub) if args.pub else chain_key
     if not public_hex:
         print("No public key: pass --pub or embed one in chain.json", file=sys.stderr)
         return 1
@@ -96,10 +97,19 @@ def cmd_verify(args: argparse.Namespace) -> int:
         data_hash = semantic_hash(records)
         data_totals = control_totals(records)
 
-    result = verify_chain(receipts, public_hex, data_hash, data_totals)
+    result = verify_chain(
+        receipts,
+        public_hex,
+        data_hash,
+        data_totals,
+        chain_public_hex=chain_key,
+        receipt_names=chain.get("receipts", []),
+        warn_drift=args.warn_drift,
+    )
     for line in result.lines:
         print(line)
-    return 0 if result.ok else 1
+    # Exit codes are the traffic light: 0 green, 1 red, 2 yellow.
+    return {"green": 0, "red": 1, "yellow": 2}[result.verdict]
 
 
 def cmd_demo(args: argparse.Namespace) -> int:
@@ -127,11 +137,20 @@ def build_parser() -> argparse.ArgumentParser:
     p_ingest.add_argument("--sheet", default=None, help="Worksheet name (optional)")
     p_ingest.set_defaults(func=cmd_ingest)
 
-    p_verify = sub.add_parser("verify", help="Verify a receipt chain")
+    p_verify = sub.add_parser(
+        "verify",
+        help="Verify a receipt chain (exit 0 green, 1 red, 2 yellow)",
+    )
     p_verify.add_argument("chain", help="Path to chain.json")
     p_verify.add_argument("--pub", default=None, help="Public key (.pub) path")
     p_verify.add_argument("--data", default=None, help="Current data file to check")
     p_verify.add_argument("--sheet", default=None, help="Worksheet name (optional)")
+    p_verify.add_argument(
+        "--warn-drift",
+        action="store_true",
+        help="Flag any control-totals movement across links as a yellow caveat "
+        "(for pipelines expected to preserve totals)",
+    )
     p_verify.set_defaults(func=cmd_verify)
 
     p_demo = sub.add_parser("demo", help="Run the full end-to-end demo")

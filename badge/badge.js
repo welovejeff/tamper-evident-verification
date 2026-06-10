@@ -3,8 +3,13 @@
 // renderLineageBadge(containerEl, chainUrl, pubKeyHex)
 //   Fetches chain.json and every receipt, re-verifies all signatures with Web
 //   Crypto Ed25519, re-checks all hash links (receipt N input == receipt N-1
-//   output), and renders a collapsed green/red badge that expands to per-stage
-//   detail. The browser does NOT re-canonicalize xlsx; it only re-links hashes.
+//   output), and renders a collapsed green/yellow/red badge that expands to
+//   per-stage detail. Yellow means the chain verifies, with caveats (coverage
+//   gap in the receipt numbering, or signatures that only verify under the
+//   chain's embedded key rather than the caller-supplied trusted key). The
+//   separate amber state ("could not load" / "unsupported browser") is a
+//   capability fallback, not a verdict: it says nothing about the chain.
+//   The browser does NOT re-canonicalize xlsx; it only re-links hashes.
 //
 // pubKeyHex is optional; when omitted the key embedded in chain.json is used.
 
@@ -137,6 +142,62 @@ async function loadChain(chainUrl) {
   return { chain, receipts };
 }
 
+// Gaps in the generated NNN_ receipt numbering, mirroring lineage/receipts.py's
+// _coverage_gaps. Hand-named receipt sets (no numeric prefix) opt out.
+function coverageGaps(receiptNames) {
+  const indices = [];
+  for (const name of receiptNames) {
+    const prefix = String(name).split("_", 1)[0];
+    if (!/^[0-9]{3}$/.test(prefix)) return [];
+    indices.push(parseInt(prefix, 10));
+  }
+  const gaps = [];
+  if (indices.length && indices[0] !== 0) {
+    gaps.push(`chain starts at ${String(indices[0]).padStart(3, "0")}, not 000`);
+  }
+  for (let i = 1; i < indices.length; i++) {
+    if (indices[i] !== indices[i - 1] + 1) {
+      const a = String(indices[i - 1]).padStart(3, "0");
+      const b = String(indices[i]).padStart(3, "0");
+      gaps.push(`numbering jumps ${a} -> ${b}`);
+    }
+  }
+  return gaps;
+}
+
+// Signature pass mirroring lineage/receipts.py: every receipt is checked
+// against the trusted key; one that fails there but verifies under the key
+// embedded in chain.json means the chain is internally consistent but vouched
+// for by a key the caller does not trust (yellow), not broken (red).
+async function checkSignatures(receipts, trustedKeyHex, chainKeyHex) {
+  let valid = true;
+  let unrecognized = false;
+  const useFallback = chainKeyHex && chainKeyHex !== trustedKeyHex;
+  for (const r of receipts) {
+    let ok = false;
+    try {
+      ok = await verifySignature(r, trustedKeyHex);
+    } catch (_e) {
+      ok = false;
+    }
+    if (ok) continue;
+    if (useFallback) {
+      let chainOk = false;
+      try {
+        chainOk = await verifySignature(r, chainKeyHex);
+      } catch (_e) {
+        chainOk = false;
+      }
+      if (chainOk) {
+        unrecognized = true;
+        continue;
+      }
+    }
+    valid = false;
+  }
+  return { valid, unrecognized };
+}
+
 function evaluate(receipts) {
   // Returns {ok, brokenAt, brokenStage, delta}. Signatures checked separately.
   for (let i = 1; i < receipts.length; i++) {
@@ -179,6 +240,9 @@ function injectStyles() {
   .lineage-badge.lb-red .lb-mark{color:#b42318}
   .lineage-badge.lb-amber{border-color:#fedf89}
   .lineage-badge.lb-amber .lb-mark{color:#b54708}
+  .lineage-badge.lb-yellow{border-color:#fedf89}
+  .lineage-badge.lb-yellow .lb-mark{color:#b54708}
+  .lineage-badge .lb-caveats{margin-top:8px;color:#b54708;font-size:13px}
   .lineage-badge .lb-body{border-top:1px solid #eaecf0;padding:10px 14px;display:none}
   .lineage-badge.lb-open .lb-body{display:block}
   .lineage-badge table{border-collapse:collapse;width:100%;font-size:13px}
@@ -247,15 +311,8 @@ export async function renderLineageBadge(containerEl, chainUrl, pubKeyHex) {
     return;
   }
 
-  // Re-verify every signature first.
-  let signaturesOk = true;
-  for (const r of receipts) {
-    try {
-      if (!(await verifySignature(r, keyHex))) signaturesOk = false;
-    } catch (_e) {
-      signaturesOk = false;
-    }
-  }
+  // Re-verify every signature first (trusted key, chain key as fallback).
+  const sigResult = await checkSignatures(receipts, keyHex, chain.public_key);
 
   const linkResult = evaluate(receipts);
   const source = receipts.find((r) => r.kind === "source_manifest");
@@ -263,19 +320,44 @@ export async function renderLineageBadge(containerEl, chainUrl, pubKeyHex) {
   const finalRows = totalsOf(receipts[receipts.length - 1]).row_count;
   const transforms = receipts.filter((r) => r.kind === "transform_receipt").length;
 
-  if (signaturesOk && linkResult.ok) {
-    badge.classList.add("lb-green");
-    mark.textContent = "✓";
+  if (sigResult.valid && linkResult.ok) {
+    // Chain verifies. Collect yellow caveats; none means green.
+    const caveats = [];
+    if (sigResult.unrecognized) {
+      caveats.push(
+        "unrecognized signing key: receipts verify under the chain's embedded key, " +
+          "not the key this page trusts"
+      );
+    }
+    for (const gap of coverageGaps(chain.receipts || [])) {
+      caveats.push(`coverage gap: receipt ${gap}; a stage may have run without leaving a receipt`);
+    }
+
+    if (!caveats.length) {
+      badge.classList.add("lb-green");
+      mark.textContent = "✓";
+      label.textContent =
+        `Verified · ${origin} · ${Number(finalRows).toLocaleString()} rows · ` +
+        `${transforms} transform${transforms === 1 ? "" : "s"} · chain intact`;
+      body.appendChild(renderDetail(receipts));
+      return;
+    }
+
+    badge.classList.add("lb-yellow");
+    mark.textContent = "⚠";
     label.textContent =
-      `Verified · ${origin} · ${Number(finalRows).toLocaleString()} rows · ` +
-      `${transforms} transform${transforms === 1 ? "" : "s"} · chain intact`;
+      `Verified, with caveats · ${origin} · ${Number(finalRows).toLocaleString()} rows · ` +
+      `${caveats.length} caveat${caveats.length === 1 ? "" : "s"}`;
     body.appendChild(renderDetail(receipts));
+    body.appendChild(
+      el("div", { className: "lb-caveats" }, "A human should look: " + caveats.join("; "))
+    );
     return;
   }
 
   badge.classList.add("lb-red");
   mark.textContent = "✗";
-  if (!signaturesOk) {
+  if (!sigResult.valid) {
     label.textContent = "Signature invalid";
   } else {
     label.textContent = `Chain broken at ${linkResult.brokenStage}`;

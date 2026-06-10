@@ -22,7 +22,7 @@ The badge and the verifier reduce the whole chain to one state:
 
 *The inline status light: a small dark instrument in your dashboard's header. When the chain breaks, it reaches into the page and flags the exact metric that no longer descends from the source.*
 
-Honest status: the current MVP implements **green and red** (`lineage verify` PASS/FAIL plus the browser badge). Yellow is the designed next state, not shipped yet. The UI animations in this README (the light, the Data tab, the console) are design previews of the v1 interface, built from the working mockups in `designs/`. The badge does render an amber "verification unsupported" state today, but only for browsers without Web Crypto Ed25519; that is a capability fallback, not the yellow verdict.
+Honest status: all three verdicts are implemented in `lineage verify` and the browser badge. Yellow today covers two detectable caveats (a coverage gap in the receipt numbering, and signatures that only verify under the chain's embedded key rather than the key you trust) plus opt-in control-total drift via `--warn-drift`. The Data tab and console animations in this README are design previews of later interface tiers, built from the working mockups in `designs/`. The badge also renders a separate amber state ("could not load" or "verification unsupported in this browser"); that is a capability fallback that says nothing about the chain, not the yellow verdict.
 
 ## 60-second quickstart
 
@@ -34,7 +34,7 @@ pip install -e .
 lineage demo
 ```
 
-`lineage demo` runs the whole story end to end: generates a deliberately messy sample export, ingests it, runs two AI-written-style transforms, verifies the chain (PASS), then tampers with one spend value and verifies again (FAIL, pinpointing the broken link and the totals delta). It finishes by serving the badge at `http://localhost:8000/badge/badge.html` so you can see green and red side by side.
+`lineage demo` runs the whole story end to end: generates a deliberately messy sample export, ingests it, runs two AI-written-style transforms, verifies the chain (PASS), then tampers with one spend value and verifies again (FAIL, pinpointing the broken link and the totals delta). It finishes by serving the badge at `http://localhost:8000/badge/badge.html` so you can see green, yellow, and red side by side.
 
 ## CLI
 
@@ -43,6 +43,8 @@ lineage keygen --out keys/
 lineage ingest sample_export.xlsx --origin "TikTok export, May 2026" --key keys/signing.key --out receipts/
 lineage verify receipts/chain.json --pub keys/signing.pub --data dashboard.xlsx
 ```
+
+`verify` exits with the traffic light: 0 green, 1 red, 2 yellow (verifies, with caveats). Add `--warn-drift` to also flag any control-totals movement across links as a caveat; it is off by default because filters and aggregations legitimately move totals.
 
 Transforms record their own receipts by wrapping any list-of-dicts to list-of-dicts function:
 
@@ -113,7 +115,7 @@ Also worth knowing: the signing key lives on your machine, and today that local 
 
 ## Roadmap
 
-- **Yellow state.** Surface "verifiable with caveats" in `verify` and the badge: receipt coverage gaps, unrecognized keys, control-total drift flagged for human review.
+- **Richer yellow taxonomy.** Yellow currently detects coverage gaps, unrecognized signing keys, and opt-in totals drift. Distinct severities and smarter drift heuristics are open questions (see `designs/01-NOTES.md`).
 - **Node-native integration.** Today the pipeline tooling is Python (`pip install -e .`); the badge already runs in any web frontend. A Node package for receipt creation in JS pipelines is planned. There is no npm package yet.
 - **External anchoring.** Sigstore transparency logs or RFC 3161 timestamps, so a chain can't be silently re-signed after the fact. The attachment points are already marked `FUTURE:` in `lineage/keys.py` and `lineage/receipts.py`.
 - **Verification console.** A devtools-for-data window: the receipt chain as an inspectable pipeline, an event log of verify runs, and the break pinned at the severed link.

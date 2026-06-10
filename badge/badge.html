@@ -39,6 +39,9 @@
     <h2>Intact chain</h2>
     <div id="badge-intact"></div>
 
+    <h2>Verifies, with caveats</h2>
+    <div id="badge-yellow"></div>
+
     <h2>After tamper</h2>
     <div id="badge-tampered"></div>
 
@@ -51,6 +54,16 @@
       const intact = params.get("chain") || "../receipts/chain.json";
 
       renderLineageBadge(document.getElementById("badge-intact"), intact);
+
+      // Yellow: trust a key that is not the chain's embedded key. Signatures
+      // verify under the embedded key, so the chain is internally consistent,
+      // but it is vouched for by a key this page does not trust.
+      renderLineageBadge(
+        document.getElementById("badge-yellow"),
+        intact,
+        "ab".repeat(32)
+      );
+
       renderLineageBadge(
         document.getElementById("badge-tampered"),
         "../receipts_tampered/chain.json"
