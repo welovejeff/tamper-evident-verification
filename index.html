@@ -686,7 +686,9 @@
     const handle = lightHandle;
     handle.ready.then(() => {
       if (handle !== lightHandle) return; // a newer switch took over
-      handle.setOpen(true);
+      // Guard: CDN caches can briefly serve this page with an older light.js
+      // that lacks setOpen; degrade to click-to-open rather than erroring.
+      if (typeof handle.setOpen === "function") handle.setOpen(true);
       const pill = handle.el.querySelector(".lr-pill");
       if (pill) pill.classList.add("lr-attn");
     });
