@@ -140,6 +140,8 @@ The pill expands to a popover: the per-stage table when green, the caveat list w
 
 Options on the fourth argument: `watch` (re-verify every N ms and pulse on transitions), `warnDrift`, `receiptsHref`, and `theme: "light"` so the pill stays the one foreign object on a dark host. `receipts demo` serves a live three-state example at `http://localhost:8000/badge/light.html`.
 
+One-call framework helpers serve the receipts directory and the browser files together and hand back the mounting snippet: `tamper_signal.flask_ext.attach(app)`, `tamper_signal.fastapi_ext.attach(app)`, and `tamperSignal(app)` from `tamper-signal/express`. Streamlit apps get a server-side-verified pill and table caption via `tamper_signal.streamlit_ext` (labeled as the weaker check it is).
+
 ## Dashboards should show their work
 
 We think any dashboard built on verified data should let you see the data. Not a tooltip, not an export-on-request: a Data tab, right next to the charts, showing the raw verified table the pretty numbers came from. If the chain is intact and the light is green, there is no reason to hide the rows, and if you find yourself wanting to hide them, that's worth sitting with. A chart asks you to believe; a table lets you check. Green light, open table: that's the whole standard.

@@ -219,13 +219,42 @@ and badge.js beside it) and write one tag:
 Attributes mirror the options: `pub-key`, `watch`, `warn-drift`,
 `receipts-href`, `theme`.
 
-Static serving examples: Flask
-`app = Flask(__name__, static_folder="receipts", static_url_path="/receipts")`;
-FastAPI `app.mount("/receipts", StaticFiles(directory="receipts"))`; Express
-`app.use("/receipts", express.static("receipts"))`. A purely static site can
-copy `receipts/` into its public directory at build time. For local
-development, `receipts serve` serves the directory on localhost with CORS
-open and caching off.
+Prefer the one-call attach helpers; each serves the receipts directory AND
+the bundled browser assets, and returns a `snippet` to render once in the
+layout (it mounts the signal into `header`, falling back to `body`):
+
+```python
+# Flask
+from tamper_signal.flask_ext import attach
+signal = attach(app, receipts_dir="receipts/")   # then: {{ signal.snippet | safe }}
+
+# FastAPI
+from tamper_signal.fastapi_ext import attach
+signal = attach(app, receipts_dir="receipts/")
+```
+
+```js
+// Express (or any Connect-style router)
+import { tamperSignal } from "tamper-signal/express";
+const signal = tamperSignal(app, { receiptsDir: "receipts/" });
+// serve signal.snippet once in your layout
+```
+
+Next.js: copy `receipts/` into `public/receipts/` as part of the pipeline
+run (the simplest correct path; receipts are plain files), then mount with
+`<TamperSignal chain="/receipts/chain.json" />` from `tamper-signal/react`
+in a client component, or the `<tamper-signal>` element in any layout.
+
+Streamlit: `from tamper_signal.streamlit_ext import signal, verified_dataframe`.
+These verify SERVER-SIDE with the Python verifier and the pill says so;
+Streamlit cannot serve the receipts directory for the in-browser walk, and
+faking the stronger claim would violate rule 1.
+
+Manual fallback when no helper fits: serve the directory statically (Flask
+`static_folder="receipts"`, FastAPI `StaticFiles`, Express
+`express.static("receipts")`), or copy `receipts/` into the public dir of a
+static site at build time. For local development, `receipts serve` serves
+the directory on localhost with CORS open and caching off.
 
 Placement: the right end of the host header, after the host's own controls.
 The pill is intentionally dark and mono; do not restyle it to match the host

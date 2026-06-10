@@ -15,6 +15,7 @@
     "./badge": "./badge/badge.js",
     "./element": "./badge/element.js",
     "./table": "./badge/table.js",
+    "./express": "./node/express.js",
     "./react": "./badge/light-react.js"
   },
   "bin": {
