@@ -260,6 +260,9 @@ class ChainResult:
         self.lines: list[str] = []  # human-legible report lines
         self.broken_link: int | None = None  # downstream index of first break
         self.caveats: list[str] = []  # yellow-verdict caveats, one per finding
+        # Structured failure details for machine consumers (verify --json).
+        self.broken_link_detail: dict[str, Any] | None = None
+        self.data_mismatch: dict[str, Any] | None = None
 
     @property
     def verdict(self) -> str:
@@ -387,6 +390,13 @@ def verify_chain(
         if found != expected:
             result.broken_link = index
             delta = totals_delta(totals_of(upstream), totals_of(downstream))
+            result.broken_link_detail = {
+                "link": [index - 1, index],
+                "stage": stage_name_of(downstream),
+                "expected_input_hash": expected,
+                "found_input_hash": found,
+                "totals_delta": delta,
+            }
             delta_text = ", ".join(delta) if delta else "(no totals changes detected)"
             result.fail(
                 f"✗ CHAIN BROKEN at link {index - 1} -> {index} "
@@ -407,7 +417,14 @@ def verify_chain(
                 delta = totals_delta(totals_of(final), data_totals)
                 delta_text = ", ".join(delta) if delta else "(no totals changes detected)"
             else:
+                delta = None
                 delta_text = "(pass the data records to see which values moved)"
+            result.data_mismatch = {
+                "stage": stage_name_of(final),
+                "expected_output_hash": expected,
+                "found_data_hash": data_semantic_hash,
+                "totals_delta": delta,
+            }
             result.fail(
                 f"✗ DATA MISMATCH against final receipt ({stage_name_of(final)})",
                 f"  expected output hash {_short(expected)}",

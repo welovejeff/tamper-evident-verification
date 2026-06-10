@@ -45,12 +45,14 @@ receipts demo
 ## CLI
 
 ```bash
-receipts keygen --out keys/
+receipts init                 # scaffold: keys, .gitignore safety, receipts dir (idempotent)
 receipts ingest sample_export.xlsx --origin "TikTok export, May 2026" --key keys/signing.key --out receipts/
 receipts verify receipts/chain.json --pub keys/signing.pub --data dashboard.xlsx
+receipts doctor               # integration self-check with actionable fixes
+receipts serve                # serve receipts/ on localhost with CORS (dev only)
 ```
 
-`ingest` and `verify --data` accept .xlsx, .csv, .tsv, .json (array of objects), and .ndjson; the semantic hash is identical across formats, so an xlsx ingest verifies against a CSV copy of the same data. `verify` exits with the traffic light: 0 green, 1 red, 2 yellow (verifies, with caveats). Add `--warn-drift` to also flag any control-totals movement across links as a caveat; it is off by default because filters and aggregations legitimately move totals.
+`ingest` and `verify --data` accept .xlsx, .csv, .tsv, .json (array of objects), and .ndjson; the semantic hash is identical across formats, so an xlsx ingest verifies against a CSV copy of the same data. `verify` exits with the traffic light: 0 green, 1 red, 2 yellow (verifies, with caveats). Add `--warn-drift` to also flag any control-totals movement across links as a caveat; it is off by default because filters and aggregations legitimately move totals. `--json` emits a structured verdict (schema in `AGENTS.md`) for CI and coding agents.
 
 Transforms record their own receipts by wrapping any list-of-dicts to list-of-dicts function:
 

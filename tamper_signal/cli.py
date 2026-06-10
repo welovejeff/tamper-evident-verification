@@ -3,7 +3,10 @@
 Commands:
   receipts keygen --out keys/
   receipts ingest <file.xlsx> --origin "..." --key keys/signing.key --out receipts/
-  receipts verify receipts/chain.json --pub keys/signing.pub [--data <current.xlsx>]
+  receipts verify receipts/chain.json --pub keys/signing.pub [--data <current.xlsx>] [--json]
+  receipts init
+  receipts doctor [--url http://localhost:8787/chain.json]
+  receipts serve
   receipts demo
 """
 
@@ -106,10 +109,217 @@ def cmd_verify(args: argparse.Namespace) -> int:
         receipt_names=chain.get("receipts", []),
         warn_drift=args.warn_drift,
     )
-    for line in result.lines:
-        print(line)
     # Exit codes are the traffic light: 0 green, 1 red, 2 yellow.
-    return {"green": 0, "red": 1, "yellow": 2}[result.verdict]
+    code = {"green": 0, "red": 1, "yellow": 2}[result.verdict]
+    if args.json:
+        import json as _json
+
+        from .receipts import stage_name_of, totals_of
+
+        payload = {
+            "verdict": result.verdict,
+            "exit_code": code,
+            "spec_version": chain.get("spec_version"),
+            "receipts": len(receipts),
+            "transforms": sum(
+                1 for r in receipts if isinstance(r, dict) and r.get("kind") == "transform_receipt"
+            ),
+            "stages": [stage_name_of(r) for r in receipts],
+            "final_row_count": (totals_of(receipts[-1]).get("row_count") if receipts else None),
+            "caveats": result.caveats,
+            "broken_link": result.broken_link_detail,
+            "data_mismatch": result.data_mismatch,
+            "report": result.lines,
+        }
+        print(_json.dumps(payload, indent=2))
+    else:
+        for line in result.lines:
+            print(line)
+    return code
+
+
+GITIGNORE_LINES = ["keys/", "*.key"]
+
+
+def cmd_init(args: argparse.Namespace) -> int:
+    """Idempotent project scaffold: keys, .gitignore safety, receipts dir."""
+    from .keys import PRIVATE_KEY_NAME, generate_keys
+
+    actions: list[str] = []
+    key_dir = Path(args.keys)
+    private_path = key_dir / PRIVATE_KEY_NAME
+    if private_path.exists():
+        actions.append(f"keys: {private_path} already exists (left untouched)")
+    else:
+        _, public_path = generate_keys(str(key_dir))
+        actions.append(f"keys: generated {private_path} and {public_path}")
+
+    gitignore = Path(".gitignore")
+    existing = gitignore.read_text(encoding="utf-8").splitlines() if gitignore.exists() else []
+    missing = [line for line in GITIGNORE_LINES if line not in existing]
+    if missing:
+        block = existing + ["", "# Tamper Signal: never commit private key material"] + missing \
+            if existing else ["# Tamper Signal: never commit private key material"] + missing
+        gitignore.write_text("\n".join(block) + "\n", encoding="utf-8")
+        actions.append(f".gitignore: added {', '.join(missing)}")
+    else:
+        actions.append(".gitignore: already covers keys/ and *.key")
+
+    receipts_dir = Path(args.receipts)
+    if receipts_dir.exists():
+        actions.append(f"receipts: {receipts_dir}/ already exists")
+    else:
+        receipts_dir.mkdir(parents=True)
+        actions.append(f"receipts: created {receipts_dir}/")
+
+    for action in actions:
+        print(f"  - {action}")
+    print(
+        "\nNext: receipts ingest <export-file> --origin \"...\" "
+        f"--key {private_path} --out {receipts_dir}/"
+    )
+    print("Then wrap each transform with @receipt_step (see AGENTS.md).")
+    return 0
+
+
+def cmd_doctor(args: argparse.Namespace) -> int:
+    """Integration self-check with actionable fixes. Exit 1 on any failure."""
+    import subprocess
+    import sys as _sys
+
+    checks: list[tuple[str, bool, str]] = []  # (message, ok, fix)
+    warns: list[str] = []
+
+    version_ok = _sys.version_info >= (3, 11)
+    checks.append(
+        (
+            f"python {_sys.version_info.major}.{_sys.version_info.minor}",
+            version_ok,
+            "Tamper Signal needs Python 3.11+",
+        )
+    )
+
+    key_path = Path(args.key)
+    checks.append(
+        (
+            f"private key at {key_path}",
+            key_path.exists(),
+            "run `receipts init` (or `receipts keygen --out keys/`)",
+        )
+    )
+
+    if key_path.exists():
+        try:
+            tracked = (
+                subprocess.run(
+                    ["git", "ls-files", "--error-unmatch", str(key_path)],
+                    capture_output=True,
+                ).returncode
+                == 0
+            )
+            checks.append(
+                (
+                    "private key is not tracked by git",
+                    not tracked,
+                    f"git rm --cached {key_path} and add `keys/` plus `*.key` to .gitignore",
+                )
+            )
+        except FileNotFoundError:
+            warns.append("git not found; could not confirm the private key is untracked")
+
+    gitignore = Path(".gitignore")
+    covered = gitignore.exists() and any(
+        line in gitignore.read_text(encoding="utf-8").splitlines() for line in GITIGNORE_LINES
+    )
+    if not covered:
+        warns.append(".gitignore does not mention keys/ or *.key; run `receipts init` to add it")
+
+    chain_path = Path(args.chain)
+    if chain_path.exists():
+        chain = read_chain(str(chain_path))
+        try:
+            receipts = [
+                read_receipt(str(chain_path.parent), name) for name in chain.get("receipts", [])
+            ]
+            result = verify_chain(
+                receipts,
+                chain.get("public_key"),
+                chain_public_hex=chain.get("public_key"),
+                receipt_names=chain.get("receipts", []),
+            )
+            checks.append(
+                (
+                    f"chain verifies ({result.verdict})",
+                    result.verdict != "red",
+                    "the chain is broken; do not ship it. See `receipts verify` output",
+                )
+            )
+            if result.verdict == "yellow":
+                warns.extend(result.caveats)
+        except ValueError as exc:
+            checks.append((f"chain loads ({chain_path})", False, str(exc)))
+    else:
+        warns.append(f"no chain at {chain_path}; run `receipts ingest` to start one")
+
+    if args.url:
+        import json as _json
+        import urllib.request
+
+        try:
+            with urllib.request.urlopen(args.url, timeout=5) as response:
+                served = _json.loads(response.read())
+            checks.append(
+                (
+                    f"chain served at {args.url}",
+                    isinstance(served.get("receipts"), list),
+                    "the URL responded but does not look like chain.json",
+                )
+            )
+        except Exception as exc:  # noqa: BLE001 - any fetch failure is the same finding
+            checks.append(
+                (
+                    f"chain served at {args.url}",
+                    False,
+                    f"could not fetch ({exc}); is the receipts directory being served? Try `receipts serve`",
+                )
+            )
+
+    failures = 0
+    for message, ok, fix in checks:
+        if ok:
+            print(f"  ✓ {message}")
+        else:
+            failures += 1
+            print(f"  ✗ {message}\n      fix: {fix}")
+    for warn in warns:
+        print(f"  ⚠ {warn}")
+    print(f"\n{'All checks passed.' if not failures else f'{failures} check(s) failed.'}")
+    return 1 if failures else 0
+
+
+def cmd_serve(args: argparse.Namespace) -> int:
+    """Serve the receipts directory on localhost with CORS for local dev."""
+    import http.server
+    import socketserver
+    from functools import partial
+
+    directory = str(Path(args.dir).resolve())
+
+    class Handler(http.server.SimpleHTTPRequestHandler):
+        def end_headers(self) -> None:
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Cache-Control", "no-store")
+            super().end_headers()
+
+    handler = partial(Handler, directory=directory)
+    print(f"Serving {directory} at http://localhost:{args.port}/chain.json")
+    print("CORS is open and caching is off: local development only. Ctrl+C to stop.")
+    try:
+        with socketserver.TCPServer(("127.0.0.1", args.port), handler) as httpd:
+            httpd.serve_forever()
+    except KeyboardInterrupt:
+        print("\nStopped.")
+    return 0
 
 
 def cmd_demo(args: argparse.Namespace) -> int:
@@ -151,7 +361,34 @@ def build_parser() -> argparse.ArgumentParser:
         help="Flag any control-totals movement across links as a yellow caveat "
         "(for pipelines expected to preserve totals)",
     )
+    p_verify.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit a structured JSON verdict instead of the text report",
+    )
     p_verify.set_defaults(func=cmd_verify)
+
+    p_init = sub.add_parser(
+        "init", help="Scaffold a project: keys, .gitignore safety, receipts dir (idempotent)"
+    )
+    p_init.add_argument("--keys", default="keys/", help="Key directory")
+    p_init.add_argument("--receipts", default="receipts/", help="Receipts directory")
+    p_init.set_defaults(func=cmd_init)
+
+    p_doctor = sub.add_parser(
+        "doctor", help="Self-check the integration (exit 1 on failures)"
+    )
+    p_doctor.add_argument("--key", default="keys/signing.key", help="Private key path")
+    p_doctor.add_argument("--chain", default="receipts/chain.json", help="Chain path")
+    p_doctor.add_argument("--url", default=None, help="Served chain.json URL to check")
+    p_doctor.set_defaults(func=cmd_doctor)
+
+    p_serve = sub.add_parser(
+        "serve", help="Serve the receipts directory on localhost with CORS (dev only)"
+    )
+    p_serve.add_argument("--dir", default="receipts/", help="Directory to serve")
+    p_serve.add_argument("--port", type=int, default=8787, help="Port")
+    p_serve.set_defaults(func=cmd_serve)
 
     p_demo = sub.add_parser("demo", help="Run the full end-to-end demo")
     p_demo.add_argument("--no-serve", action="store_true", help="Skip serving the badge")

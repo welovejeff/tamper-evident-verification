@@ -73,14 +73,16 @@ same package: `tamper-signal/light`, `tamper-signal/badge`,
 `tamper-signal/element`, `tamper-signal/react`. JS reads .csv/.tsv/.json/
 .ndjson; only the Python side reads .xlsx.
 
-## 2. Generate a signing keypair (once per project)
+## 2. Scaffold the project (once)
 
 ```bash
-receipts keygen --out keys/
+receipts init
 ```
 
-Writes `keys/signing.key` (private, PEM; never commit) and `keys/signing.pub`
-(raw 32-byte hex; safe to commit). Add `keys/` and `*.key` to .gitignore now.
+Idempotent. Generates `keys/signing.key` (private, PEM; never commit) and
+`keys/signing.pub` (raw hex; safe to commit), adds `keys/` and `*.key` to
+.gitignore, creates `receipts/`, and prints exactly what it did. The pieces
+are also available separately (`receipts keygen --out keys/`).
 
 ## 3. Start the chain at the source export
 
@@ -124,9 +126,64 @@ receipts verify receipts/chain.json --pub keys/signing.pub --data path/to/dashbo
 
 Exit codes are the traffic light: **0 green, 1 red, 2 yellow**. `--data` is
 optional and checks the file the dashboard actually reads against the final
-receipt. In CI: fail the build on exit 1; surface exit 2 to a human rather
-than failing silently. `--warn-drift` additionally flags any control-totals
-movement across links (only for pipelines expected to preserve totals).
+receipt. `--warn-drift` additionally flags any control-totals movement across
+links (only for pipelines expected to preserve totals).
+
+Add `--json` to get a structured verdict instead of the text report. Parse
+this rather than scraping text:
+
+```json
+{
+  "verdict": "green | yellow | red",
+  "exit_code": 0,
+  "spec_version": "1.1",
+  "receipts": 3,
+  "transforms": 2,
+  "stages": ["source", "clean", "aggregate"],
+  "final_row_count": 304,
+  "caveats": ["..."],
+  "broken_link": {
+    "link": [1, 2],
+    "stage": "aggregate",
+    "expected_input_hash": "...",
+    "found_input_hash": "...",
+    "totals_delta": ["row_count 4987 -> 304 (-4683)"]
+  },
+  "data_mismatch": null,
+  "report": ["human-legible lines"]
+}
+```
+
+`broken_link` and `data_mismatch` are null unless the verdict is red.
+
+### CI: verify the chain on every push
+
+```yaml
+# .github/workflows/tamper-signal.yml
+name: tamper-signal
+on: [push]
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install tamper-signal
+      - name: Verify the receipt chain
+        run: |
+          set +e
+          receipts verify receipts/chain.json --json | tee verdict.json
+          code=$?
+          if [ "$code" = "2" ]; then
+            echo "::warning::The light is yellow, a human should look: $(python -c 'import json;print("; ".join(json.load(open("verdict.json"))["caveats"]))')"
+            exit 0
+          fi
+          exit $code
+```
+
+Exit 1 (red) fails the build; exit 2 (yellow) surfaces a warning annotation
+without failing.
 
 ## 6. Add the signal to the host UI
 
@@ -166,7 +223,9 @@ Static serving examples: Flask
 `app = Flask(__name__, static_folder="receipts", static_url_path="/receipts")`;
 FastAPI `app.mount("/receipts", StaticFiles(directory="receipts"))`; Express
 `app.use("/receipts", express.static("receipts"))`. A purely static site can
-copy `receipts/` into its public directory at build time.
+copy `receipts/` into its public directory at build time. For local
+development, `receipts serve` serves the directory on localhost with CORS
+open and caching off.
 
 Placement: the right end of the host header, after the host's own controls.
 The pill is intentionally dark and mono; do not restyle it to match the host
@@ -200,6 +259,13 @@ there is no packaged component yet, so build it in the host's own stack and
 say so honestly.
 
 ## 9. Verify your work before reporting done
+
+Run `receipts doctor` first: it checks the Python version, that the private
+key exists and is not tracked by git, that .gitignore covers it, and that the
+chain verifies; pass `--url http://localhost:PORT/chain.json` to also confirm
+the receipts directory is reachable over HTTP. Every failure prints its fix.
+Exit 0 means the integration is healthy. Then confirm the user-visible
+surfaces:
 
 1. `receipts verify receipts/chain.json --pub keys/signing.pub` exits 0.
 2. Load the host page: the pill reads `VERIFIED · chain intact` (click it for

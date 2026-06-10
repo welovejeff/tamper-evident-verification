@@ -1,0 +1,17 @@
+# Tamper Signal
+
+> Signed receipts for vibe-coded data pipelines. Every pipeline stage signs a receipt; verification reports a traffic light: green (chain intact), yellow (verifies, with caveats), red (broken at an exact link, with the totals delta). This proves continuity, not correctness: it can't tell you the data is right, but it can prove nobody changed it.
+
+Install: `pip install tamper-signal` (Python 3.11+, CLI `receipts`) or `npm install tamper-signal` (Node 18.17+, CLI `tamper-signal`). Chains are interchangeable across the two stacks.
+
+## Docs
+
+- [Integration runbook for coding agents](https://raw.githubusercontent.com/welovejeff/tamper-evident-verification/main/AGENTS.md): the complete install-to-verified path; follow it in order
+- [README](https://raw.githubusercontent.com/welovejeff/tamper-evident-verification/main/README.md): overview, CLI, how the chain works, honest limits
+- [Domain vocabulary](https://raw.githubusercontent.com/welovejeff/tamper-evident-verification/main/CONCEPTS.md): receipt, chain, semantic hash, the light, spec version
+- [Copy rules](https://raw.githubusercontent.com/welovejeff/tamper-evident-verification/main/docs/MESSAGING.md): the verdict lines and banned claims, binding for any UI text you write
+
+## Source
+
+- [GitHub repository](https://github.com/welovejeff/tamper-evident-verification)
+- [Live demo](https://tampersignal.com/): real in-browser verification of committed receipt chains

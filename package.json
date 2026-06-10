@@ -1,6 +1,6 @@
 {
   "name": "tamper-signal",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Signed receipts for vibe-coded data pipelines. Proves nobody changed your data, and shows the exact link if they did.",
   "type": "module",
   "license": "MIT",
