@@ -1,7 +1,54 @@
 {
   "name": "tamper-signal",
-  "version": "1.1.0",
-  "description": "Tamper Signal: signed receipts for data pipelines. The browser badge and signal (badge/) are dependency-free and need no build step.",
-  "private": true,
-  "type": "module"
+  "version": "1.2.0",
+  "description": "Signed receipts for vibe-coded data pipelines. Proves nobody changed your data, and shows the exact link if they did.",
+  "type": "module",
+  "license": "MIT",
+  "homepage": "https://welovejeff.github.io/tamper-evident-verification/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/welovejeff/tamper-evident-verification.git"
+  },
+  "exports": {
+    ".": "./node/index.js",
+    "./light": "./badge/light.js",
+    "./badge": "./badge/badge.js",
+    "./element": "./badge/element.js",
+    "./react": "./badge/light-react.js"
+  },
+  "bin": {
+    "tamper-signal": "node/cli.js"
+  },
+  "files": [
+    "node/",
+    "badge/badge.js",
+    "badge/light.js",
+    "badge/element.js",
+    "badge/light-react.js",
+    "AGENTS.md"
+  ],
+  "scripts": {
+    "test": "node --test \"node/test/*.test.js\""
+  },
+  "engines": {
+    "node": ">=18.17"
+  },
+  "peerDependencies": {
+    "react": ">=17"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  },
+  "keywords": [
+    "tamper-evident",
+    "data-integrity",
+    "provenance",
+    "ed25519",
+    "signed-receipts",
+    "data-pipelines",
+    "verification",
+    "hash-chain"
+  ]
 }

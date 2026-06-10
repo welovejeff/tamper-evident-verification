@@ -1,0 +1,115 @@
+{
+  "generated_by": "python tamper_signal.canonical (spec 1.1); regenerate with the script in this file's git history",
+  "vectors": [
+    {
+      "name": "mixed types, shuffled rows, numeric text, dates",
+      "records": [
+        {
+          "date": {
+            "__date__": "2026-05-03"
+          },
+          "campaign_name": "c",
+          "impressions": 300,
+          "spend_usd": 30.0,
+          "active": true
+        },
+        {
+          "date": {
+            "__date__": "2026-05-01"
+          },
+          "campaign_name": "a",
+          "impressions": "100",
+          "spend_usd": "10.50",
+          "active": false
+        },
+        {
+          "date": {
+            "__date__": "2026-05-02"
+          },
+          "campaign_name": null,
+          "impressions": 200,
+          "spend_usd": 20.25,
+          "active": null
+        }
+      ],
+      "canonical": "{\"headers\":[\"active\",\"campaign_name\",\"date\",\"impressions\",\"spend_usd\"],\"rows\":[[null,null,\"2026-05-02\",\"200\",\"20.25\"],[false,\"a\",\"2026-05-01\",\"100\",\"10.5\"],[true,\"c\",\"2026-05-03\",\"300\",\"30\"]]}",
+      "semantic_hash": "64b96900ef4e99d550bc3382dcfc64afb39c26c247835366bd8e0d55107d1c8c"
+    },
+    {
+      "name": "float artifacts, negative zero, big ints, exponent text",
+      "records": [
+        {
+          "x": 0.30000000000000004,
+          "y": -0.0,
+          "z": 1000000000000000,
+          "w": "1e3"
+        },
+        {
+          "x": 0.3,
+          "y": 0,
+          "z": "1000000000000000",
+          "w": 1000
+        }
+      ],
+      "canonical": "{\"headers\":[\"w\",\"x\",\"y\",\"z\"],\"rows\":[[\"1000\",\"0.3\",\"0\",\"1000000000000000\"],[\"1000\",\"0.3\",\"0\",\"1000000000000000\"]]}",
+      "semantic_hash": "ef0590333cb71cf5beca635897a16b6edcfd67ff0bfcc1c6c431bf95fe5d3a5d"
+    },
+    {
+      "name": "unicode NFD input, whitespace trim, empty string vs null",
+      "records": [
+        {
+          "col": "café",
+          "note": "  padded  ",
+          "empty": "",
+          "missing": null
+        }
+      ],
+      "canonical": "{\"headers\":[\"col\",\"empty\",\"missing\",\"note\"],\"rows\":[[\"café\",\"\",null,\"padded\"]]}",
+      "semantic_hash": "844ff5f0d41ddc17ee9937a59e68a43e143954c17dc1e5d2bb700d6ed887ab74"
+    },
+    {
+      "name": "header normalization and union of keys",
+      "records": [
+        {
+          "Total  Spend (USD)": 10,
+          "Channel": "fb"
+        },
+        {
+          "total spend (usd)": "20.0",
+          "Channel": "ig",
+          "extra": "x"
+        }
+      ],
+      "canonical": "{\"headers\":[\"channel\",\"extra\",\"total_spend_(usd)\"],\"rows\":[[\"fb\",null,\"10\"],[\"ig\",\"x\",\"20\"]]}",
+      "semantic_hash": "8a41089d5444c9ce8887f654c40a768ff0472f5e16638bedf3a432b28ef3b9b2"
+    },
+    {
+      "name": "midnight datetime collapses to date; real timestamp keeps time",
+      "records": [
+        {
+          "a": {
+            "__datetime__": "2026-05-01T00:00:00Z"
+          },
+          "b": {
+            "__datetime__": "2026-05-01T13:45:09Z"
+          }
+        }
+      ],
+      "canonical": "{\"headers\":[\"a\",\"b\"],\"rows\":[[\"2026-05-01\",\"2026-05-01T13:45:09Z\"]]}",
+      "semantic_hash": "9c7c3f0f2885b729f63f7c1f1130af8f09016c2c90739d71aa98e1f1ac31e31d"
+    },
+    {
+      "name": "tiny values quantize half-even at six places",
+      "records": [
+        {
+          "a": "0.0000005",
+          "b": "0.0000015",
+          "c": 4e-07,
+          "d": "-0.0000005"
+        }
+      ],
+      "canonical": "{\"headers\":[\"a\",\"b\",\"c\",\"d\"],\"rows\":[[\"0\",\"0.000002\",\"0\",\"0\"]]}",
+      "semantic_hash": "154bbdb4556dd3f8ad90a68c9c3c07c0a32c602c357da87db9bda04198e28325"
+    }
+  ]
+}
