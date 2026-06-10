@@ -4,6 +4,8 @@
 
 Your social team exports a month of TikTok performance data. Someone vibe-codes a dashboard on top of it with an AI assistant in an afternoon. It looks great. Then a transform silently drops 22 rows, or the model hallucinates an aggregation, and the numbers in front of your boss are wrong. Nothing in that workflow catches it. This is the missing verification layer: every stage of the pipeline signs a receipt for what went in and what came out, and one command (or a badge on the dashboard itself) tells you whether the chain is intact, or exactly where it broke and by how much.
 
+**Live demo:** [welovejeff.github.io/tamper-evident-verification](https://welovejeff.github.io/tamper-evident-verification/) re-verifies a real committed receipt chain in your browser: swap in a tampered chain or an untrusted key and watch the light catch it.
+
 ## The problem
 
 Vibe-coded pipelines fail silently. AI-generated transform scripts work most of the time, and when they don't, they don't crash. They drop rows. They double-count. They coerce a column wrong and quietly shift every total. The dashboard still renders. The chart still looks plausible. Nobody re-checks 48,000 rows by hand.

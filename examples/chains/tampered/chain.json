@@ -1,0 +1,9 @@
+{
+  "spec_version": "1.0",
+  "public_key": "56509c0694b85d99ab1bca47c854e55663fd8f4ab8119a7631b4163cca572bd0",
+  "receipts": [
+    "000_source.json",
+    "001_clean.json",
+    "002_aggregate.json"
+  ]
+}

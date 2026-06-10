@@ -158,19 +158,19 @@ def run_demo(serve: bool = True, port: int = 8000) -> int:
     return 0
 
 
-def _write_tampered_chain(private_key, public_hex: str) -> None:
-    """Copy the intact chain, then break link 1->2 by re-signing receipt 001.
+def _write_tampered_chain_to(src_dir: str, dst_dir: str, private_key, public_hex: str) -> None:
+    """Copy an intact chain, then break link 1->2 by re-signing receipt 001.
 
     Receipt 001's output hash and totals are altered (as if its output were
     tampered) and the receipt is re-signed so its signature still verifies. The
     badge then reports a broken link, not an invalid signature, and the expanded
     view shows the totals delta.
     """
-    shutil.copytree(RECEIPTS_DIR, TAMPERED_DIR)
-    files = read_chain(f"{TAMPERED_DIR}/chain.json")["receipts"]
+    shutil.copytree(src_dir, dst_dir)
+    files = read_chain(f"{dst_dir}/chain.json")["receipts"]
     # The first transform receipt is index 1 in the chain.
     target_name = files[1]
-    receipt = read_receipt(TAMPERED_DIR, target_name)
+    receipt = read_receipt(dst_dir, target_name)
 
     # Pretend its output was tampered: nudge a numeric sum and the output hash.
     sums = receipt["output_control_totals"]["numeric_sums"]
@@ -186,7 +186,11 @@ def _write_tampered_chain(private_key, public_hex: str) -> None:
         "key_fingerprint": key_fingerprint(bytes.fromhex(public_hex)),
         "value": sign(private_key, canonical_json_bytes(body)),
     }
-    write_receipt(TAMPERED_DIR, target_name, receipt)
+    write_receipt(dst_dir, target_name, receipt)
+
+
+def _write_tampered_chain(private_key, public_hex: str) -> None:
+    _write_tampered_chain_to(RECEIPTS_DIR, TAMPERED_DIR, private_key, public_hex)
     print(f"Wrote {TAMPERED_DIR}/ with a broken link for the badge red state.")
 
 

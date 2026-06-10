@@ -79,6 +79,8 @@ function injectLightStyles() {
   .lr-light .lr-dot{width:10px;height:10px;border-radius:50%;flex:none;background:var(--lr-faint)}
   .lr-light .lr-word{font-weight:700}
   .lr-light .lr-sub{color:var(--lr-dim)}
+  /* the seal never wraps; on narrow hosts the sub-label drops out instead */
+  @media (max-width: 920px){ .lr-light .lr-sub{display:none} }
   .lr-light[data-state="green"] .lr-dot{background:var(--lr-green);box-shadow:0 0 6px 0 rgba(52,211,153,0.7)}
   .lr-light[data-state="yellow"] .lr-dot{background:var(--lr-amber);box-shadow:0 0 6px 0 rgba(251,191,36,0.7)}
   .lr-light[data-state="red"] .lr-dot{background:var(--lr-red);box-shadow:0 0 6px 0 rgba(248,113,113,0.7)}

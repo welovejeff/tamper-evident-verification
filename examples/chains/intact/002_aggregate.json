@@ -1,0 +1,28 @@
+{
+  "kind": "transform_receipt",
+  "spec_version": "1.0",
+  "created_at": "2026-06-10T17:46:58Z",
+  "transform": {
+    "name": "aggregate",
+    "code_hash": "e67fc4ebc7fc749973d6d38e1a625facafe9fa4b129c983f4b5c8400f876e23a",
+    "code_file": "examples/transform_aggregate.py"
+  },
+  "input_semantic_hash": "5f5e9017b95f6d71248fbc1bc6fd3e27cecfb8b7f59e615f04633f7373ef34f4",
+  "output_semantic_hash": "0570d3662e5d3968fa764d683ec97034d344293c70bf4f440b5024f915f351ff",
+  "output_control_totals": {
+    "row_count": 304,
+    "column_count": 5,
+    "numeric_sums": {
+      "impressions": "127178627",
+      "clicks": "6359340",
+      "spend_usd": "2020283.47"
+    },
+    "date_ranges": {},
+    "null_counts": {}
+  },
+  "signature": {
+    "alg": "ed25519",
+    "key_fingerprint": "89ad88b44c90e00c",
+    "value": "00b6f9e2f2193574329d41125855c6a8f1670a6ddbd2e19c9bdf37c5a8e6e793343a448686a11b0999f3ccdc53cd34dbb4b567b8b51c2bb1e374cd4e3d1a0705"
+  }
+}

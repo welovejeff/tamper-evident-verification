@@ -1,0 +1,33 @@
+{
+  "kind": "transform_receipt",
+  "spec_version": "1.0",
+  "created_at": "2026-06-10T17:46:57Z",
+  "transform": {
+    "name": "clean",
+    "code_hash": "2d9ce472b84b4de2118a0b5cf22882e3a1e6af50cb8f620bc9166343f1d19496",
+    "code_file": "examples/transform_clean.py"
+  },
+  "input_semantic_hash": "1a05af341f9fabce925c6781d0711822b9c681df785a1606b676d99413465446",
+  "output_semantic_hash": "5f5e9017b95f6d71248fbc1bc6fd3e27cecfb8b7f59e615f04633f7373ef34f4",
+  "output_control_totals": {
+    "row_count": 4987,
+    "column_count": 6,
+    "numeric_sums": {
+      "impressions": "127178627",
+      "clicks": "6359340",
+      "spend_usd": "2020283.47"
+    },
+    "date_ranges": {
+      "date": {
+        "min": "2026-05-01",
+        "max": "2026-05-31"
+      }
+    },
+    "null_counts": {}
+  },
+  "signature": {
+    "alg": "ed25519",
+    "key_fingerprint": "89ad88b44c90e00c",
+    "value": "5c4d882105add2a71ce7a0c70f41ee54581873353fd18e050ec58f777edc6f1d04771fce3acd37e946da8c3e62583a7cc8dd36a0742c90bcb3363496cc7fee0e"
+  }
+}

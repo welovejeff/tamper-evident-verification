@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>lineage-receipts · The light is green, the data is clean.</title>
+<meta name="description" content="Signed receipts for vibe-coded data pipelines. Proves nobody changed your data, and shows the exact link if they did." />
+<meta property="og:title" content="The light is green, the data is clean." />
+<meta property="og:description" content="Signed receipts for vibe-coded data pipelines. Proves nobody changed your data, and shows the exact link if they did." />
+<meta property="og:image" content="https://welovejeff.github.io/tamper-evident-verification/docs/media/light.gif" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='%2334d399'/%3E%3C/svg%3E" />
+<style>
+  :root {
+    --bg: #0b0f14;
+    --panel: #11161d;
+    --border: #1f2937;
+    --chrome: #161d26;
+    --text: #e5e7eb;
+    --dim: #8b98a5;
+    --faint: #3d4854;
+    --row: #18202b;
+    --green: #34d399;
+    --red: #f87171;
+    --amber: #fbbf24;
+    --cyan: #67e8f9;
+    --mono: ui-monospace, 'SF Mono', Menlo, Monaco, 'Cascadia Code', monospace;
+    --sans: -apple-system, 'SF Pro Display', 'Segoe UI', Roboto, Helvetica, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    line-height: 1.6;
+  }
+  a { color: var(--cyan); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code, pre { font-family: var(--mono); }
+  .wrap { max-width: 1020px; margin: 0 auto; padding: 0 22px; }
+
+  /* ---------- top bar ---------- */
+  .top {
+    position: sticky; top: 0; z-index: 60;
+    background: rgba(11, 15, 20, 0.88);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--border);
+  }
+  .top .wrap {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px;
+    padding-top: 12px; padding-bottom: 12px;
+    font: 12px var(--mono);
+  }
+  .wordmark { display: flex; align-items: center; gap: 8px; color: var(--dim); letter-spacing: 1.5px; }
+  .wordmark i {
+    width: 9px; height: 9px; border-radius: 50%; display: block;
+    background: var(--green); box-shadow: 0 0 6px 0 rgba(52, 211, 153, 0.7);
+  }
+  .top nav { margin-left: auto; display: flex; gap: 16px; }
+  .top nav a { color: var(--dim); }
+  .top nav a:hover { color: var(--text); text-decoration: none; }
+
+  /* ---------- hero ---------- */
+  .hero { padding: 72px 0 40px; }
+  .hero .kicker { font: 12px var(--mono); color: var(--faint); letter-spacing: 1.5px; margin: 0 0 14px; }
+  .hero h1 {
+    font-size: clamp(34px, 6vw, 58px);
+    letter-spacing: -1.5px;
+    line-height: 1.08;
+    margin: 0 0 22px;
+    max-width: 13ch;
+  }
+  .hero h1 .lit { color: var(--green); }
+  .hero .lede { max-width: 560px; color: var(--dim); font-size: 17px; margin: 0 0 14px; }
+  .hero .caveat {
+    max-width: 560px;
+    border-left: 3px solid var(--amber);
+    padding: 2px 0 2px 14px;
+    color: var(--text);
+    font-size: 15px;
+    margin: 0 0 30px;
+  }
+  .cta-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    font: 13px var(--mono);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 16px;
+    color: var(--text);
+    background: var(--panel);
+  }
+  .btn:hover { border-color: var(--faint); text-decoration: none; }
+  .btn.primary { border-color: rgba(52, 211, 153, 0.4); color: var(--green); }
+  .pipline { font: 13px var(--mono); color: var(--faint); }
+  .pipline code { color: var(--dim); background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; }
+
+  /* ---------- section scaffolding ---------- */
+  section { padding: 44px 0; }
+  .sec-kicker { font: 11px var(--mono); color: var(--faint); letter-spacing: 2px; margin: 0 0 8px; text-transform: uppercase; }
+  h2 { font-size: 26px; letter-spacing: -0.5px; margin: 0 0 10px; }
+  .sec-lede { color: var(--dim); max-width: 640px; margin: 0 0 26px; }
+
+  /* ---------- the playground ---------- */
+  .switcher {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+    margin: 0 0 18px;
+    font: 11px var(--mono); color: var(--dim);
+  }
+  .switcher .sw-label { letter-spacing: 1.5px; color: var(--faint); }
+  .switcher button {
+    font: 12px var(--mono);
+    border: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--dim);
+    border-radius: 8px;
+    padding: 8px 14px;
+    cursor: pointer;
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .switcher button i { width: 8px; height: 8px; border-radius: 50%; display: block; background: var(--faint); }
+  .switcher button[data-set="green"] i { background: var(--green); }
+  .switcher button[data-set="yellow"] i { background: var(--amber); }
+  .switcher button[data-set="red"] i { background: var(--red); }
+  .switcher button:hover { border-color: var(--faint); }
+  .switcher button[aria-pressed="true"] { background: var(--chrome); border-color: var(--faint); color: var(--text); }
+  .switcher button:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+
+  /* the fake host app: the one light thing on our dark page, on purpose */
+  .browser {
+    border-radius: 12px;
+    overflow: visible;
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.5);
+    background: #f4f5f7;
+    color: #1f2430;
+    font-family: var(--sans);
+  }
+  .browser-bar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px;
+    background: #fbfbfc;
+    border-bottom: 1px solid #e6e8ee;
+    border-radius: 12px 12px 0 0;
+  }
+  .browser-bar .dots { display: flex; gap: 6px; }
+  .browser-bar .dots i { width: 11px; height: 11px; border-radius: 50%; background: #d6d9e0; display: block; }
+  .browser-bar .url {
+    flex: 1; min-width: 0; max-width: 360px; margin: 0 auto; text-align: center;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    background: #eef0f4; border-radius: 7px; font-size: 12px; color: #6b7280; padding: 4px 12px;
+  }
+  .host-header {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px;
+    padding: 14px 22px; background: #fff; border-bottom: 1px solid #e6e8ee;
+  }
+  .host-logo { display: flex; align-items: center; gap: 9px; font-weight: 700; font-size: 15px; }
+  .host-logo .mark { width: 26px; height: 26px; border-radius: 8px; background: linear-gradient(135deg, #2dd4bf, #fda4af); }
+  .host-spacer { margin-left: auto; }
+  .host-main { padding: 20px 22px 24px; }
+  .host-main h3 { font-size: 18px; margin: 0 0 4px; }
+  .host-main .sub { font-size: 13px; color: #6b7280; margin: 0 0 18px; }
+  .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .metric { background: #fff; border: 1px solid #e6e8ee; border-radius: 14px; padding: 16px 18px; }
+  .metric h4 {
+    margin: 0 0 6px; font-size: 12px; font-weight: 600; color: #6b7280;
+    text-transform: uppercase; letter-spacing: 0.4px;
+  }
+  .metric .value { font-size: 24px; font-weight: 700; letter-spacing: -0.5px; }
+  .playground-note { font: 12px var(--mono); color: var(--faint); margin: 16px 0 0; max-width: 720px; }
+  .playground-note strong { color: var(--dim); font-weight: 400; }
+
+  /* ---------- inspector + terminal ---------- */
+  .twocol { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
+  .twocol > *, .codegrid > * { min-width: 0; }
+  @media (max-width: 860px) { .twocol { grid-template-columns: 1fr; } .metrics { grid-template-columns: 1fr; } }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .panel-head {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--chrome);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 14px;
+    font: 11px var(--mono);
+    color: var(--dim);
+    letter-spacing: 1px;
+  }
+  .panel-body { padding: 14px; font: 12px/1.7 var(--mono); }
+
+  .stage-card {
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    padding: 10px 12px;
+    background: var(--bg);
+  }
+  .stage-card .row1 { display: flex; align-items: baseline; gap: 10px; }
+  .stage-card .stage-name { font-weight: 700; }
+  .stage-card .kind { color: var(--faint); font-size: 10px; }
+  .stage-card .ts { margin-left: auto; color: var(--faint); font-size: 10px; }
+  .stage-card .row2 { display: flex; flex-wrap: wrap; gap: 14px; color: var(--dim); font-size: 11px; margin-top: 3px; }
+  .stage-card .hash { color: var(--cyan); }
+  .stage-card details { margin-top: 6px; }
+  .stage-card summary { cursor: pointer; color: var(--faint); font-size: 10px; user-select: none; }
+  .stage-card summary:hover { color: var(--dim); }
+  .stage-card pre {
+    margin: 8px 0 2px; padding: 10px;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 7px;
+    font-size: 10px; line-height: 1.5; overflow-x: auto; max-height: 260px;
+  }
+  .link-row { padding: 4px 0 4px 14px; font-size: 11px; color: var(--dim); }
+  .link-row.ok::before { content: "│  "; color: var(--faint); }
+  .link-row .lnk-ok { color: var(--green); }
+  .link-row.bad { color: var(--red); }
+  .link-row.bad::before { content: "┊  "; color: var(--red); }
+  .caveat-box {
+    border: 1px dashed rgba(251, 191, 36, 0.45);
+    background: rgba(251, 191, 36, 0.07);
+    border-radius: 7px; padding: 8px 10px;
+    color: var(--amber); font-size: 11px; margin: 0 0 10px;
+  }
+
+  .term { background: #07090d; }
+  .term .panel-body { color: var(--dim); white-space: pre-wrap; word-break: break-word; }
+  .term .t-prompt { color: var(--faint); }
+  .term .t-green { color: var(--green); }
+  .term .t-amber { color: var(--amber); }
+  .term .t-red { color: var(--red); }
+
+  /* ---------- how it works ---------- */
+  .chainflow {
+    font: 12px/1.9 var(--mono); color: var(--dim);
+    background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+    padding: 18px 20px; overflow-x: auto; white-space: pre;
+  }
+  .chainflow b { color: var(--text); font-weight: 700; }
+  .chainflow .c { color: var(--cyan); }
+  .codegrid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 18px; }
+  @media (max-width: 860px) { .codegrid { grid-template-columns: 1fr; } }
+  .codegrid h3 { font: 11px var(--mono); color: var(--dim); letter-spacing: 1px; margin: 0 0 8px; font-weight: 400; }
+  .codegrid h3 b { color: var(--cyan); }
+  .codegrid pre {
+    margin: 0; background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px 16px; font-size: 12px; line-height: 1.7; overflow-x: auto;
+  }
+  .cmt { color: var(--faint); }
+  .str { color: var(--green); }
+  .kw { color: #a78bfa; }
+  .fn { color: var(--cyan); }
+
+  /* ---------- explore cards ---------- */
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  @media (max-width: 860px) { .cards { grid-template-columns: 1fr; } }
+  .card {
+    display: block;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px;
+    color: var(--text);
+  }
+  .card:hover { border-color: var(--faint); text-decoration: none; }
+  .card .card-k { font: 10px var(--mono); color: var(--faint); letter-spacing: 1.5px; margin: 0 0 8px; }
+  .card h3 { margin: 0 0 6px; font-size: 16px; }
+  .card p { margin: 0; color: var(--dim); font-size: 13px; }
+  .card .go { display: block; margin-top: 12px; font: 11px var(--mono); color: var(--cyan); }
+
+  /* ---------- honesty ---------- */
+  .honesty {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--panel);
+    padding: 22px 24px;
+    max-width: 760px;
+  }
+  .honesty h2 { font-size: 20px; }
+  .honesty p { color: var(--dim); font-size: 14px; margin: 10px 0 0; }
+  .honesty strong { color: var(--text); }
+
+  footer {
+    border-top: 1px solid var(--border);
+    margin-top: 30px;
+    padding: 26px 0 50px;
+    font: 12px var(--mono);
+    color: var(--faint);
+  }
+  footer .wrap { display: flex; flex-wrap: wrap; gap: 18px; align-items: baseline; }
+  footer .sticker { color: var(--green); margin-left: auto; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <div class="wrap">
+    <span class="wordmark"><i></i>LINEAGE-RECEIPTS</span>
+    <nav>
+      <a href="#demo">live demo</a>
+      <a href="#how">how it works</a>
+      <a href="#explore">explore</a>
+      <a href="https://github.com/welovejeff/tamper-evident-verification">github</a>
+    </nav>
+  </div>
+</div>
+
+<header class="hero">
+  <div class="wrap">
+    <p class="kicker">SIGNED RECEIPTS FOR VIBE-CODED DATA PIPELINES</p>
+    <h1>The light is <span class="lit">green</span>, the data is clean.</h1>
+    <p class="lede">
+      Every stage of your pipeline signs a receipt: a fingerprint of the data in,
+      the code that ran, and the data out. Verify the chain and know your dashboard
+      numbers descend from the original export, untouched.
+    </p>
+    <p class="caveat">
+      It can't tell you the data is right, but it can prove nobody changed it.
+    </p>
+    <div class="cta-row">
+      <a class="btn primary" href="#demo">break a pipeline ↓</a>
+      <a class="btn" href="https://github.com/welovejeff/tamper-evident-verification">view on GitHub</a>
+      <span class="pipline"><code>pip install -e .</code> · python 3.11+ · MIT</span>
+    </div>
+  </div>
+</header>
+
+<section id="demo">
+  <div class="wrap">
+    <p class="sec-kicker">live demo · not a mockup</p>
+    <h2>Break this pipeline. Watch the light catch it.</h2>
+    <p class="sec-lede">
+      The pastel dashboard below is a stand-in for somebody's vibe-coded app. The dark
+      pill in its header is ours, and it is doing real work: re-verifying the Ed25519
+      signature and hash link of every receipt in a real committed chain, in your
+      browser, right now. Use the switcher to swap in a tampered chain or an
+      untrusted signing key.
+    </p>
+
+    <div class="switcher" role="group" aria-label="Demo chain selector">
+      <span class="sw-label">CHAIN ·</span>
+      <button type="button" data-set="green" aria-pressed="true"><i></i>INTACT</button>
+      <button type="button" data-set="yellow" aria-pressed="false"><i></i>UNTRUSTED KEY</button>
+      <button type="button" data-set="red" aria-pressed="false"><i></i>TAMPERED</button>
+    </div>
+
+    <div class="browser" aria-label="Example host application (mock)">
+      <div class="browser-bar">
+        <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span class="url">clipboard-analytics.vercel.app/dashboard</span>
+      </div>
+      <div class="host-header">
+        <span class="host-logo"><span class="mark" aria-hidden="true"></span>Clipboard&nbsp;Analytics</span>
+        <span class="host-spacer"></span>
+        <span id="light-slot"></span>
+      </div>
+      <div class="host-main">
+        <h3>Social Performance</h3>
+        <p class="sub">Weekly rollup from your exported analytics · updated 2h ago</p>
+        <div class="metrics">
+          <div class="metric" data-lineage-column="spend_usd">
+            <h4>Total Spend</h4>
+            <div class="value" id="m-spend">$2,020,283</div>
+          </div>
+          <div class="metric" data-lineage-column="clicks">
+            <h4>Clicks</h4>
+            <div class="value">6,359,340</div>
+          </div>
+          <div class="metric">
+            <h4>Rows</h4>
+            <div class="value">304</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <p class="playground-note">
+      <strong>No mock verification anywhere on this page.</strong> The receipts live in
+      <a href="https://github.com/welovejeff/tamper-evident-verification/tree/main/examples/chains">examples/chains/</a>;
+      the pill is <a href="https://github.com/welovejeff/tamper-evident-verification/blob/main/badge/light.js">badge/light.js</a>
+      doing the same Web Crypto walk the CLI does. Click the pill for the popover. On the
+      tampered chain, the light reaches into the page and flags the one metric whose
+      column moved at the broken link.
+    </p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="sec-kicker">the same verdict, two surfaces</p>
+    <h2>Read the receipts</h2>
+    <p class="sec-lede">
+      Receipts are plain JSON files on disk. The inspector below renders the actual
+      receipts your browser just verified, and the terminal shows what
+      <code>lineage verify</code> prints for the same chain. Exit codes are the traffic
+      light: 0 green, 1 red, 2 yellow.
+    </p>
+    <div class="twocol">
+      <div class="panel">
+        <div class="panel-head">RECEIPT CHAIN · <span id="insp-state">intact</span></div>
+        <div class="panel-body" id="inspector">loading receipts…</div>
+      </div>
+      <div class="panel term">
+        <div class="panel-head">TERMINAL</div>
+        <div class="panel-body" id="terminal">…</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="how">
+  <div class="wrap">
+    <p class="sec-kicker">how it works</p>
+    <h2>Receipts link. Links verify. Breaks locate.</h2>
+    <p class="sec-lede">
+      Each receipt records the SHA-256 of its input, its code, and its output, plus
+      human-legible control totals. Receipts link because each stage's input hash must
+      equal the previous stage's output hash. Hashes say "broken"; totals say "how broken."
+    </p>
+    <div class="chainflow">
+<b>export.xlsx</b>
+    │
+    ▼
+ [ingest] ─────────────▶ <span class="c">000_source.json</span>      evidence hash + semantic hash + totals, signed
+    │
+    ▼
+ [transform_clean] ────▶ <span class="c">001_clean.json</span>       input hash == previous output hash
+    │
+    ▼
+ [transform_agg] ──────▶ <span class="c">002_aggregate.json</span>
+    │
+    ▼
+<b>dashboard data</b>  ◀────── lineage verify: walk every link, check every signature</div>
+
+    <div class="codegrid">
+      <div>
+        <h3><b>PYTHON</b> · wrap any transform</h3>
+        <pre><code><span class="kw">from</span> lineage <span class="kw">import</span> lineage_step
+
+<span class="fn">@lineage_step</span>(chain_dir=<span class="str">"receipts/"</span>, key_path=<span class="str">"keys/signing.key"</span>)
+<span class="kw">def</span> <span class="fn">transform_clean</span>(records):
+    <span class="kw">return</span> [r <span class="kw">for</span> r <span class="kw">in</span> records <span class="kw">if</span> r.get(<span class="str">"campaign_name"</span>)]
+
+<span class="cmt"># verifies the chain tail first, refuses to run on a</span>
+<span class="cmt"># mismatch, then signs and appends a receipt</span></code></pre>
+      </div>
+      <div>
+        <h3><b>ANY FRONTEND</b> · mount the light</h3>
+        <pre><code>&lt;script type=<span class="str">"module"</span>&gt;
+  <span class="kw">import</span> { <span class="fn">mountLineageLight</span> } <span class="kw">from</span> <span class="str">"/badge/light.js"</span>;
+  <span class="fn">mountLineageLight</span>(
+    document.querySelector(<span class="str">"header"</span>),
+    <span class="str">"/receipts/chain.json"</span>
+  );
+&lt;/script&gt;
+
+<span class="cmt">&lt;!-- React, with a bundler --&gt;</span>
+&lt;<span class="fn">LineageLight</span> chain=<span class="str">"/receipts/chain.json"</span> /&gt;</code></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="explore">
+  <div class="wrap">
+    <p class="sec-kicker">explore</p>
+    <h2>Go deeper</h2>
+    <div class="cards">
+      <a class="card" href="badge/light.html">
+        <p class="card-k">LIVE PAGES</p>
+        <h3>The light &amp; the badge</h3>
+        <p>Standalone demo pages for the inline status light and the verification badge,
+           all three verdicts side by side against real chains.</p>
+        <span class="go">light.html / badge.html →</span>
+      </a>
+      <a class="card" href="designs/01-inline-light.html">
+        <p class="card-k">DESIGN DIRECTIONS</p>
+        <h3>The working mockups</h3>
+        <p>Three interface tiers: the inline light (shipped), the verification console,
+           and the Data tab. Live HTML, with the design notes alongside.</p>
+        <span class="go">designs/ →</span>
+      </a>
+      <a class="card" href="https://github.com/welovejeff/tamper-evident-verification/blob/main/docs/blog/your-vibe-coded-dashboard-needs-receipts.md">
+        <p class="card-k">THE STORY</p>
+        <h3>Your vibe-coded dashboard needs receipts</h3>
+        <p>The blog post: why AI-written pipelines fail silently, and what a receipt
+           chain catches that a plausible-looking chart never will.</p>
+        <span class="go">read the post →</span>
+      </a>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="honesty">
+      <h2>What this proves, and what it doesn't</h2>
+      <p>
+        This proves <strong>continuity, not correctness</strong>. The chain shows your
+        dashboard numbers descend from the ingested export through a known sequence of
+        code, and it locates the exact stage where a number changed unexpectedly. If the
+        source export is itself wrong, the chain faithfully verifies wrong numbers. It is
+        not a data-quality tool.
+      </p>
+      <p>
+        Also worth knowing: the signing key lives on your machine, and today that local
+        keypair is the whole root of trust. External anchoring (Sigstore, RFC 3161) is on
+        the roadmap to close that gap. Tamper-evident, not tamper-proof: we detect, we
+        don't prevent.
+      </p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>MIT licensed</span>
+    <span>·</span>
+    <a href="https://github.com/welovejeff/tamper-evident-verification">github.com/welovejeff/tamper-evident-verification</a>
+    <span class="sticker">Trust receipts, not vibes.</span>
+  </div>
+</footer>
+
+<script type="module">
+  import { mountLineageLight } from "./badge/light.js";
+  import {
+    verifyLineage,
+    SHORT,
+    totalsOf,
+    stageNameOf,
+    outputHashOf,
+  } from "./badge/badge.js";
+
+  const STATES = {
+    green: {
+      chain: "examples/chains/intact/chain.json",
+      pub: undefined,
+      spend: "$2,020,283",
+      inspLabel: "intact",
+      cmd: "lineage verify chain.json",
+    },
+    yellow: {
+      chain: "examples/chains/intact/chain.json",
+      pub: "ab".repeat(32),
+      spend: "$2,020,283",
+      inspLabel: "intact, untrusted key",
+      cmd: "lineage verify chain.json --pub someone-elses.pub",
+    },
+    red: {
+      chain: "examples/chains/tampered/chain.json",
+      pub: undefined,
+      spend: "$2,020,185",
+      inspLabel: "tampered",
+      cmd: "lineage verify chain.json",
+    },
+  };
+
+  const slot = document.getElementById("light-slot");
+  const inspector = document.getElementById("inspector");
+  const inspState = document.getElementById("insp-state");
+  const terminal = document.getElementById("terminal");
+  const spend = document.getElementById("m-spend");
+  const buttons = [...document.querySelectorAll(".switcher button[data-set]")];
+
+  let lightHandle = null;
+  const resultCache = {};
+
+  function el(tag, props = {}, children = []) {
+    const node = document.createElement(tag);
+    Object.assign(node, props);
+    for (const child of [].concat(children)) {
+      if (child == null) continue;
+      node.appendChild(typeof child === "string" ? document.createTextNode(child) : child);
+    }
+    return node;
+  }
+
+  function renderInspector(result) {
+    inspector.textContent = "";
+    if (result.state === "unverifiable") {
+      inspector.textContent =
+        `could not load the demo chains (${result.reason}). ` +
+        "If you are viewing this locally, serve the repo root: python -m http.server";
+      return;
+    }
+    for (const caveat of result.caveats) {
+      inspector.appendChild(el("div", { className: "caveat-box" }, `⚠ ${caveat}`));
+    }
+    const { receipts, linkResult } = result;
+    receipts.forEach((r, i) => {
+      if (i > 0) {
+        const broken = linkResult.ok === false && linkResult.brokenAt === i;
+        inspector.appendChild(
+          broken
+            ? el("div", { className: "link-row bad" },
+                `link ✗ expected ${SHORT(linkResult.expected)}, found ${SHORT(linkResult.found)}`)
+            : el("div", { className: "link-row ok" }, [
+                el("span", { className: "lnk-ok" }, "link ✓ "),
+                "input matches upstream output",
+              ])
+        );
+      }
+      const totals = totalsOf(r);
+      const card = el("div", { className: "stage-card" }, [
+        el("div", { className: "row1" }, [
+          el("span", { className: "stage-name" }, stageNameOf(r)),
+          el("span", { className: "kind" }, r.kind),
+          el("span", { className: "ts" }, r.created_at || ""),
+        ]),
+        el("div", { className: "row2" }, [
+          el("span", {}, [
+            "out ",
+            el("span", { className: "hash" }, SHORT(outputHashOf(r))),
+          ]),
+          el("span", {}, `rows ${totals.row_count ?? "?"}`),
+          el("span", {}, `sig ${(r.signature && r.signature.key_fingerprint || "").slice(0, 8)}…`),
+        ]),
+        el("details", {}, [
+          el("summary", {}, "raw receipt JSON"),
+          el("pre", {}, JSON.stringify(r, null, 2)),
+        ]),
+      ]);
+      inspector.appendChild(card);
+    });
+  }
+
+  // Mirror the CLI report for the same chain, built from the live result.
+  function renderTerminal(result, def) {
+    terminal.textContent = "";
+    const line = (cls, text) => terminal.appendChild(el("span", { className: cls }, text + "\n"));
+    line("t-prompt", `$ ${def.cmd}`);
+    if (result.state === "unverifiable") {
+      line("", "(run it yourself: pip install -e . && lineage demo)");
+      return;
+    }
+    const { receipts, linkResult, caveats } = result;
+    const rows = receipts.length ? totalsOf(receipts[receipts.length - 1]).row_count : "?";
+    if (result.state === "green") {
+      line("t-green", `✓ CHAIN INTACT: ${receipts.length} receipts, ${result.transforms} transforms, final row_count ${rows}`);
+      line("t-prompt", "# exit 0 · the light is green");
+    } else if (result.state === "yellow") {
+      line("t-amber", `⚠ CHAIN VERIFIES, WITH CAVEATS: ${receipts.length} receipts, ${result.transforms} transforms, final row_count ${rows}`);
+      for (const caveat of caveats) line("", `  - ${caveat}`);
+      line("t-amber", "  A human should look.");
+      line("t-prompt", "# exit 2 · the light is yellow");
+    } else {
+      line("t-red", `✗ CHAIN BROKEN at link ${linkResult.brokenAt - 1} -> ${linkResult.brokenAt} (${linkResult.brokenStage})`);
+      line("", `  expected input hash ${SHORT(linkResult.expected)}  (output of ${stageNameOf(receipts[linkResult.brokenAt - 1])})`);
+      line("", `  found    input hash ${SHORT(linkResult.found)}`);
+      if (linkResult.delta && linkResult.delta.length) {
+        line("", `  Control totals delta vs upstream: ${linkResult.delta.join(", ")}`);
+      }
+      line("t-prompt", "# exit 1 · the light is red");
+    }
+  }
+
+  async function setState(name) {
+    const def = STATES[name];
+    buttons.forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.set === name)));
+    spend.textContent = def.spend;
+    inspState.textContent = def.inspLabel;
+
+    if (lightHandle) lightHandle.destroy();
+    lightHandle = mountLineageLight(slot, def.chain, def.pub);
+
+    if (!resultCache[name]) {
+      resultCache[name] = await verifyLineage(def.chain, def.pub);
+    }
+    renderInspector(resultCache[name]);
+    renderTerminal(resultCache[name], def);
+  }
+
+  buttons.forEach((b) => b.addEventListener("click", () => setState(b.dataset.set)));
+
+  // Deep-link for sharing: ?state=red|yellow|green
+  const initial = new URLSearchParams(location.search).get("state");
+  setState(STATES[initial] ? initial : "green");
+</script>
+</body>
+</html>
