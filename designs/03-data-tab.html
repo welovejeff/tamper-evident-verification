@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Direction 3 — The Enforced Data Tab</title>
+<style>
+  /* ====================== tokens ====================== */
+  :root {
+    --bg: #0b0f14;
+    --panel: #11161d;
+    --panel-border: #1f2937;
+    --chrome: #161d26;
+    --text: #e5e7eb;
+    --dim: #8b98a5;
+    --faint: #3d4854;
+    --green: #34d399;
+    --green-deep: #067647;
+    --red: #f87171;
+    --red-deep: #b42318;
+    --amber: #fbbf24;
+    --cyan: #67e8f9;
+    --violet: #a78bfa;
+    --mono: ui-monospace, "SF Mono", Menlo, Monaco, "Cascadia Code", monospace;
+    --sans: -apple-system, "SF Pro Display", "Segoe UI", Roboto, Helvetica, sans-serif;
+
+    /* host (vibe-coded dashboard) palette */
+    --host-bg: #f4f6fa;
+    --host-card: #ffffff;
+    --host-ink: #1d2939;
+    --host-sub: #5b6575;
+    --host-accent: #6366f1;
+    --host-border: #e4e8f0;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    font-family: var(--sans);
+    background: #dde3ec;
+    color: var(--host-ink);
+    padding: 36px 16px 120px;
+    min-height: 100vh;
+  }
+
+  .stage { max-width: 1040px; margin: 0 auto; }
+
+  .stage-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    color: #5b6575;
+    margin: 0 0 10px 4px;
+  }
+
+  /* ====================== app window ====================== */
+  .app {
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 18px 50px rgba(16, 24, 40, 0.18);
+    background: var(--host-bg);
+    border: 1px solid var(--host-border);
+    transition: background 0.35s ease, border-color 0.35s ease;
+  }
+  .app.data-open { background: var(--bg); border-color: var(--panel-border); }
+
+  .app-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 22px 0;
+  }
+  .app-title { font-size: 17px; font-weight: 700; letter-spacing: -0.01em; margin: 0; flex: 1; }
+  .app-title small { display: block; font-size: 12px; font-weight: 400; color: var(--host-sub); margin-top: 2px; }
+  .data-open .app-title { color: var(--text); }
+  .data-open .app-title small { color: var(--dim); }
+
+  /* ====================== tab bar ====================== */
+  .tabs {
+    display: flex;
+    gap: 4px;
+    padding: 10px 22px 0;
+    border-bottom: 1px solid var(--host-border);
+    transition: border-color 0.35s ease;
+  }
+  .data-open .tabs { border-bottom-color: var(--panel-border); }
+
+  .tab {
+    appearance: none;
+    border: 1px solid transparent;
+    border-bottom: none;
+    background: transparent;
+    font-family: inherit;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--host-sub);
+    padding: 9px 18px 10px;
+    border-radius: 9px 9px 0 0;
+    cursor: pointer;
+    position: relative;
+    transition: color 0.2s ease, background 0.2s ease;
+  }
+  .tab:hover { color: var(--host-ink); }
+  .tab:focus-visible {
+    outline: 2px solid var(--host-accent);
+    outline-offset: -2px;
+  }
+  .tab[aria-selected="true"] {
+    background: var(--host-card);
+    border-color: var(--host-border);
+    color: var(--host-ink);
+    box-shadow: 0 -1px 0 var(--host-card) inset;
+  }
+  .data-open .tab { color: var(--dim); }
+  .data-open .tab:hover { color: var(--text); }
+  .data-open .tab:focus-visible { outline-color: var(--cyan); }
+
+  /* the injected Data tab — speaks our language even on the light side */
+  .tab--data { font-family: var(--mono); font-weight: 500; letter-spacing: 0.01em; }
+  .tab--data .dot {
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    margin-right: 7px;
+    vertical-align: 1px;
+    background: var(--green-deep);
+    transition: background 0.3s ease, box-shadow 0.3s ease;
+  }
+  .state-green .tab--data .dot { background: #14b67e; box-shadow: 0 0 6px rgba(52, 211, 153, 0.7); }
+  .state-yellow .tab--data .dot { background: #d99e0b; box-shadow: 0 0 6px rgba(251, 191, 36, 0.7); }
+  .state-red .tab--data .dot { background: #e5484d; box-shadow: 0 0 6px rgba(248, 113, 113, 0.7); }
+
+  .data-open .tab--data[aria-selected="true"] {
+    background: var(--panel);
+    border-color: var(--panel-border);
+    color: var(--text);
+    box-shadow: 0 -1px 0 var(--panel) inset;
+  }
+  .tab--data .inject-note {
+    font-size: 9.5px;
+    color: inherit;
+    opacity: 0.55;
+    margin-left: 8px;
+    letter-spacing: 0.04em;
+  }
+
+  /* ====================== panels / flip ====================== */
+  .panel { padding: 22px; }
+  .panel[hidden] { display: none; }
+
+  @keyframes cabinet-open {
+    from { opacity: 0; transform: perspective(1400px) rotateX(-4deg) translateY(8px); }
+    to   { opacity: 1; transform: perspective(1400px) rotateX(0deg) translateY(0); }
+  }
+  @keyframes cabinet-close {
+    from { opacity: 0; transform: perspective(1400px) rotateX(3deg) translateY(-6px); }
+    to   { opacity: 1; transform: perspective(1400px) rotateX(0deg) translateY(0); }
+  }
+  .panel--data.entering { animation: cabinet-open 0.32s ease-out; transform-origin: top center; }
+  .panel--dash.entering { animation: cabinet-close 0.28s ease-out; transform-origin: top center; }
+  @media (prefers-reduced-motion: reduce) {
+    .panel--data.entering, .panel--dash.entering { animation: none; }
+    .app, .tabs, .tab { transition: none; }
+  }
+
+  /* ====================== host dashboard (light, vibe-coded) ====================== */
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 18px;
+  }
+  @media (max-width: 760px) { .cards { grid-template-columns: repeat(2, 1fr); } }
+  .card {
+    background: var(--host-card);
+    border: 1px solid var(--host-border);
+    border-radius: 12px;
+    padding: 16px 18px;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+  }
+  .card .k { font-size: 12px; color: var(--host-sub); font-weight: 600; }
+  .card .v { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; margin-top: 4px; }
+  .card .t { font-size: 11.5px; margin-top: 6px; font-weight: 600; color: #12805c; }
+  .card .t.down { color: #b42318; }
+
+  .chart-card {
+    background: var(--host-card);
+    border: 1px solid var(--host-border);
+    border-radius: 12px;
+    padding: 18px 18px 12px;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+  }
+  .chart-card h3 { margin: 0 0 2px; font-size: 14px; }
+  .chart-card p { margin: 0 0 16px; font-size: 12px; color: var(--host-sub); }
+  .bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 7px;
+    height: 150px;
+    border-bottom: 1px solid var(--host-border);
+    padding: 0 4px;
+  }
+  .bars .b {
+    flex: 1;
+    border-radius: 4px 4px 0 0;
+    background: linear-gradient(180deg, #818cf8, var(--host-accent));
+    min-width: 8px;
+  }
+  .bars-x {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10.5px;
+    color: var(--host-sub);
+    padding: 6px 4px 2px;
+  }
+
+  /* ====================== DATA TAB (ours, dark) ====================== */
+  .panel--data {
+    font-family: var(--mono);
+    color: var(--text);
+    font-size: 13px;
+  }
+
+  /* --- status strip --- */
+  .status-strip {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 10px;
+    padding: 14px 18px;
+    margin-bottom: 14px;
+  }
+  .traffic {
+    display: flex;
+    gap: 7px;
+    flex-shrink: 0;
+    padding: 7px 9px;
+    background: var(--chrome);
+    border: 1px solid var(--panel-border);
+    border-radius: 999px;
+  }
+  .traffic .lamp {
+    width: 13px; height: 13px;
+    border-radius: 50%;
+    background: var(--faint);
+    transition: background 0.25s ease, box-shadow 0.25s ease;
+  }
+  .state-red    .lamp--red   { background: var(--red);   box-shadow: 0 0 10px rgba(248,113,113,0.8); }
+  .state-yellow .lamp--amber { background: var(--amber); box-shadow: 0 0 10px rgba(251,191,36,0.8); }
+  .state-green  .lamp--green { background: var(--green); box-shadow: 0 0 10px rgba(52,211,153,0.8); }
+
+  .status-text { flex: 1; min-width: 0; }
+  .status-text .headline { font-size: 14.5px; font-weight: 700; letter-spacing: 0.01em; }
+  .status-text .sub { color: var(--dim); font-size: 12px; margin-top: 4px; line-height: 1.5; }
+  .state-green  .status-text .headline { color: var(--green); }
+  .state-yellow .status-text .headline { color: var(--amber); }
+  .state-red    .status-text .headline { color: var(--red); }
+
+  .state-only { display: none; }
+  .state-green  .only-green,
+  .state-yellow .only-yellow,
+  .state-red    .only-red { display: block; }
+  .state-green  span.only-green,
+  .state-yellow span.only-yellow,
+  .state-red    span.only-red { display: inline; }
+
+  /* --- break detail (red) / caveat banner (yellow) --- */
+  .alert {
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-bottom: 14px;
+    font-size: 12.5px;
+    line-height: 1.6;
+  }
+  .alert--break {
+    border: 1px solid var(--red-deep);
+    background: rgba(180, 35, 24, 0.13);
+    color: #fecaca;
+  }
+  .alert--break strong { color: var(--red); }
+  .alert--break code, .alert--caveat code {
+    background: rgba(0,0,0,0.35);
+    border: 1px solid var(--panel-border);
+    border-radius: 4px;
+    padding: 1px 6px;
+    color: var(--cyan);
+    font-size: 11.5px;
+  }
+  .alert--caveat {
+    border: 1px solid #936c0a;
+    background: rgba(251, 191, 36, 0.09);
+    color: #fde68a;
+  }
+  .alert--caveat strong { color: var(--amber); }
+
+  /* --- provenance chips --- */
+  .provenance {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    padding: 7px 12px;
+    font-size: 11.5px;
+    color: var(--text);
+    white-space: nowrap;
+  }
+  .chip .lbl { color: var(--dim); }
+  .chip .hash { color: var(--cyan); }
+  .chip .ok { color: var(--green); }
+  .chip .warn { color: var(--amber); }
+  .chip .bad { color: var(--red); }
+  .chip--sig { border-color: var(--green-deep); }
+  .state-yellow .chip--stage2 { border-color: #936c0a; }
+  .state-red .chip--stage2,
+  .state-red .chip--sig { border-color: var(--red-deep); }
+  .prov-arrow { color: var(--faint); font-size: 13px; user-select: none; }
+
+  .chip .sig-state-green, .chip .sig-state-yellow, .chip .sig-state-red,
+  .chip .s2-state-green, .chip .s2-state-yellow, .chip .s2-state-red { display: none; }
+  .state-green  .sig-state-green,  .state-green  .s2-state-green  { display: inline; }
+  .state-yellow .sig-state-yellow, .state-yellow .s2-state-yellow { display: inline; }
+  .state-red    .sig-state-red,    .state-red    .s2-state-red    { display: inline; }
+
+  /* --- table --- */
+  .table-wrap {
+    border: 1px solid var(--panel-border);
+    border-radius: 10px;
+    overflow: auto;
+    max-height: 460px;
+    background: var(--panel);
+  }
+  table {
+    border-collapse: separate;
+    border-spacing: 0;
+    width: 100%;
+    font-size: 12.5px;
+  }
+  caption {
+    text-align: left;
+    padding: 10px 14px;
+    color: var(--dim);
+    font-size: 11.5px;
+    border-bottom: 1px solid var(--panel-border);
+    background: var(--chrome);
+    position: sticky; top: 0; z-index: 3;
+  }
+  thead th {
+    position: sticky; top: 37px; z-index: 2;
+    background: var(--chrome);
+    color: var(--dim);
+    font-weight: 600;
+    text-align: right;
+    padding: 9px 14px;
+    border-bottom: 1px solid var(--panel-border);
+    letter-spacing: 0.03em;
+    font-size: 11px;
+    text-transform: uppercase;
+  }
+  thead th:first-child, thead th:nth-child(2) { text-align: left; }
+  tbody td {
+    padding: 7px 14px;
+    text-align: right;
+    border-bottom: 1px solid #161d26;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+    transition: background 0.25s ease, color 0.25s ease;
+  }
+  tbody td:first-child { color: var(--dim); text-align: left; }
+  tbody td:nth-child(2) { color: var(--violet); text-align: left; }
+  tbody tr:hover td { background: rgba(103, 232, 249, 0.04); }
+
+  tfoot td {
+    position: sticky; bottom: 0;
+    background: var(--chrome);
+    border-top: 2px solid var(--panel-border);
+    padding: 10px 14px;
+    text-align: right;
+    font-weight: 700;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+    transition: background 0.25s ease, color 0.25s ease;
+  }
+  tfoot td:first-child { text-align: left; color: var(--dim); font-weight: 600; }
+
+  td .check { font-size: 10.5px; margin-left: 6px; }
+  .state-green tfoot .check { color: var(--green); }
+
+  /* per-state total values */
+  .total-views .v-bad, .total-views .v-expected { display: none; }
+  .state-red .total-views .v-ok { display: none; }
+  .state-red .total-views .v-bad,
+  .state-red .total-views .v-expected { display: inline; }
+  .v-expected { color: var(--dim); font-weight: 400; font-size: 11px; text-decoration: line-through; margin-right: 8px; }
+  .v-bad { color: var(--red); }
+
+  /* RED: tint the broken column (sticky cells need opaque layered backgrounds) */
+  .state-red tbody td.col-views,
+  .state-red th.col-views,
+  .state-red tfoot td.col-views {
+    box-shadow: inset 2px 0 0 rgba(180, 35, 24, 0.55), inset -2px 0 0 rgba(180, 35, 24, 0.55);
+  }
+  .state-red tbody td.col-views { background: rgba(180, 35, 24, 0.14); }
+  .state-red th.col-views {
+    color: var(--red);
+    background: linear-gradient(rgba(180, 35, 24, 0.22), rgba(180, 35, 24, 0.22)), var(--chrome);
+  }
+  .state-red tfoot td.col-views {
+    background: linear-gradient(rgba(180, 35, 24, 0.32), rgba(180, 35, 24, 0.32)), var(--chrome);
+  }
+
+  /* YELLOW: mark derived/unverifiable columns */
+  .col-flag { display: none; font-size: 9px; letter-spacing: 0.06em; margin-left: 6px; padding: 1px 5px; border-radius: 4px; vertical-align: 1px; }
+  .state-yellow th.col-derived .col-flag {
+    display: inline-block;
+    color: #0b0f14;
+    background: var(--amber);
+  }
+  .state-yellow tbody td.col-derived { background: rgba(251, 191, 36, 0.07); }
+  .state-yellow th.col-derived {
+    color: var(--amber);
+    background: linear-gradient(rgba(251, 191, 36, 0.12), rgba(251, 191, 36, 0.12)), var(--chrome);
+  }
+  .state-yellow tfoot td.col-derived {
+    background: linear-gradient(rgba(251, 191, 36, 0.12), rgba(251, 191, 36, 0.12)), var(--chrome);
+  }
+  .state-yellow tfoot td.col-derived .num { display: none; }
+  tfoot td .unv { display: none; color: var(--amber); font-weight: 600; font-size: 11px; }
+  .state-yellow tfoot td.col-derived .unv { display: inline; }
+
+  .table-meta {
+    color: var(--dim);
+    font-size: 11px;
+    margin-top: 10px;
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* --- manifesto footnote --- */
+  .manifesto {
+    margin-top: 22px;
+    padding: 14px 16px 14px 18px;
+    border-left: 3px solid var(--green-deep);
+    color: var(--dim);
+    font-size: 12px;
+    line-height: 1.7;
+    max-width: 760px;
+  }
+  .manifesto strong { color: var(--text); }
+  .manifesto .sig { color: var(--faint); display: block; margin-top: 6px; font-size: 11px; }
+
+  /* ====================== demo controls (not product) ====================== */
+  .demo-bar {
+    position: fixed;
+    left: 50%;
+    bottom: 20px;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #11161d;
+    border: 1.5px dashed var(--faint);
+    border-radius: 999px;
+    padding: 8px 14px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--dim);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    z-index: 50;
+  }
+  .demo-bar .demo-label { letter-spacing: 0.1em; color: var(--faint); font-size: 10px; }
+  .demo-btn {
+    appearance: none;
+    font-family: inherit;
+    font-size: 11px;
+    border-radius: 999px;
+    border: 1px solid var(--panel-border);
+    background: var(--chrome);
+    color: var(--dim);
+    padding: 6px 14px;
+    cursor: pointer;
+    transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+  }
+  .demo-btn:hover { color: var(--text); }
+  .demo-btn:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+  .demo-btn[aria-pressed="true"][data-state="green"]  { color: #0b0f14; background: var(--green); border-color: var(--green); font-weight: 700; }
+  .demo-btn[aria-pressed="true"][data-state="yellow"] { color: #0b0f14; background: var(--amber); border-color: var(--amber); font-weight: 700; }
+  .demo-btn[aria-pressed="true"][data-state="red"]    { color: #fff;    background: var(--red-deep); border-color: var(--red-deep); font-weight: 700; }
+
+  /* visually hidden (for SR-only state announcements) */
+  .sr-only {
+    position: absolute; width: 1px; height: 1px;
+    padding: 0; margin: -1px; overflow: hidden;
+    clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  }
+</style>
+</head>
+<body class="state-green">
+  <div class="stage">
+    <p class="stage-label">DIRECTION 3 / 3 — THE ENFORCED DATA TAB · lineage-receipts design exploration</p>
+
+    <div class="app" id="app">
+      <div class="app-header">
+        <h1 class="app-title">TikTok Performance
+          <small>creator analytics · last 15 days · built with v0 + Supabase</small>
+        </h1>
+      </div>
+
+      <div class="tabs" role="tablist" aria-label="Dashboard views">
+        <button class="tab" id="tab-dash" role="tab" aria-selected="true" aria-controls="panel-dash">
+          Dashboard
+        </button>
+        <button class="tab tab--data" id="tab-data" role="tab" aria-selected="false" aria-controls="panel-data">
+          <span class="dot" aria-hidden="true"></span>🧾 Data<span class="inject-note">· lineage-receipts</span>
+        </button>
+      </div>
+
+      <!-- =================== HOST DASHBOARD (light) =================== -->
+      <section class="panel panel--dash" id="panel-dash" role="tabpanel" aria-labelledby="tab-dash" tabindex="0">
+        <div class="cards">
+          <div class="card"><div class="k">Total Views</div><div class="v">1.28M</div><div class="t">▲ 12.4% vs prior 15d</div></div>
+          <div class="card"><div class="k">Likes</div><div class="v">104.6K</div><div class="t">▲ 8.1%</div></div>
+          <div class="card"><div class="k">Shares</div><div class="v">12.9K</div><div class="t">▲ 15.7%</div></div>
+          <div class="card"><div class="k">Avg Watch Time</div><div class="v">15.8s</div><div class="t down">▼ 0.4s</div></div>
+        </div>
+        <div class="chart-card">
+          <h3>Daily Views</h3>
+          <p>May 25 – Jun 8, 2026</p>
+          <div class="bars" role="img" aria-label="Bar chart of daily views, May 25 to June 8, ranging from 21 thousand to 113 thousand">
+            <div class="b" style="height:34%"></div><div class="b" style="height:45%"></div>
+            <div class="b" style="height:22%"></div><div class="b" style="height:83%"></div>
+            <div class="b" style="height:30%"></div><div class="b" style="height:59%"></div>
+            <div class="b" style="height:26%"></div><div class="b" style="height:100%"></div>
+            <div class="b" style="height:40%"></div><div class="b" style="height:52%"></div>
+            <div class="b" style="height:19%"></div><div class="b" style="height:68%"></div>
+            <div class="b" style="height:44%"></div><div class="b" style="height:78%"></div>
+            <div class="b" style="height:56%"></div>
+          </div>
+          <div class="bars-x"><span>May 25</span><span>May 29</span><span>Jun 2</span><span>Jun 5</span><span>Jun 8</span></div>
+        </div>
+      </section>
+
+      <!-- =================== DATA TAB (ours, dark) =================== -->
+      <section class="panel panel--data" id="panel-data" role="tabpanel" aria-labelledby="tab-data" tabindex="0" hidden>
+
+        <!-- (a) verification status strip -->
+        <div class="status-strip" role="status">
+          <div class="traffic" aria-hidden="true">
+            <span class="lamp lamp--red"></span>
+            <span class="lamp lamp--amber"></span>
+            <span class="lamp lamp--green"></span>
+          </div>
+          <div class="status-text">
+            <div class="state-only only-green">
+              <div class="headline">The light is green, the data is clean.</div>
+              <div class="sub">3 of 3 receipts verified · hash chain intact · ed25519 signatures valid · checked 2026-06-10 06:12 UTC, in this browser</div>
+            </div>
+            <div class="state-only only-yellow">
+              <div class="headline">Verified with caveats — one stage didn’t show its work.</div>
+              <div class="sub">2 of 3 receipts verified · source &amp; cleaning stage intact · aggregation stage emitted no receipt · checked 2026-06-10 06:12 UTC</div>
+            </div>
+            <div class="state-only only-red">
+              <div class="headline">Verification failed — these numbers do not match their source.</div>
+              <div class="sub">hash chain breaks after stage 1 · control total mismatch on <strong style="color:var(--red)">views</strong> · do not present this dashboard</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- (d) RED break detail -->
+        <div class="state-only only-red">
+          <div class="alert alert--break">
+            <strong>BREAK · column control total: views</strong><br />
+            expected <code>1,284,003</code> (signed, stage 1) · found <code>1,259,114</code> on screen
+            · Δ <strong>−24,889</strong> · row count Δ <strong>−22</strong> (expected 14,892 · found 14,870)<br />
+            22 rows were dropped or edited between <code>clean_rows.py</code> and render. Affected column highlighted below.
+          </div>
+        </div>
+
+        <!-- (e) YELLOW caveat banner -->
+        <div class="state-only only-yellow">
+          <div class="alert alert--caveat">
+            <strong>CAVEAT · stage 2 (aggregate.py) emitted no receipt</strong> — totals are unverifiable for
+            derived columns. <code>avg watch time</code> is computed by stage 2 and carries no signed control
+            total; raw columns remain verified against the source. Marked below.
+          </div>
+        </div>
+
+        <!-- (c) provenance chips -->
+        <div class="provenance" aria-label="Data provenance chain">
+          <span class="chip" title="Ingested source file">
+            <span aria-hidden="true">📄</span> tiktok.xlsx <span class="lbl">· 48,212 rows ·</span>
+            <span class="hash">sha256 1be2…a7c4</span> <span class="ok">✓</span>
+          </span>
+          <span class="prov-arrow" aria-hidden="true">→</span>
+          <span class="chip" title="Transform stage 1">
+            <span class="lbl">stage 1</span> clean_rows.py
+            <span class="hash">9d4f…03e1</span> <span class="ok">✓</span>
+          </span>
+          <span class="prov-arrow" aria-hidden="true">→</span>
+          <span class="chip chip--stage2" title="Transform stage 2">
+            <span class="lbl">stage 2</span> aggregate.py
+            <span class="s2-state-green"><span class="hash">c7a8…5b92</span> <span class="ok">✓</span></span>
+            <span class="s2-state-yellow"><span class="warn">no receipt ⚠</span></span>
+            <span class="s2-state-red"><span class="hash">c7a8…5b92</span> <span class="bad">✗ mismatch</span></span>
+          </span>
+          <span class="prov-arrow" aria-hidden="true">→</span>
+          <span class="chip chip--sig" title="Receipt chain signature">
+            <span aria-hidden="true">🧾</span> <span class="lbl">receipt</span>
+            <span class="sig-state-green"><span class="ok">signed · ed25519 valid</span></span>
+            <span class="sig-state-yellow"><span class="ok">signed</span> <span class="warn">· chain has a gap</span></span>
+            <span class="sig-state-red"><span class="bad">chain broken after stage 1</span></span>
+          </span>
+        </div>
+
+        <!-- (b) raw data table -->
+        <div class="table-wrap" tabindex="0" aria-label="Raw data table, scrollable">
+          <table>
+            <caption>raw rows behind “TikTok Performance” · this table is the chart · totals computed over the full verified set, not just visible rows</caption>
+            <thead>
+              <tr>
+                <th scope="col">date</th>
+                <th scope="col">video id</th>
+                <th scope="col" class="col-views">views</th>
+                <th scope="col">likes</th>
+                <th scope="col">shares</th>
+                <th scope="col" class="col-derived">avg watch<span class="col-flag">UNVERIFIED</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td>2026-05-25</td><td>vid_8f31a2</td><td class="col-views">38,412</td><td>2,981</td><td>304</td><td class="col-derived">12.4s</td></tr>
+              <tr><td>2026-05-26</td><td>vid_c07d44</td><td class="col-views">51,209</td><td>4,118</td><td>522</td><td class="col-derived">16.1s</td></tr>
+              <tr><td>2026-05-27</td><td>vid_2be9f0</td><td class="col-views">24,887</td><td>1,902</td><td>188</td><td class="col-derived">9.8s</td></tr>
+              <tr><td>2026-05-28</td><td>vid_77aa13</td><td class="col-views">94,310</td><td>8,442</td><td>1,206</td><td class="col-derived">21.3s</td></tr>
+              <tr><td>2026-05-29</td><td>vid_d1c58e</td><td class="col-views">33,704</td><td>2,610</td><td>297</td><td class="col-derived">11.2s</td></tr>
+              <tr><td>2026-05-30</td><td>vid_4e92b7</td><td class="col-views">67,118</td><td>5,873</td><td>740</td><td class="col-derived">18.6s</td></tr>
+              <tr><td>2026-05-31</td><td>vid_a85c20</td><td class="col-views">29,455</td><td>2,144</td><td>231</td><td class="col-derived">10.5s</td></tr>
+              <tr><td>2026-06-01</td><td>vid_f63d09</td><td class="col-views">112,940</td><td>10,386</td><td>1,684</td><td class="col-derived">24.9s</td></tr>
+              <tr><td>2026-06-02</td><td>vid_31b7ce</td><td class="col-views">45,602</td><td>3,517</td><td>401</td><td class="col-derived">13.7s</td></tr>
+              <tr><td>2026-06-03</td><td>vid_9c04ef</td><td class="col-views">58,233</td><td>4,790</td><td>633</td><td class="col-derived">15.4s</td></tr>
+              <tr><td>2026-06-04</td><td>vid_6dd1a8</td><td class="col-views">21,096</td><td>1,544</td><td>142</td><td class="col-derived">8.9s</td></tr>
+              <tr><td>2026-06-05</td><td>vid_b24f73</td><td class="col-views">76,884</td><td>6,925</td><td>902</td><td class="col-derived">19.2s</td></tr>
+              <tr><td>2026-06-06</td><td>vid_05e6c1</td><td class="col-views">49,310</td><td>3,866</td><td>477</td><td class="col-derived">14.0s</td></tr>
+              <tr><td>2026-06-07</td><td>vid_ee78b5</td><td class="col-views">88,127</td><td>7,903</td><td>1,118</td><td class="col-derived">20.7s</td></tr>
+              <tr><td>2026-06-08</td><td>vid_5a3d96</td><td class="col-views">63,499</td><td>5,412</td><td>689</td><td class="col-derived">17.5s</td></tr>
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colspan="2">Σ totals <span class="lbl" style="color:var(--faint)">(control totals, signed)</span></td>
+                <td class="col-views total-views">
+                  <span class="v-expected" aria-label="expected total">1,284,003</span><span class="v-bad">1,259,114</span><span class="v-ok">1,284,003</span><span class="check" aria-hidden="true">✓</span>
+                </td>
+                <td>104,557<span class="check" aria-hidden="true">✓</span></td>
+                <td>12,940<span class="check" aria-hidden="true">✓</span></td>
+                <td class="col-derived"><span class="num">15.8s<span class="check" aria-hidden="true">✓</span></span><span class="unv">⚠ unverifiable</span></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        <div class="table-meta">
+          <span>showing 15 of <span class="state-only only-red">14,870</span><span class="state-only only-green">14,892</span><span class="state-only only-yellow">14,892</span> filtered rows · source 48,212</span>
+          <span>verification: file + stage hashes &amp; column control totals — not per-row signatures</span>
+        </div>
+
+        <!-- (5) manifesto footnote -->
+        <aside class="manifesto">
+          <strong>Why this tab exists.</strong> Every chart should expose the table it was drawn from —
+          a number you can’t inspect is a number you’re asked to take on faith. Verification needs a
+          place to point: when a total breaks, this tab is where you see <em>which</em> column, by
+          <em>how much</em>, after <em>which</em> stage. Install lineage-receipts and your dashboard
+          grows this tab. That’s not a side effect; it’s the point.
+          <span class="sig">— lineage-receipts · “the light is green, the data is clean.”</span>
+        </aside>
+      </section>
+    </div>
+  </div>
+
+  <!-- (4) demo-only state toggles -->
+  <div class="demo-bar" role="group" aria-label="Demo-only verification state switcher">
+    <span class="demo-label">DEMO ONLY · sets fake verification state</span>
+    <button class="demo-btn" data-state="green" aria-pressed="true">green</button>
+    <button class="demo-btn" data-state="yellow" aria-pressed="false">yellow</button>
+    <button class="demo-btn" data-state="red" aria-pressed="false">red</button>
+  </div>
+  <p class="sr-only" role="status" aria-live="polite" id="sr-state">Verification state: green</p>
+
+<script>
+  // ---------------- tabs ----------------
+  const app = document.getElementById("app");
+  const tabs = [document.getElementById("tab-dash"), document.getElementById("tab-data")];
+  const panels = {
+    "tab-dash": document.getElementById("panel-dash"),
+    "tab-data": document.getElementById("panel-data"),
+  };
+
+  function selectTab(tab) {
+    tabs.forEach((t) => {
+      const selected = t === tab;
+      t.setAttribute("aria-selected", String(selected));
+      const panel = panels[t.id];
+      panel.hidden = !selected;
+      panel.classList.remove("entering");
+      if (selected) {
+        // force reflow so the animation can restart
+        void panel.offsetWidth;
+        panel.classList.add("entering");
+      }
+    });
+    // the cabinet flips open: the whole window goes dark
+    app.classList.toggle("data-open", tab.id === "tab-data");
+  }
+
+  tabs.forEach((tab) => {
+    tab.addEventListener("click", () => selectTab(tab));
+    tab.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+        e.preventDefault();
+        const other = tabs[(tabs.indexOf(tab) + 1) % 2];
+        other.focus();
+        selectTab(other);
+      }
+    });
+  });
+
+  // ---------------- demo state switcher (demo only — not product UI) ----------------
+  const demoButtons = document.querySelectorAll(".demo-btn");
+  const srState = document.getElementById("sr-state");
+  demoButtons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const state = btn.dataset.state;
+      document.body.classList.remove("state-green", "state-yellow", "state-red");
+      document.body.classList.add("state-" + state);
+      demoButtons.forEach((b) => b.setAttribute("aria-pressed", String(b === btn)));
+      srState.textContent = "Verification state: " + state;
+    });
+  });
+</script>
+</body>
+</html>

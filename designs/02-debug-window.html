@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>lineage console — tiktok-q2</title>
+<style>
+  /* ── tokens (mirrors animations/src/theme.ts) ─────────────────────────── */
+  :root {
+    color-scheme: dark;
+    --bg: #0b0f14;
+    --panel: #11161d;
+    --chrome: #161d26;
+    --border: #1f2937;
+    --text: #e5e7eb;
+    --dim: #8b98a5;
+    --faint: #3d4854;
+    --green: #34d399;
+    --green-deep: #067647;
+    --red: #f87171;
+    --red-deep: #b42318;
+    --amber: #fbbf24;
+    --cyan: #67e8f9;
+    --violet: #a78bfa;
+    --mono: ui-monospace, "SF Mono", Menlo, Monaco, "Cascadia Code", monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  ::-webkit-scrollbar { width: 10px; height: 10px; background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 5px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--faint); }
+  ::-webkit-scrollbar-corner { background: transparent; }
+
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.45;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  button {
+    font-family: var(--mono);
+    font-size: inherit;
+    color: inherit;
+    background: none;
+    border: none;
+    cursor: pointer;
+  }
+  :focus-visible {
+    outline: 2px solid var(--cyan);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* ── status header: the room's traffic light ──────────────────────────── */
+  .status {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    padding: 16px 20px 14px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, var(--chrome), var(--panel));
+    flex-shrink: 0;
+  }
+
+  .lamp {
+    width: 58px;
+    height: 58px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    position: relative;
+    border: 2px solid var(--border);
+    background: radial-gradient(circle at 35% 30%, #ffffff22, transparent 55%), var(--faint);
+    transition: background 0.4s ease;
+  }
+  body[data-state="green"] .lamp {
+    background: radial-gradient(circle at 35% 30%, #ffffff55, transparent 55%), var(--green);
+    border-color: var(--green-deep);
+    box-shadow: 0 0 24px 4px rgba(52, 211, 153, 0.45), inset 0 0 12px rgba(6, 118, 71, 0.6);
+    animation: breathe 4s ease-in-out infinite;
+  }
+  body[data-state="yellow"] .lamp {
+    background: radial-gradient(circle at 35% 30%, #ffffff55, transparent 55%), var(--amber);
+    border-color: #92610b;
+    box-shadow: 0 0 22px 4px rgba(251, 191, 36, 0.4);
+    animation: breathe 2.4s ease-in-out infinite;
+  }
+  body[data-state="red"] .lamp {
+    background: radial-gradient(circle at 35% 30%, #ffffff55, transparent 55%), var(--red);
+    border-color: var(--red-deep);
+    box-shadow: 0 0 26px 6px rgba(248, 113, 113, 0.55);
+    animation: alarm 1.4s ease-in-out infinite;
+  }
+  .lamp.flash { animation: lampchange 0.7s ease-out 1 !important; }
+
+  @keyframes breathe {
+    0%, 100% { filter: brightness(1); }
+    50% { filter: brightness(1.18); }
+  }
+  @keyframes alarm {
+    0%, 100% { filter: brightness(1); }
+    12% { filter: brightness(1.6); }
+    24% { filter: brightness(0.95); }
+    36% { filter: brightness(1.5); }
+    50% { filter: brightness(1); }
+  }
+  @keyframes lampchange {
+    0% { transform: scale(0.85); filter: brightness(2.2); }
+    100% { transform: scale(1); filter: brightness(1); }
+  }
+
+  .status-text { min-width: 0; flex: 1; }
+  .status-line {
+    margin: 0;
+    font-size: 19px;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  body[data-state="green"]  .status-line { color: var(--green); }
+  body[data-state="yellow"] .status-line { color: var(--amber); }
+  body[data-state="red"]    .status-line { color: var(--red); }
+  .status-sub {
+    margin: 4px 0 0;
+    color: var(--dim);
+    font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .status-sub b { color: var(--text); font-weight: 600; }
+
+  /* demo toggles */
+  .demo {
+    flex-shrink: 0;
+    text-align: right;
+  }
+  .demo-label {
+    display: block;
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    color: var(--faint);
+    text-transform: uppercase;
+    margin-bottom: 5px;
+  }
+  .demo-buttons {
+    display: inline-flex;
+    border: 1px dashed var(--faint);
+    border-radius: 6px;
+    padding: 3px;
+    gap: 3px;
+  }
+  .demo-buttons button {
+    padding: 4px 10px;
+    border-radius: 4px;
+    color: var(--dim);
+    font-size: 11px;
+  }
+  .demo-buttons button:hover { color: var(--text); background: var(--chrome); }
+  .demo-buttons button[aria-pressed="true"] { color: var(--bg); font-weight: 700; }
+  .demo-buttons button[data-demo="green"][aria-pressed="true"]  { background: var(--green); }
+  .demo-buttons button[data-demo="yellow"][aria-pressed="true"] { background: var(--amber); }
+  .demo-buttons button[data-demo="red"][aria-pressed="true"]    { background: var(--red); }
+
+  /* ── main: pipeline + inspector ───────────────────────────────────────── */
+  main {
+    flex: 1;
+    display: flex;
+    min-height: 0;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .pipeline-wrap {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .pipeline-head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 12px 20px 0;
+    color: var(--dim);
+    font-size: 11px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .pipeline-head .hint { margin-left: auto; text-transform: none; letter-spacing: 0; color: var(--faint); }
+
+  .pipeline {
+    flex: 1;
+    display: flex;
+    align-items: flex-start;
+    padding: 26px 20px 8px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    gap: 0;
+  }
+
+  /* node card */
+  .node {
+    width: 168px;
+    flex-shrink: 0;
+    text-align: left;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-top: 3px solid var(--green);
+    border-radius: 8px;
+    padding: 10px 12px 11px;
+    transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s;
+  }
+  .node:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,0.5); }
+  .node[aria-expanded="true"] { box-shadow: 0 0 0 2px var(--cyan); }
+  .node.ok      { border-top-color: var(--green); }
+  .node.warn    { border-top-color: var(--amber); }
+  .node.bad     { border-top-color: var(--red); }
+  .node.missing { border-top-color: var(--faint); border-style: dashed; opacity: 0.75; }
+  .node.dimmed  { opacity: 0.45; }
+
+  .node-kind { font-size: 10px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--faint); }
+  .node-name { font-size: 14px; font-weight: 700; color: var(--text); margin: 1px 0 7px; }
+  .node-name .ext { color: var(--violet); }
+  .node-row { display: flex; align-items: center; gap: 6px; margin-top: 4px; font-size: 11px; color: var(--dim); }
+  .node-row .k { width: 28px; color: var(--faint); flex-shrink: 0; }
+
+  .chip {
+    font-size: 11px;
+    color: var(--cyan);
+    background: rgba(103, 232, 249, 0.08);
+    border: 1px solid rgba(103, 232, 249, 0.25);
+    border-radius: 4px;
+    padding: 0 5px;
+    white-space: nowrap;
+  }
+  .chip.red   { color: var(--red);   background: rgba(248,113,113,0.1);  border-color: rgba(248,113,113,0.35); }
+  .chip.green { color: var(--green); background: rgba(52,211,153,0.08);  border-color: rgba(52,211,153,0.3); }
+
+  .sig { font-size: 11px; margin-top: 7px; }
+  .sig.ok   { color: var(--green); }
+  .sig.warn { color: var(--amber); }
+  .sig.none { color: var(--faint); }
+  .totals { font-size: 11px; color: var(--dim); margin-top: 3px; }
+  .totals b { color: var(--text); font-weight: 600; }
+  .totals .delta-bad { color: var(--red); font-weight: 700; }
+
+  /* link between nodes */
+  .link {
+    flex: 1;
+    min-width: 56px;
+    max-width: 96px;
+    align-self: flex-start;
+    margin-top: 52px;
+    position: relative;
+    flex-shrink: 0;
+  }
+  .wire {
+    height: 2px;
+    background: var(--green);
+    position: relative;
+    transform-origin: left center;
+    animation: draw 0.45s ease-out backwards;
+  }
+  .wire::after {
+    content: "";
+    position: absolute;
+    right: -1px;
+    top: -4px;
+    border: 5px solid transparent;
+    border-left-color: var(--green);
+  }
+  .link.warn .wire { background: var(--amber); height: 0; border-top: 2px dashed var(--amber); }
+  .link.warn .wire::after { border-left-color: var(--amber); top: -6px; }
+  .link.dimmed .wire { background: var(--faint); }
+  .link.dimmed .wire::after { border-left-color: var(--faint); }
+  .link.dimmed { opacity: 0.5; }
+  @keyframes draw { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+  .link-tag {
+    position: absolute;
+    top: -22px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 11px;
+    white-space: nowrap;
+  }
+  .link-tag.ok   { color: var(--green); }
+  .link-tag.warn { color: var(--amber); }
+  .link-tag.dim  { color: var(--faint); }
+
+  /* severed link (red state) */
+  .link.broken { min-width: 120px; max-width: 150px; }
+  .link.broken .wire { background: none; animation: none; height: 2px; }
+  .link.broken .wire::after { display: none; }
+  .stub { position: absolute; top: 0; height: 2px; background: var(--red); }
+  .stub.l { left: 0; width: 34%; transform: rotate(6deg); transform-origin: left center; }
+  .stub.r { right: 0; width: 34%; transform: rotate(6deg); transform-origin: right center; }
+  .stub.r::after {
+    content: "";
+    position: absolute;
+    right: -1px;
+    top: -4px;
+    border: 5px solid transparent;
+    border-left-color: var(--red);
+  }
+  .break-mark {
+    position: absolute;
+    top: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: var(--red);
+    font-weight: 700;
+    font-size: 16px;
+    text-shadow: 0 0 10px rgba(248,113,113,0.8);
+    animation: breathe 1.4s ease-in-out infinite;
+  }
+
+  /* the pinned break card — surgical detail right at the severed link */
+  .break-card {
+    position: absolute;
+    top: 22px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 252px;
+    background: var(--panel);
+    border: 1px solid var(--red-deep);
+    border-radius: 8px;
+    padding: 9px 11px;
+    box-shadow: 0 8px 28px rgba(180, 35, 24, 0.35);
+    z-index: 3;
+    animation: drop-in 0.35s ease-out backwards;
+  }
+  @keyframes drop-in {
+    from { opacity: 0; transform: translateX(-50%) translateY(-8px); }
+    to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+  }
+  .break-card h3 {
+    margin: 0 0 7px;
+    font-size: 11px;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: var(--red);
+  }
+  .break-row { display: flex; align-items: center; gap: 8px; font-size: 11px; margin-top: 3px; }
+  .break-row .k { width: 62px; color: var(--dim); flex-shrink: 0; }
+  .break-delta {
+    margin-top: 8px;
+    padding-top: 7px;
+    border-top: 1px solid var(--border);
+    color: var(--red);
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  /* ── inspector panel ──────────────────────────────────────────────────── */
+  .inspector {
+    width: 320px;
+    flex-shrink: 0;
+    background: var(--panel);
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    transform: translateX(100%);
+    transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1), margin-right 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+    margin-right: -320px;
+  }
+  .inspector.open { transform: translateX(0); margin-right: 0; }
+
+  .inspector-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    background: var(--chrome);
+    flex-shrink: 0;
+  }
+  .inspector-head h2 { margin: 0; font-size: 13px; font-weight: 700; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .inspector-head .kind { color: var(--faint); font-size: 10px; text-transform: uppercase; letter-spacing: 1px; }
+  .inspector-close { color: var(--dim); padding: 2px 7px; border-radius: 4px; font-size: 15px; }
+  .inspector-close:hover { color: var(--text); background: var(--border); }
+
+  .inspector-json {
+    flex: 1;
+    overflow: auto;
+    margin: 0;
+    padding: 12px 14px;
+    font-size: 11.5px;
+    line-height: 1.55;
+    white-space: pre;
+  }
+  .j-key { color: var(--dim); }
+  .j-str { color: var(--cyan); }
+  .j-num { color: var(--amber); }
+  .j-lit { color: var(--violet); }
+  .j-punc { color: var(--faint); }
+
+  .inspector-foot {
+    flex-shrink: 0;
+    border-top: 1px solid var(--border);
+    padding: 9px 14px;
+    font-size: 11px;
+    background: var(--chrome);
+  }
+  .inspector-foot .ok   { color: var(--green); }
+  .inspector-foot .warn { color: var(--amber); }
+  .inspector-foot .none { color: var(--dim); }
+  .inspector-foot .fp   { color: var(--dim); margin-top: 2px; }
+  .inspector-foot .fp code { color: var(--violet); }
+
+  /* ── event log ────────────────────────────────────────────────────────── */
+  .log {
+    flex-shrink: 0;
+    height: 138px;
+    border-top: 1px solid var(--border);
+    background: #0a0d12;
+    display: flex;
+    flex-direction: column;
+  }
+  .log-head {
+    padding: 5px 20px 4px;
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--faint);
+    border-bottom: 1px solid #131a22;
+    flex-shrink: 0;
+  }
+  .log-lines {
+    flex: 1;
+    overflow-y: auto;
+    padding: 6px 20px;
+    margin: 0;
+    list-style: none;
+    font-size: 12px;
+    background: #0a0d12;
+  }
+  .log-lines li { animation: line-in 0.25s ease-out backwards; white-space: nowrap; }
+  @keyframes line-in { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; } }
+  .log-lines .ts { color: var(--faint); margin-right: 10px; }
+  .log-lines .ok   { color: var(--green); }
+  .log-lines .bad  { color: var(--red); }
+  .log-lines .warn { color: var(--amber); }
+  .log-lines .cmd  { color: var(--text); }
+  .log-lines .cmd::before { content: "$ "; color: var(--green); }
+  .log-lines .info { color: var(--dim); }
+
+  /* ── footer ───────────────────────────────────────────────────────────── */
+  footer {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 20px;
+    border-top: 1px solid var(--border);
+    background: var(--chrome);
+    font-size: 11px;
+    color: var(--dim);
+  }
+  footer .spacer { flex: 1; }
+  .reverify {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 14px;
+    border: 1px solid var(--green-deep);
+    border-radius: 6px;
+    color: var(--green);
+    font-weight: 600;
+    background: rgba(52, 211, 153, 0.06);
+    transition: background 0.15s;
+  }
+  .reverify:hover:not(:disabled) { background: rgba(52, 211, 153, 0.14); }
+  .reverify:disabled { cursor: wait; opacity: 0.8; }
+  .spinner {
+    width: 11px; height: 11px;
+    border: 2px solid rgba(52,211,153,0.25);
+    border-top-color: var(--green);
+    border-radius: 50%;
+    display: none;
+    animation: spin 0.7s linear infinite;
+  }
+  .reverify.busy .spinner { display: inline-block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body data-state="green">
+
+  <!-- 1 ▸ status header — the traffic light -->
+  <header class="status">
+    <div class="lamp" id="lamp" role="img" aria-label="verification status light"></div>
+    <div class="status-text" aria-live="polite">
+      <h1 class="status-line" id="status-line">The light is green, the data is clean.</h1>
+      <p class="status-sub" id="status-sub"></p>
+    </div>
+    <div class="demo" aria-label="demo state controls">
+      <span class="demo-label">demo · simulate state</span>
+      <div class="demo-buttons" role="group" aria-label="simulate verification state">
+        <button type="button" data-demo="green" aria-pressed="true">green</button>
+        <button type="button" data-demo="yellow" aria-pressed="false">yellow</button>
+        <button type="button" data-demo="red" aria-pressed="false">red</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- 2 ▸ receipt chain pipeline -->
+    <section class="pipeline-wrap" aria-label="receipt chain">
+      <div class="pipeline-head">
+        <span>receipt chain · tiktok-q2</span>
+        <span class="hint">click a node to inspect its receipt</span>
+      </div>
+      <div class="pipeline" id="pipeline"></div>
+    </section>
+
+    <!-- 3 ▸ receipt inspector -->
+    <aside class="inspector" id="inspector" aria-label="receipt inspector" aria-hidden="true">
+      <div class="inspector-head">
+        <h2 id="inspector-title">receipt</h2>
+        <span class="kind" id="inspector-kind"></span>
+        <button type="button" class="inspector-close" id="inspector-close" aria-label="close inspector">✕</button>
+      </div>
+      <pre class="inspector-json" id="inspector-json" tabindex="0"></pre>
+      <div class="inspector-foot" id="inspector-foot"></div>
+    </aside>
+  </main>
+
+  <!-- 4 ▸ event log -->
+  <section class="log" aria-label="event log">
+    <div class="log-head">event log</div>
+    <ul class="log-lines" id="log-lines" aria-live="polite"></ul>
+  </section>
+
+  <!-- 6 ▸ footer -->
+  <footer>
+    <span>lineage console v0.3</span>
+    <span aria-hidden="true">·</span>
+    <span>open source · works with any pipeline</span>
+    <span class="spacer"></span>
+    <button type="button" class="reverify" id="reverify">
+      <span class="spinner" aria-hidden="true"></span>
+      <span id="reverify-label">re-verify chain</span>
+    </button>
+  </footer>
+
+<script>
+"use strict";
+
+/* ── deterministic fake hashes (ported from animations/src/theme.ts) ────── */
+function fakeHash(seed) {
+  let h = 2166136261;
+  for (let i = 0; i < seed.length; i++) {
+    h ^= seed.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  const hex = (n) => (n >>> 0).toString(16).padStart(8, "0");
+  return (hex(h) + hex(Math.imul(h, 2654435761))).slice(0, 12);
+}
+const shortHash = (seed) => {
+  const full = fakeHash(seed);
+  return full.slice(0, 4) + "…" + full.slice(-2);
+};
+const fullHash = (seed) => "sha256:" + fakeHash(seed) + fakeHash(seed + ":b") + fakeHash(seed + ":c");
+
+const KEY_SHORT = fakeHash("signing-key").slice(0, 4) + "…" + fakeHash("signing-key").slice(-4);
+const KEY_FP = "ed25519:" + KEY_SHORT;
+const KEY_FULL = fakeHash("signing-key") + fakeHash("signing-key:b");
+const UNKNOWN_FP = "ed25519:" + fakeHash("rotated-key").slice(0, 4) + "…" + fakeHash("rotated-key").slice(-4);
+
+/* hash seeds match the Proof animation: clean-out is expected, tampered is found */
+const H = {
+  srcOut: "ingest-out",
+  cleanOut: "clean-out",
+  tampered: "tampered",
+  reportOut: "agg-out",
+  dashOut: "dash-out",
+};
+
+/* ── stage data (rows/views deltas match Proof.tsx: rows −22 · views −24,889) */
+const STAGES = [
+  {
+    id: "source", name: "tiktok.xlsx", kind: "source",
+    inSeed: null, outSeed: H.srcOut,
+    rows: 48212, views: 9481772,
+    receipt: (state) => ({
+      kind: "source_manifest",
+      stage: "source",
+      created_at: "2026-06-10T14:21:04Z",
+      source: { declared_origin: "tiktok.xlsx", bytes: 6781440, content_hash: fullHash("xlsx-bytes") },
+      semantic_hash: fullHash(H.srcOut),
+      control_totals: { row_count: 48212, column_count: 9, numeric_sums: { views: 9481772, likes: 612330 } },
+      signature: { algo: "ed25519", public_key: KEY_FULL, value: fakeHash("sig-src") + fakeHash("sig-src:b") },
+    }),
+  },
+  {
+    id: "clean", name: "clean.py", kind: "transform",
+    inSeed: H.srcOut, outSeed: H.cleanOut,
+    rows: 47990, views: 9402118,
+    receipt: (state) => ({
+      kind: "transform_receipt",
+      stage: "clean",
+      created_at: "2026-06-10T14:21:09Z",
+      transform: { name: "clean.py", code_hash: fullHash("clean-code"), args: ["--drop-dupes", "--utc"] },
+      input_semantic_hash: fullHash(H.srcOut),
+      output_semantic_hash: fullHash(H.cleanOut),
+      output_control_totals: { row_count: 47990, column_count: 9, numeric_sums: { views: 9402118, likes: 609114 } },
+      signature: { algo: "ed25519", public_key: KEY_FULL, value: fakeHash("sig-clean") + fakeHash("sig-clean:b") },
+    }),
+  },
+  {
+    id: "report", name: "report.py", kind: "transform",
+    inSeed: H.cleanOut, outSeed: H.reportOut,
+    rows: 47990, views: 9402118,
+    receipt: (state) => ({
+      kind: "transform_receipt",
+      stage: "report",
+      created_at: "2026-06-10T14:21:13Z",
+      transform: { name: "report.py", code_hash: fullHash("report-code"), args: ["--by", "week"] },
+      input_semantic_hash: fullHash(state === "red" ? H.tampered : H.cleanOut),
+      input_control_totals: state === "red"
+        ? { row_count: 47968, column_count: 9, numeric_sums: { views: 9377229, likes: 609114 } }
+        : { row_count: 47990, column_count: 9, numeric_sums: { views: 9402118, likes: 609114 } },
+      output_semantic_hash: fullHash(H.reportOut),
+      output_control_totals: { row_count: 13, column_count: 5, numeric_sums: { views: state === "red" ? 9377229 : 9402118 } },
+      signature: {
+        algo: "ed25519",
+        public_key: state === "yellow" ? fakeHash("rotated-key") + fakeHash("rotated-key:b") : KEY_FULL,
+        value: fakeHash("sig-report") + fakeHash("sig-report:b"),
+      },
+    }),
+  },
+  {
+    id: "dashboard", name: "dashboard", kind: "render",
+    inSeed: H.reportOut, outSeed: H.dashOut,
+    rows: 13, views: null,
+    receipt: (state) => state === "yellow" ? null : ({
+      kind: "render_receipt",
+      stage: "dashboard",
+      created_at: "2026-06-10T14:21:15Z",
+      render: { surface: "index.html", chart_count: 4 },
+      input_semantic_hash: fullHash(H.reportOut),
+      output_semantic_hash: fullHash(H.dashOut),
+      output_control_totals: { row_count: 13, column_count: 5, numeric_sums: { views: state === "red" ? 9377229 : 9402118 } },
+      signature: { algo: "ed25519", public_key: KEY_FULL, value: fakeHash("sig-dash") + fakeHash("sig-dash:b") },
+    }),
+  },
+];
+
+/* ── per-state copy ──────────────────────────────────────────────────────── */
+const STATUS = {
+  green: {
+    line: "The light is green, the data is clean.",
+    sub: () => `chain <b>tiktok-q2</b> · 4 receipts · 3 links verified · key ${KEY_SHORT} trusted · verified <b>${clockStr()}</b>`,
+  },
+  yellow: {
+    line: "Verifiable — with 2 caveats.",
+    sub: () => `links 1–2 verified · <b>dashboard emitted no receipt</b> (coverage gap) · report.py signed by unknown key ${UNKNOWN_FP}`,
+  },
+  red: {
+    line: "Chain broken at clean.py → report.py.",
+    sub: () => `expected <b>${shortHash(H.cleanOut)}</b> · found <b>${shortHash(H.tampered)}</b> · delta rows −22 · views −24,889 · downstream unverifiable`,
+  },
+};
+
+/* ── fake clock for log timestamps ───────────────────────────────────────── */
+let clock = new Date("2026-06-10T14:32:08");
+function clockStr() {
+  return clock.toTimeString().slice(0, 8);
+}
+function tick(sec) { clock = new Date(clock.getTime() + sec * 1000); }
+
+/* ── state ───────────────────────────────────────────────────────────────── */
+let state = "green";
+let openNode = null;
+
+const $ = (id) => document.getElementById(id);
+const pipeline = $("pipeline");
+const inspector = $("inspector");
+const logLines = $("log-lines");
+
+/* ── render: status header ───────────────────────────────────────────────── */
+function renderStatus(pulse) {
+  document.body.dataset.state = state;
+  $("status-line").textContent = STATUS[state].line;
+  $("status-sub").innerHTML = STATUS[state].sub();
+  if (pulse) {
+    const lamp = $("lamp");
+    lamp.classList.remove("flash");
+    void lamp.offsetWidth; /* restart animation */
+    lamp.classList.add("flash");
+  }
+  const lampLabel = { green: "green — all links verified", yellow: "yellow — verified with caveats", red: "red — chain broken" };
+  $("lamp").setAttribute("aria-label", "verification status light: " + lampLabel[state]);
+  document.querySelectorAll(".demo-buttons button").forEach((b) => {
+    b.setAttribute("aria-pressed", String(b.dataset.demo === state));
+  });
+}
+
+/* ── render: pipeline ────────────────────────────────────────────────────── */
+function nodeStatus(i) {
+  if (state === "green") return "ok";
+  if (state === "yellow") return i === 2 ? "warn" : i === 3 ? "missing" : "ok";
+  /* red: break is at link clean→report (between i=1 and i=2) */
+  return i <= 1 ? "ok" : i === 2 ? "bad" : "dimmed";
+}
+function linkStatus(i) { /* i = link index 0..2 */
+  if (state === "green") return "ok";
+  if (state === "yellow") return i === 2 ? "warn" : "ok";
+  return i === 1 ? "broken" : i === 0 ? "ok" : "dimmed";
+}
+
+function fmt(n) { return n == null ? "—" : n.toLocaleString("en-US"); }
+
+function nodeHTML(stage, i) {
+  const st = nodeStatus(i);
+  const sigLine =
+    st === "missing" ? '<div class="sig none">○ no receipt emitted</div>' :
+    state === "yellow" && i === 2 ? `<div class="sig warn">⚠ sig ed25519 valid · unknown key</div>` :
+    `<div class="sig ok">✓ sig ed25519 · key ${KEY_SHORT}</div>`;
+  const isTamperedIn = state === "red" && i === 2;
+  const inChip = stage.inSeed == null ? "" :
+    `<div class="node-row"><span class="k">in</span><span class="chip${isTamperedIn ? " red" : ""}">${shortHash(isTamperedIn ? H.tampered : stage.inSeed)}</span></div>`;
+  const outChip = st === "missing" ? "" :
+    `<div class="node-row"><span class="k">out</span><span class="chip">${shortHash(stage.outSeed)}</span></div>`;
+  const rows = isTamperedIn ? 47968 : stage.rows;
+  const views = isTamperedIn ? 9377229 : stage.views;
+  const totals = st === "missing"
+    ? `<div class="totals">unverified render</div>`
+    : `<div class="totals">rows <b${isTamperedIn ? ' class="delta-bad"' : ""}>${fmt(rows)}</b>${stage.views != null ? ` · Σviews <b${isTamperedIn ? ' class="delta-bad"' : ""}>${fmt(views)}</b>` : ""}</div>`;
+  return `
+    <button type="button" class="node ${st}" data-node="${i}" aria-expanded="${openNode === i}"
+            aria-label="inspect receipt for ${stage.name}">
+      <span class="node-kind">${stage.kind}</span>
+      <div class="node-name">${stage.name.replace(/\.(\w+)$/, '.<span class="ext">$1</span>')}</div>
+      ${inChip}${outChip}${sigLine}${totals}
+    </button>`;
+}
+
+function linkHTML(i) {
+  const st = linkStatus(i);
+  if (st === "broken") {
+    return `
+      <div class="link broken" role="img" aria-label="link broken: expected ${shortHash(H.cleanOut)}, found ${shortHash(H.tampered)}, delta rows minus 22, views minus 24,889">
+        <span class="link-tag" style="color:var(--red)">✗ mismatch</span>
+        <div class="wire">
+          <span class="stub l"></span><span class="stub r"></span>
+          <span class="break-mark">⚡</span>
+        </div>
+        <div class="break-card">
+          <h3>chain broken · link 1 → 2</h3>
+          <div class="break-row"><span class="k">expected</span><span class="chip green">${shortHash(H.cleanOut)}</span></div>
+          <div class="break-row"><span class="k">found</span><span class="chip red">${shortHash(H.tampered)}</span></div>
+          <div class="break-delta">Δ rows −22 · views −24,889</div>
+        </div>
+      </div>`;
+  }
+  if (st === "warn") {
+    return `
+      <div class="link warn" role="img" aria-label="link unverified: coverage gap">
+        <span class="link-tag warn">? no receipt</span>
+        <div class="wire"></div>
+      </div>`;
+  }
+  if (st === "dimmed") {
+    return `
+      <div class="link dimmed" role="img" aria-label="link not evaluated">
+        <span class="link-tag dim">not evaluated</span>
+        <div class="wire"></div>
+      </div>`;
+  }
+  const seeds = [H.srcOut, H.cleanOut, H.reportOut];
+  return `
+    <div class="link" role="img" aria-label="link verified: hashes match">
+      <span class="link-tag ok">${shortHash(seeds[i])} ✓</span>
+      <div class="wire" style="animation-delay:${0.12 * i}s"></div>
+    </div>`;
+}
+
+function renderPipeline() {
+  let html = "";
+  STAGES.forEach((stage, i) => {
+    html += nodeHTML(stage, i);
+    if (i < STAGES.length - 1) html += linkHTML(i);
+  });
+  pipeline.innerHTML = html;
+  pipeline.querySelectorAll(".node").forEach((btn) => {
+    btn.addEventListener("click", () => toggleInspector(Number(btn.dataset.node)));
+  });
+}
+
+/* ── inspector ───────────────────────────────────────────────────────────── */
+function tintJSON(obj) {
+  const json = JSON.stringify(obj, null, 2);
+  return json
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/("(?:[^"\\]|\\.)*")(\s*:)?|\b(true|false|null)\b|-?\d+(\.\d+)?/g, (m, str, colon, lit) => {
+      if (str) return colon
+        ? `<span class="j-key">${str}</span><span class="j-punc">:</span>`
+        : `<span class="j-str">${str}</span>`;
+      if (lit) return `<span class="j-lit">${lit}</span>`;
+      return `<span class="j-num">${m}</span>`;
+    });
+}
+
+function toggleInspector(i) {
+  if (openNode === i) { closeInspector(); return; }
+  openNode = i;
+  const stage = STAGES[i];
+  const receipt = stage.receipt(state);
+  $("inspector-title").textContent = stage.name;
+  $("inspector-kind").textContent = receipt ? receipt.kind : "no receipt";
+  if (!receipt) {
+    $("inspector-json").innerHTML =
+      `<span class="j-punc">// coverage gap</span>\n<span class="j-key">"dashboard"</span> <span class="j-punc">emitted no receipt for this run.</span>\n\n<span class="j-punc">// add one line to the render step:</span>\n<span class="j-str">"receipt.emit(df, stage='dashboard')"</span>`;
+    $("inspector-foot").innerHTML = `<span class="none">○ nothing to verify — chain coverage ends at report.py</span>`;
+  } else {
+    $("inspector-json").innerHTML = tintJSON(receipt);
+    const yellowKey = state === "yellow" && stage.id === "report";
+    $("inspector-foot").innerHTML = yellowKey
+      ? `<span class="warn">⚠ signature valid · key not in trusted keyring</span><div class="fp">key fingerprint <code>${UNKNOWN_FP}</code></div>`
+      : `<span class="ok">✓ signature valid (ed25519)</span><div class="fp">key fingerprint <code>${KEY_FP}</code></div>`;
+  }
+  inspector.classList.add("open");
+  inspector.setAttribute("aria-hidden", "false");
+  pipeline.querySelectorAll(".node").forEach((b) =>
+    b.setAttribute("aria-expanded", String(Number(b.dataset.node) === i)));
+}
+
+function closeInspector() {
+  openNode = null;
+  inspector.classList.remove("open");
+  inspector.setAttribute("aria-hidden", "true");
+  pipeline.querySelectorAll(".node").forEach((b) => b.setAttribute("aria-expanded", "false"));
+}
+
+$("inspector-close").addEventListener("click", closeInspector);
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && inspector.classList.contains("open")) closeInspector();
+});
+
+/* ── event log ───────────────────────────────────────────────────────────── */
+function log(cls, text, tsAdvance = 0) {
+  tick(tsAdvance);
+  const li = document.createElement("li");
+  li.innerHTML = `<span class="ts">${clockStr()}</span><span class="${cls}">${text}</span>`;
+  logLines.appendChild(li);
+  logLines.scrollTop = logLines.scrollHeight;
+}
+
+/* lines a verify run prints, per state */
+function verifyScript(s) {
+  if (s === "green") return [
+    ["cmd", "lineage verify chain.json"],
+    ["ok", "✓ signatures valid (4/4)"],
+    ["ok", "✓ link source → clean.py"],
+    ["ok", "✓ link clean.py → report.py"],
+    ["ok", "✓ link report.py → dashboard"],
+    ["ok", "✓ CHAIN INTACT · 4 receipts · 3 links · 47,990 rows on screen"],
+  ];
+  if (s === "yellow") return [
+    ["cmd", "lineage verify chain.json"],
+    ["ok", "✓ signatures valid (3/3)"],
+    ["warn", `⚠ report.py signed by unknown key ${UNKNOWN_FP}`],
+    ["ok", "✓ link source → clean.py"],
+    ["ok", "✓ link clean.py → report.py"],
+    ["warn", "⚠ dashboard emitted no receipt — coverage gap after report.py"],
+    ["warn", "⚠ VERIFIABLE WITH CAVEATS · 2 warnings"],
+  ];
+  return [
+    ["cmd", "lineage verify chain.json"],
+    ["ok", "✓ signatures valid (4/4)"],
+    ["ok", "✓ link source → clean.py"],
+    ["bad", "✗ CHAIN BROKEN at clean.py → report.py"],
+    ["bad", `&nbsp;&nbsp;expected ${shortHash(H.cleanOut)} · found ${shortHash(H.tampered)}`],
+    ["bad", "&nbsp;&nbsp;delta: rows −22 · views −24,889"],
+  ];
+}
+
+/* ── verify run (streams the log, then settles the UI) ───────────────────── */
+let running = false;
+function runVerify(targetState, { announce } = {}) {
+  if (running) return;
+  running = true;
+  const btn = $("reverify");
+  btn.disabled = true;
+  btn.classList.add("busy");
+  $("reverify-label").textContent = "verifying…";
+  if (announce) log("info", announce, 1);
+
+  const lines = verifyScript(targetState);
+  lines.forEach(([cls, text], i) => {
+    setTimeout(() => {
+      log(cls, text, i === 0 ? 1 : 0);
+      if (i === lines.length - 1) {
+        state = targetState;
+        renderStatus(true);
+        renderPipeline();
+        if (openNode !== null) { const n = openNode; openNode = null; toggleInspector(n); }
+        btn.disabled = false;
+        btn.classList.remove("busy");
+        $("reverify-label").textContent = "re-verify chain";
+        running = false;
+      }
+    }, 220 + i * 260);
+  });
+}
+
+/* ── wiring ──────────────────────────────────────────────────────────────── */
+document.querySelectorAll(".demo-buttons button").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const target = btn.dataset.demo;
+    if (target === state || running) return;
+    const note = {
+      green: "demo: chain restored to a clean run",
+      yellow: "demo: dashboard receipt removed · signing key rotated",
+      red: "demo: clean.py output edited on disk after signing",
+    }[target];
+    runVerify(target, { announce: note });
+  });
+});
+
+$("reverify").addEventListener("click", () => runVerify(state));
+
+/* ── boot ────────────────────────────────────────────────────────────────── */
+renderStatus(false);
+renderPipeline();
+log("info", "console attached to chain tiktok-q2 (4 receipts)");
+runVerify("green");
+</script>
+</body>
+</html>

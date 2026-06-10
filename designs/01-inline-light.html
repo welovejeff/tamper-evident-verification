@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Direction 01 — The Inline Status Light</title>
+<style>
+  /* ============================================================
+     TWO DESIGN LANGUAGES, ON PURPOSE.
+
+     1. "HOST" — somebody else's vibe-coded dashboard. Light,
+        rounded, friendly sans, pastel accents. Generic by design.
+     2. "LR"   — our instrument. Dark panel, mono, signal colors
+        from animations/src/theme.ts. It should never blend in.
+     ============================================================ */
+
+  :root {
+    /* host theme (deliberately not ours) */
+    --host-bg: #f4f5f7;
+    --host-card: #ffffff;
+    --host-ink: #1f2430;
+    --host-ink-soft: #6b7280;
+    --host-line: #e6e8ee;
+    --host-accent: #2dd4bf;     /* pastel teal */
+    --host-accent-2: #fda4af;   /* pastel rose */
+    --host-radius: 14px;
+
+    /* our instrument — theme.ts tokens, verbatim */
+    --lr-bg: #0b0f14;
+    --lr-panel: #11161d;
+    --lr-panel-border: #1f2937;
+    --lr-chrome: #161d26;
+    --lr-text: #e5e7eb;
+    --lr-dim: #8b98a5;
+    --lr-faint: #3d4854;
+    --lr-green: #34d399;
+    --lr-red: #f87171;
+    --lr-amber: #fbbf24;
+    --lr-cyan: #67e8f9;
+    --lr-mono: ui-monospace, 'SF Mono', Menlo, Monaco, 'Cascadia Code', monospace;
+    --lr-sans: -apple-system, 'SF Pro Display', 'Segoe UI', Roboto, Helvetica, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: #e9ebef;
+    font-family: var(--lr-sans);
+    color: var(--host-ink);
+    padding: 40px 24px 140px;
+  }
+
+  /* ---------- spec banner (design-review framing, not product) ---------- */
+  .spec-note {
+    max-width: 980px;
+    margin: 0 auto 20px;
+    font: 12px/1.5 var(--lr-mono);
+    color: #5c6470;
+  }
+  .spec-note strong { color: #2a313d; }
+
+  /* ============================================================
+     FAKE BROWSER FRAME — sells "someone else's app"
+     ============================================================ */
+  .browser {
+    max-width: 980px;
+    margin: 0 auto;
+    border-radius: 12px;
+    overflow: visible;
+    box-shadow: 0 12px 40px rgba(20, 26, 40, 0.14), 0 2px 8px rgba(20, 26, 40, 0.08);
+    background: var(--host-bg);
+  }
+  .browser-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: #fbfbfc;
+    border-bottom: 1px solid var(--host-line);
+    border-radius: 12px 12px 0 0;
+  }
+  .browser-bar .dots { display: flex; gap: 6px; }
+  .browser-bar .dots i {
+    width: 11px; height: 11px; border-radius: 50%;
+    background: #d6d9e0; display: block;
+  }
+  .browser-bar .url {
+    flex: 1;
+    max-width: 360px;
+    margin: 0 auto;
+    text-align: center;
+    background: #eef0f4;
+    border-radius: 7px;
+    font-size: 12px;
+    color: var(--host-ink-soft);
+    padding: 4px 12px;
+  }
+
+  /* ============================================================
+     HOST DASHBOARD ("TikTok Performance" — vibe-coded pastel app)
+     ============================================================ */
+  .host-header {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    padding: 14px 24px;
+    background: var(--host-card);
+    border-bottom: 1px solid var(--host-line);
+  }
+  .host-logo {
+    display: flex; align-items: center; gap: 9px;
+    font-weight: 700; font-size: 15px; letter-spacing: -0.2px;
+  }
+  .host-logo .mark {
+    width: 26px; height: 26px; border-radius: 8px;
+    background: linear-gradient(135deg, var(--host-accent), var(--host-accent-2));
+  }
+  .host-nav { display: flex; gap: 4px; margin-left: 8px; }
+  .host-nav a {
+    font-size: 13px; color: var(--host-ink-soft);
+    text-decoration: none; padding: 6px 12px; border-radius: 8px;
+  }
+  .host-nav a[aria-current="page"] {
+    color: var(--host-ink); background: #eef6f5; font-weight: 600;
+  }
+  .host-nav a:hover { background: #f1f2f5; }
+  .host-range {
+    margin-left: auto;
+    font-size: 13px; color: var(--host-ink-soft);
+    border: 1px solid var(--host-line); border-radius: 8px;
+    background: var(--host-card); padding: 6px 10px;
+    font-family: inherit;
+  }
+
+  .host-main { padding: 24px; }
+  .host-h1 { font-size: 20px; margin: 2px 0 4px; letter-spacing: -0.3px; }
+  .host-sub { font-size: 13px; color: var(--host-ink-soft); margin: 0 0 20px; }
+
+  .metric-row {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px;
+    margin-bottom: 14px;
+  }
+  .metric {
+    background: var(--host-card);
+    border: 1px solid var(--host-line);
+    border-radius: var(--host-radius);
+    padding: 16px 18px;
+    transition: border-color 0.35s, box-shadow 0.35s;
+  }
+  .metric h3 {
+    margin: 0 0 6px; font-size: 12px; font-weight: 600;
+    color: var(--host-ink-soft); text-transform: uppercase; letter-spacing: 0.4px;
+  }
+  .metric .value { font-size: 24px; font-weight: 700; letter-spacing: -0.5px; }
+  .metric .trend { font-size: 12px; margin-top: 4px; color: #0d9474; }
+  .metric .trend.down { color: #d4536b; }
+  /* red state: host metric fed by the broken stage gets flagged by our instrument */
+  .metric.lr-suspect {
+    border-color: var(--lr-red);
+    box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.18);
+  }
+  .metric .lr-suspect-tag {
+    display: none;
+    font: 10px/1 var(--lr-mono);
+    color: var(--lr-red);
+    margin-top: 6px;
+  }
+  .metric.lr-suspect .lr-suspect-tag { display: block; }
+
+  .panel-row { display: grid; grid-template-columns: 3fr 2fr; gap: 14px; }
+  .host-panel {
+    background: var(--host-card);
+    border: 1px solid var(--host-line);
+    border-radius: var(--host-radius);
+    padding: 18px;
+  }
+  .host-panel h2 { margin: 0 0 14px; font-size: 14px; }
+
+  /* CSS-div bar chart */
+  .chart {
+    display: flex; align-items: flex-end; gap: 10px;
+    height: 150px; padding-top: 6px;
+  }
+  .chart .bar {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; gap: 6px; height: 100%;
+    justify-content: flex-end;
+  }
+  .chart .bar i {
+    display: block; width: 100%;
+    border-radius: 6px 6px 3px 3px;
+    background: linear-gradient(180deg, var(--host-accent), #99e7dd);
+    min-height: 6px;
+  }
+  .chart .bar:nth-child(6) i { background: linear-gradient(180deg, var(--host-accent-2), #fecdd5); }
+  .chart .bar span { font-size: 11px; color: var(--host-ink-soft); }
+
+  .post-list { list-style: none; margin: 0; padding: 0; }
+  .post-list li {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 0; border-bottom: 1px solid #f1f2f5;
+    font-size: 13px;
+  }
+  .post-list li:last-child { border-bottom: 0; }
+  .post-list .thumb {
+    width: 30px; height: 30px; border-radius: 8px; flex: none;
+    background: linear-gradient(135deg, #c7eee9, #ffe3e8);
+  }
+  .post-list .views { margin-left: auto; color: var(--host-ink-soft); font-size: 12px; }
+
+  /* ============================================================
+     THE INSTRUMENT — inline status light (our design language)
+     ============================================================ */
+  .lr-light {
+    position: relative;
+    margin-left: 14px;
+    font-family: var(--lr-mono);
+  }
+
+  .lr-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid var(--lr-panel-border);
+    background: var(--lr-bg);
+    color: var(--lr-text);
+    border-radius: 999px;
+    padding: 6px 12px 6px 9px;
+    font: 11px/1 var(--lr-mono);
+    letter-spacing: 0.3px;
+    cursor: pointer;
+    transition: border-color 0.15s, transform 0.1s;
+    white-space: nowrap; /* the seal never wraps; sub-label drops out instead */
+  }
+  @media (max-width: 920px) {
+    .lr-pill #lr-sub { display: none; }
+  }
+  .lr-pill:hover { border-color: var(--lr-faint); }
+  .lr-pill:active { transform: translateY(1px); }
+  .lr-pill:focus-visible {
+    outline: 2px solid var(--lr-cyan);
+    outline-offset: 2px;
+  }
+  .lr-pill .lr-caret {
+    color: var(--lr-faint);
+    font-size: 9px;
+    transition: transform 0.15s;
+  }
+  .lr-pill[aria-expanded="true"] .lr-caret { transform: rotate(90deg); }
+
+  .lr-dot {
+    width: 10px; height: 10px; border-radius: 50%; flex: none;
+    background: var(--lr-faint);
+  }
+  .lr-status-word { font-weight: 700; }
+
+  /* per-state dot + word color, plus a steady ember glow on the dot */
+  .lr-light[data-state="green"]  .lr-dot { background: var(--lr-green);  box-shadow: 0 0 6px 0 rgba(52, 211, 153, 0.7); }
+  .lr-light[data-state="yellow"] .lr-dot { background: var(--lr-amber);  box-shadow: 0 0 6px 0 rgba(251, 191, 36, 0.7); }
+  .lr-light[data-state="red"]    .lr-dot { background: var(--lr-red);    box-shadow: 0 0 6px 0 rgba(248, 113, 113, 0.7); }
+  .lr-light[data-state="green"]  .lr-status-word { color: var(--lr-green); }
+  .lr-light[data-state="yellow"] .lr-status-word { color: var(--lr-amber); }
+  .lr-light[data-state="red"]    .lr-status-word { color: var(--lr-red); }
+
+  /* pulse fired once on every state change */
+  @keyframes lr-pulse {
+    0%   { box-shadow: 0 0 0 0 var(--pulse-color); }
+    70%  { box-shadow: 0 0 0 9px transparent; }
+    100% { box-shadow: 0 0 0 0 transparent; }
+  }
+  .lr-dot.pulsing { animation: lr-pulse 0.9s ease-out 2; }
+  .lr-light[data-state="green"]  .lr-dot.pulsing { --pulse-color: rgba(52, 211, 153, 0.55); }
+  .lr-light[data-state="yellow"] .lr-dot.pulsing { --pulse-color: rgba(251, 191, 36, 0.55); }
+  .lr-light[data-state="red"]    .lr-dot.pulsing { --pulse-color: rgba(248, 113, 113, 0.55); }
+  @media (prefers-reduced-motion: reduce) {
+    .lr-dot.pulsing { animation: none; }
+  }
+
+  /* ---------- popover ---------- */
+  .lr-pop {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    width: 372px;
+    background: var(--lr-panel);
+    border: 1px solid var(--lr-panel-border);
+    border-radius: 10px;
+    color: var(--lr-text);
+    font: 12px/1.55 var(--lr-mono);
+    box-shadow: 0 16px 48px rgba(4, 8, 14, 0.45);
+    z-index: 50;
+    display: none;
+  }
+  .lr-pop.open { display: block; }
+  .lr-pop::before { /* anchor notch */
+    content: "";
+    position: absolute;
+    top: -5px; right: 26px;
+    width: 9px; height: 9px;
+    background: var(--lr-chrome);
+    border-left: 1px solid var(--lr-panel-border);
+    border-top: 1px solid var(--lr-panel-border);
+    transform: rotate(45deg);
+  }
+  .lr-pop-head {
+    display: flex; align-items: baseline; gap: 8px;
+    background: var(--lr-chrome);
+    border-bottom: 1px solid var(--lr-panel-border);
+    border-radius: 10px 10px 0 0;
+    padding: 9px 14px;
+    font-size: 11px;
+  }
+  .lr-pop-head .lr-wordmark { color: var(--lr-dim); letter-spacing: 1px; }
+  .lr-pop-head .lr-verdict { font-weight: 700; }
+  .lr-pop-head time { margin-left: auto; color: var(--lr-faint); font-size: 10px; }
+
+  .lr-pop-body { padding: 12px 14px 14px; }
+  .lr-pop-body p { margin: 0 0 10px; color: var(--lr-dim); }
+  .lr-pop-body p strong { color: var(--lr-text); font-weight: 700; }
+
+  .lr-chain { width: 100%; border-collapse: collapse; margin: 2px 0 4px; }
+  .lr-chain th {
+    text-align: left; font-weight: 400; font-size: 10px;
+    color: var(--lr-faint); padding: 0 8px 5px 0;
+    border-bottom: 1px solid var(--lr-panel-border);
+  }
+  .lr-chain td { padding: 5px 8px 5px 0; border-bottom: 1px solid #18202b; font-size: 11px; }
+  .lr-chain tr:last-child td { border-bottom: 0; }
+  .lr-chain .hash { color: var(--lr-cyan); }
+  .lr-chain .ok { color: var(--lr-green); }
+  .lr-chain .warn { color: var(--lr-amber); }
+  .lr-chain .bad { color: var(--lr-red); }
+  .lr-chain .mut { color: var(--lr-dim); }
+
+  .lr-kv { margin: 8px 0 2px; }
+  .lr-kv div { display: flex; gap: 10px; padding: 2px 0; }
+  .lr-kv dt { color: var(--lr-faint); width: 76px; flex: none; }
+  .lr-kv dd { margin: 0; }
+
+  .lr-delta {
+    margin-top: 9px;
+    border: 1px solid rgba(248, 113, 113, 0.35);
+    background: rgba(180, 35, 24, 0.12);
+    border-radius: 7px;
+    padding: 8px 10px;
+    color: var(--lr-red);
+    font-size: 11px;
+  }
+  .lr-gap {
+    margin-top: 9px;
+    border: 1px dashed rgba(251, 191, 36, 0.45);
+    background: rgba(251, 191, 36, 0.07);
+    border-radius: 7px;
+    padding: 8px 10px;
+    color: var(--lr-amber);
+    font-size: 11px;
+  }
+
+  .lr-pop-foot {
+    display: flex; align-items: center;
+    border-top: 1px solid var(--lr-panel-border);
+    padding: 8px 14px;
+    font-size: 10px;
+    color: var(--lr-faint);
+  }
+  .lr-pop-foot a {
+    margin-left: auto;
+    color: var(--lr-cyan);
+    text-decoration: none;
+  }
+  .lr-pop-foot a:hover { text-decoration: underline; }
+  .lr-pop-foot a:focus-visible { outline: 2px solid var(--lr-cyan); outline-offset: 2px; border-radius: 3px; }
+  .lr-tagline { color: var(--lr-green); }
+
+  /* ============================================================
+     DEMO CONTROLS — review apparatus, visually quarantined
+     ============================================================ */
+  .demo-controls {
+    position: fixed;
+    left: 50%; bottom: 22px;
+    transform: translateX(-50%);
+    display: flex; align-items: center; gap: 10px;
+    background: #14181f;
+    border: 1px dashed #4a5462;
+    border-radius: 12px;
+    padding: 10px 14px;
+    font: 11px var(--lr-mono);
+    color: #98a2b3;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+    z-index: 100;
+  }
+  .demo-controls .dc-label { letter-spacing: 1px; font-size: 10px; }
+  .demo-controls button {
+    font: 11px var(--lr-mono);
+    border: 1px solid #323b48;
+    background: #1b212b;
+    color: #c8d0da;
+    border-radius: 8px;
+    padding: 7px 13px;
+    cursor: pointer;
+    display: inline-flex; align-items: center; gap: 7px;
+  }
+  .demo-controls button i {
+    width: 8px; height: 8px; border-radius: 50%; display: block;
+  }
+  .demo-controls button[data-set="green"] i { background: var(--lr-green); }
+  .demo-controls button[data-set="yellow"] i { background: var(--lr-amber); }
+  .demo-controls button[data-set="red"] i { background: var(--lr-red); }
+  .demo-controls button:hover { border-color: #4a5462; }
+  .demo-controls button[aria-pressed="true"] {
+    background: #242d3a; border-color: #5b6776; color: #fff;
+  }
+  .demo-controls button:focus-visible { outline: 2px solid var(--lr-cyan); outline-offset: 2px; }
+
+  /* ============================================================
+     INTEGRATION SECTION (collapsed)
+     ============================================================ */
+  .integration {
+    max-width: 980px;
+    margin: 26px auto 0;
+  }
+  .integration details {
+    background: var(--lr-bg);
+    border: 1px solid var(--lr-panel-border);
+    border-radius: 12px;
+    color: var(--lr-text);
+    font-family: var(--lr-mono);
+    overflow: hidden;
+  }
+  .integration summary {
+    cursor: pointer;
+    padding: 14px 18px;
+    font-size: 12px;
+    letter-spacing: 0.5px;
+    color: var(--lr-dim);
+    user-select: none;
+    list-style: none;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .integration summary::-webkit-details-marker { display: none; }
+  .integration summary::before {
+    content: "▸"; color: var(--lr-faint); font-size: 10px;
+  }
+  .integration details[open] summary::before { content: "▾"; }
+  .integration summary:hover { color: var(--lr-text); }
+  .integration summary:focus-visible { outline: 2px solid var(--lr-cyan); outline-offset: -2px; }
+  .integration summary .est { margin-left: auto; color: var(--lr-faint); font-size: 10px; }
+
+  .integration .int-body {
+    padding: 4px 18px 20px;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+  }
+  .integration h3 {
+    font-size: 11px; font-weight: 400; letter-spacing: 1px;
+    color: var(--lr-dim); margin: 14px 0 8px;
+  }
+  .integration h3 b { color: var(--lr-cyan); font-weight: 700; }
+  .integration pre {
+    margin: 0 0 10px;
+    background: var(--lr-panel);
+    border: 1px solid var(--lr-panel-border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    font: 11px/1.65 var(--lr-mono);
+    overflow-x: auto;
+    color: var(--lr-text);
+  }
+  .integration .c-comment { color: var(--lr-faint); }
+  .integration .c-str { color: var(--lr-green); }
+  .integration .c-kw { color: #a78bfa; }
+  .integration .c-fn { color: var(--lr-cyan); }
+  .integration .int-note { font-size: 10px; color: var(--lr-faint); line-height: 1.6; margin: 0; }
+
+  @media (max-width: 880px) {
+    .metric-row { grid-template-columns: repeat(2, 1fr); }
+    .panel-row { grid-template-columns: 1fr; }
+    .integration .int-body { grid-template-columns: 1fr; }
+    .host-nav { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<p class="spec-note">
+  <strong>DIRECTION 01 / 3 — THE INLINE STATUS LIGHT.</strong>
+  Everything light + pastel below is a FAKE host app (someone else's vibe-coded dashboard).
+  The only thing we ship is the dark pill in its header. Use the demo controls at the bottom to switch states.
+</p>
+
+<!-- ══════════════════ FAKE HOST APP ══════════════════ -->
+<div class="browser" aria-label="Example host application (mock)">
+  <div class="browser-bar">
+    <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+    <span class="url">clipboard-analytics.vercel.app/dashboard</span>
+  </div>
+
+  <header class="host-header">
+    <span class="host-logo"><span class="mark" aria-hidden="true"></span>Clipboard&nbsp;Analytics</span>
+    <nav class="host-nav" aria-label="Host app navigation">
+      <a href="#" aria-current="page">Overview</a>
+      <a href="#">Posts</a>
+      <a href="#">Audience</a>
+    </nav>
+    <select class="host-range" aria-label="Date range">
+      <option>Last 7 days</option>
+      <option>Last 30 days</option>
+    </select>
+
+    <!-- ════════ OUR INSTRUMENT: the inline status light ════════ -->
+    <div class="lr-light" id="lr-light" data-state="green">
+      <button class="lr-pill" id="lr-pill" aria-expanded="false" aria-controls="lr-pop"
+              aria-label="Data lineage verification status">
+        <span class="lr-dot" id="lr-dot" aria-hidden="true"></span>
+        <span aria-live="polite" id="lr-pill-text">
+          <span class="lr-status-word" id="lr-word">VERIFIED</span>
+          <span id="lr-sub" style="color:var(--lr-dim)"> · chain intact</span>
+        </span>
+        <span class="lr-caret" aria-hidden="true">▸</span>
+      </button>
+
+      <div class="lr-pop" id="lr-pop" role="dialog" aria-label="Lineage verification detail" aria-modal="false">
+        <div class="lr-pop-head">
+          <span class="lr-wordmark">LINEAGE</span>
+          <span class="lr-verdict" id="lr-verdict"></span>
+          <time datetime="2026-06-10T14:02:11Z">verified 14:02:11Z</time>
+        </div>
+        <div class="lr-pop-body" id="lr-pop-body"><!-- state-specific --></div>
+        <div class="lr-pop-foot">
+          <span id="lr-foot-note"></span>
+          <a href="#receipts" id="lr-foot-link">view receipts →</a>
+        </div>
+      </div>
+    </div>
+    <!-- ════════ end instrument ════════ -->
+  </header>
+
+  <main class="host-main">
+    <h1 class="host-h1">TikTok Performance</h1>
+    <p class="host-sub">Weekly rollup from your exported analytics · updated 2h ago</p>
+
+    <div class="metric-row">
+      <section class="metric" id="metric-views" aria-label="Total views">
+        <h3>Total Views</h3>
+        <div class="value" id="views-value">2,847,210</div>
+        <div class="trend" id="views-trend">▲ 12.4% vs last week</div>
+        <div class="lr-suspect-tag">⚠ lineage: unverified value</div>
+      </section>
+      <section class="metric" aria-label="Followers">
+        <h3>Followers</h3>
+        <div class="value">48,302</div>
+        <div class="trend">▲ 2.1%</div>
+      </section>
+      <section class="metric" aria-label="Engagement rate">
+        <h3>Engagement</h3>
+        <div class="value">7.8%</div>
+        <div class="trend down">▼ 0.4 pts</div>
+      </section>
+      <section class="metric" aria-label="Average watch time">
+        <h3>Avg Watch</h3>
+        <div class="value">11.2s</div>
+        <div class="trend">▲ 0.8s</div>
+      </section>
+    </div>
+
+    <div class="panel-row">
+      <section class="host-panel" aria-label="Views by day chart">
+        <h2>Views by day</h2>
+        <div class="chart" role="img" aria-label="Bar chart of daily views, Monday through Sunday">
+          <div class="bar"><i style="height:42%"></i><span>Mon</span></div>
+          <div class="bar"><i style="height:58%"></i><span>Tue</span></div>
+          <div class="bar"><i style="height:50%"></i><span>Wed</span></div>
+          <div class="bar"><i style="height:74%"></i><span>Thu</span></div>
+          <div class="bar"><i style="height:66%"></i><span>Fri</span></div>
+          <div class="bar"><i style="height:96%"></i><span>Sat</span></div>
+          <div class="bar"><i style="height:81%"></i><span>Sun</span></div>
+        </div>
+      </section>
+
+      <section class="host-panel" aria-label="Top posts">
+        <h2>Top posts</h2>
+        <ul class="post-list">
+          <li><span class="thumb" aria-hidden="true"></span>POV: your data has receipts <span class="views">412K</span></li>
+          <li><span class="thumb" aria-hidden="true"></span>day in the life (analytics edition) <span class="views">287K</span></li>
+          <li><span class="thumb" aria-hidden="true"></span>3 charts that lie to you <span class="views">201K</span></li>
+          <li><span class="thumb" aria-hidden="true"></span>replying to @skeptic… <span class="views">154K</span></li>
+        </ul>
+      </section>
+    </div>
+  </main>
+</div>
+
+<!-- ══════════════════ INTEGRATION (collapsed) ══════════════════ -->
+<section class="integration" id="receipts" aria-label="Integration snippets">
+  <details>
+    <summary>INTEGRATION — add the light to your app <span class="est">~3 lines either stack</span></summary>
+    <div class="int-body">
+      <div>
+        <h3><b>NODE</b> / any static frontend</h3>
+        <pre><code><span class="c-comment">&lt;!-- 1. one script tag --&gt;</span>
+&lt;script type=<span class="c-str">"module"</span>&gt;
+  <span class="c-kw">import</span> { <span class="c-fn">mountLineageLight</span> }
+    <span class="c-kw">from</span> <span class="c-str">"https://unpkg.com/lineage-receipts/light.js"</span>;
+
+  <span class="c-comment">// 2. one init call — same args as renderLineageBadge()</span>
+  <span class="c-fn">mountLineageLight</span>(
+    document.querySelector(<span class="c-str">"header"</span>),
+    <span class="c-str">"/receipts/chain.json"</span>   <span class="c-comment">// pubKeyHex optional; falls back to chain.json key</span>
+  );
+&lt;/script&gt;</code></pre>
+        <h3><b>REACT</b> one-liner</h3>
+        <pre><code>&lt;<span class="c-fn">LineageLight</span> chain=<span class="c-str">"/receipts/chain.json"</span> /&gt;</code></pre>
+        <p class="int-note">Verification runs entirely in the viewer's browser (Web Crypto Ed25519).
+        The light re-checks every signature and every hash link on page load — no server trust required.</p>
+      </div>
+      <div>
+        <h3><b>PYTHON</b> — Flask</h3>
+        <pre><code><span class="c-comment"># 1. serve your receipts directory as-is</span>
+app = Flask(__name__, static_folder=<span class="c-str">"receipts"</span>,
+            static_url_path=<span class="c-str">"/receipts"</span>)
+
+<span class="c-comment"># 2. one include in your layout template</span>
+{% <span class="c-kw">include</span> <span class="c-str">"lineage_light.html"</span> %}</code></pre>
+        <h3><b>PYTHON</b> — FastAPI</h3>
+        <pre><code><span class="c-comment"># 1. mount the receipts dir written by your pipeline</span>
+app.mount(<span class="c-str">"/receipts"</span>,
+          StaticFiles(directory=<span class="c-str">"receipts"</span>))
+
+<span class="c-comment"># 2. drop the include into your Jinja layout</span>
+{% <span class="c-kw">include</span> <span class="c-str">"lineage_light.html"</span> %}</code></pre>
+        <p class="int-note">Your pipeline already writes <code>receipts/chain.json</code> + per-stage receipt files;
+        the include is a 1&nbsp;KB snippet that loads <code>light.js</code> pointed at that directory.</p>
+      </div>
+    </div>
+  </details>
+</section>
+
+<!-- ══════════════════ DEMO CONTROLS (not part of the product) ══════════════════ -->
+<aside class="demo-controls" aria-label="Design review demo controls">
+  <span class="dc-label">DEMO · STATE</span>
+  <button type="button" data-set="green" aria-pressed="true"><i aria-hidden="true"></i>GREEN</button>
+  <button type="button" data-set="yellow" aria-pressed="false"><i aria-hidden="true"></i>YELLOW</button>
+  <button type="button" data-set="red" aria-pressed="false"><i aria-hidden="true"></i>RED</button>
+</aside>
+
+<script>
+(function () {
+  "use strict";
+
+  // Hashes use the same 4…2 short form as badge.js's SHORT().
+  var STATES = {
+    green: {
+      word: "VERIFIED",
+      sub: " · chain intact",
+      verdict: "CHAIN VERIFIED",
+      verdictColor: "var(--lr-green)",
+      footNote: "tag:lr-tagline|The light is green, the data is clean.",
+      body:
+        '<p><strong>3 receipts · 2 transforms · signatures valid.</strong> ' +
+        'Every hash link from the TikTok export to this dashboard re-verified in your browser.</p>' +
+        '<table class="lr-chain"><thead><tr>' +
+        '<th>stage</th><th>output hash</th><th>rows</th><th>sig</th></tr></thead><tbody>' +
+        '<tr><td>source <span class="mut">tiktok_export.xlsx</span></td><td class="hash">9e2f…a1</td><td>1,418</td><td class="ok">✓</td></tr>' +
+        '<tr><td>normalize_rows</td><td class="hash">4c81…d7</td><td>1,418</td><td class="ok">✓</td></tr>' +
+        '<tr><td>weekly_rollup</td><td class="hash">a3f1…9c</td><td>312</td><td class="ok">✓</td></tr>' +
+        '</tbody></table>'
+    },
+    yellow: {
+      word: "CAVEAT",
+      sub: " · coverage gap",
+      verdict: "VERIFIABLE WITH CAVEATS",
+      verdictColor: "var(--lr-amber)",
+      footNote: "plain|verified through stage 1 of 2 transforms",
+      body:
+        '<p><strong>Stage 2 has no receipt — coverage gap.</strong> ' +
+        'Signatures and links are valid up to <strong>normalize_rows</strong>; nothing attests the final rollup.</p>' +
+        '<table class="lr-chain"><thead><tr>' +
+        '<th>stage</th><th>output hash</th><th>rows</th><th>sig</th></tr></thead><tbody>' +
+        '<tr><td>source <span class="mut">tiktok_export.xlsx</span></td><td class="hash">9e2f…a1</td><td>1,418</td><td class="ok">✓</td></tr>' +
+        '<tr><td>normalize_rows</td><td class="hash">4c81…d7</td><td>1,418</td><td class="ok">✓</td></tr>' +
+        '<tr><td class="warn">weekly_rollup</td><td class="mut">(no receipt)</td><td class="mut">—</td><td class="warn">○</td></tr>' +
+        '</tbody></table>' +
+        '<div class="lr-gap">⚠ coverage gap: the numbers on screen descend from a verified chain, ' +
+        'but the last transform ran without emitting a receipt. Re-run the rollup under ' +
+        '<code>lineage run</code> to close the gap.</div>'
+    },
+    red: {
+      word: "BROKEN",
+      sub: " · hash mismatch at weekly_rollup",
+      verdict: "CHAIN BROKEN",
+      verdictColor: "var(--lr-red)",
+      footNote: "plain|do not trust totals fed by this stage",
+      body:
+        '<p><strong>Hash mismatch at link 2 → 3.</strong> ' +
+        'The rollup’s declared input is not the verified output of <strong>normalize_rows</strong>. ' +
+        'Data was altered between these stages.</p>' +
+        '<dl class="lr-kv">' +
+        '<div><dt>broken at</dt><dd class="bad">weekly_rollup</dd></div>' +
+        '<div><dt>expected</dt><dd><span class="hash">4c81…d7</span> <span class="mut">(output of normalize_rows, signed)</span></dd></div>' +
+        '<div><dt>found</dt><dd><span class="bad">7be2…41</span> <span class="mut">(unsigned, origin unknown)</span></dd></div>' +
+        '</dl>' +
+        '<div class="lr-delta">totals delta vs upstream:<br>' +
+        'row_count 1418 → 1396 <strong>(−22)</strong> · views_sum 2,847,210 → 2,822,321 <strong>(−24,889)</strong></div>'
+    }
+  };
+
+  var light = document.getElementById("lr-light");
+  var pill = document.getElementById("lr-pill");
+  var dot = document.getElementById("lr-dot");
+  var word = document.getElementById("lr-word");
+  var sub = document.getElementById("lr-sub");
+  var pop = document.getElementById("lr-pop");
+  var popBody = document.getElementById("lr-pop-body");
+  var verdict = document.getElementById("lr-verdict");
+  var footNote = document.getElementById("lr-foot-note");
+  var metricViews = document.getElementById("metric-views");
+  var viewsValue = document.getElementById("views-value");
+  var viewsTrend = document.getElementById("views-trend");
+  var buttons = Array.prototype.slice.call(
+    document.querySelectorAll(".demo-controls button[data-set]")
+  );
+
+  function setFoot(spec) {
+    var parts = spec.split("|");
+    footNote.textContent = parts[1];
+    footNote.className = parts[0] === "tag:lr-tagline" ? "lr-tagline" : "";
+  }
+
+  function pulse() {
+    dot.classList.remove("pulsing");
+    // restart the animation
+    void dot.offsetWidth;
+    dot.classList.add("pulsing");
+  }
+  dot.addEventListener("animationend", function () {
+    dot.classList.remove("pulsing");
+  });
+
+  function setState(name) {
+    var s = STATES[name];
+    light.dataset.state = name;
+    word.textContent = s.word;
+    sub.textContent = s.sub;
+    verdict.textContent = s.verdict;
+    verdict.style.color = s.verdictColor;
+    popBody.innerHTML = s.body;
+    setFoot(s.footNote);
+    pulse();
+
+    // In the red state the instrument also flags the host metric fed by the
+    // broken stage — the tampered number is shown, called out as unverified.
+    var tampered = name === "red";
+    metricViews.classList.toggle("lr-suspect", tampered);
+    viewsValue.textContent = tampered ? "2,822,321" : "2,847,210";
+    viewsTrend.textContent = tampered ? "▲ 11.4% vs last week" : "▲ 12.4% vs last week";
+
+    buttons.forEach(function (b) {
+      b.setAttribute("aria-pressed", String(b.dataset.set === name));
+    });
+  }
+
+  // --- popover open/close ---
+  function setOpen(open) {
+    pop.classList.toggle("open", open);
+    pill.setAttribute("aria-expanded", String(open));
+  }
+  pill.addEventListener("click", function () {
+    setOpen(!pop.classList.contains("open"));
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && pop.classList.contains("open")) {
+      setOpen(false);
+      pill.focus();
+    }
+  });
+  document.addEventListener("click", function (e) {
+    // Demo controls open the popover themselves; don't treat them as click-away.
+    if (e.target.closest && e.target.closest(".demo-controls")) return;
+    if (pop.classList.contains("open") && !light.contains(e.target)) setOpen(false);
+  });
+
+  // --- demo controls ---
+  buttons.forEach(function (b) {
+    b.addEventListener("click", function () {
+      setState(b.dataset.set);
+      if (!pop.classList.contains("open")) setOpen(true);
+    });
+  });
+
+  // Deep-link for review: ?state=red|yellow|green&open=1
+  var params = new URLSearchParams(location.search);
+  var initial = params.get("state");
+  setState(STATES[initial] ? initial : "green");
+  if (params.get("open") === "1") setOpen(true);
+})();
+</script>
+</body>
+</html>

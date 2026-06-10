@@ -20,5 +20,13 @@ receipts_tampered/
 demo_data/
 examples/sample_export.xlsx
 
+# Remotion render outputs (regenerate with `npm run render:all` in animations/)
+animations/out/
+animations/.remotion/
+
+# Claude Code local state (launch.json is shared; the rest is per-machine)
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+
 # OS
 .DS_Store
