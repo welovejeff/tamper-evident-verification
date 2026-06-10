@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>lineage console — tiktok-q2</title>
+<title>tamper signal console — tiktok-q2</title>
 <style>
   /* ── tokens (mirrors animations/src/theme.ts) ─────────────────────────── */
   :root {
@@ -548,7 +548,7 @@
 
   <!-- 6 ▸ footer -->
   <footer>
-    <span>lineage console v0.3</span>
+    <span>tamper signal console v0.3</span>
     <span aria-hidden="true">·</span>
     <span>open source · works with any pipeline</span>
     <span class="spacer"></span>
@@ -865,7 +865,7 @@ function log(cls, text, tsAdvance = 0) {
 /* lines a verify run prints, per state */
 function verifyScript(s) {
   if (s === "green") return [
-    ["cmd", "lineage verify chain.json"],
+    ["cmd", "receipts verify chain.json"],
     ["ok", "✓ signatures valid (4/4)"],
     ["ok", "✓ link source → clean.py"],
     ["ok", "✓ link clean.py → report.py"],
@@ -873,7 +873,7 @@ function verifyScript(s) {
     ["ok", "✓ CHAIN INTACT · 4 receipts · 3 links · 47,990 rows on screen"],
   ];
   if (s === "yellow") return [
-    ["cmd", "lineage verify chain.json"],
+    ["cmd", "receipts verify chain.json"],
     ["ok", "✓ signatures valid (3/3)"],
     ["warn", `⚠ report.py signed by unknown key ${UNKNOWN_FP}`],
     ["ok", "✓ link source → clean.py"],
@@ -882,7 +882,7 @@ function verifyScript(s) {
     ["warn", "⚠ VERIFIABLE WITH CAVEATS · 2 warnings"],
   ];
   return [
-    ["cmd", "lineage verify chain.json"],
+    ["cmd", "receipts verify chain.json"],
     ["ok", "✓ signatures valid (4/4)"],
     ["ok", "✓ link source → clean.py"],
     ["bad", "✗ CHAIN BROKEN at clean.py → report.py"],

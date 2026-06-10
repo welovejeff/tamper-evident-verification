@@ -1,7 +1,7 @@
 {
-  "name": "lineage-receipts",
-  "version": "1.0.0",
-  "description": "Signed data lineage receipts. The browser badge (badge/) is dependency-free and needs no build step.",
+  "name": "tamper-signal",
+  "version": "1.1.0",
+  "description": "Tamper Signal: signed receipts for data pipelines. The browser badge and signal (badge/) are dependency-free and need no build step.",
   "private": true,
   "type": "module"
 }

@@ -1,4 +1,4 @@
-# Messaging Guide: lineage-receipts
+# Messaging Guide: Tamper Signal
 
 The single source of truth for how we talk about this project. The product proves
 **continuity, not correctness**. Every line of copy must survive that constraint.
@@ -9,6 +9,23 @@ The hero line is locked:
 > **"The light is green, the data is clean."**
 
 ---
+
+## 0. The name
+
+**Product: Tamper Signal.** Styled "Tamper Signal" in prose, `tamper-signal` as
+the package name. **CLI: `receipts`** (the command reads like the pitch:
+`receipts verify chain.json`). **Python import: `tamper_signal`.** The repo
+slug stays `tamper-evident-verification`.
+
+The layers each keep their own noun: the mechanism is the **receipt**, the
+verdict is the **light**, the product that delivers both is the **signal**.
+"Tamper signal" is a real hardware-security term (the line that fires when an
+enclosure is opened), which grounds the name the same way the wax-seal
+metaphor grounds the pill design.
+
+The previous brand word, "lineage," is retired (decision 2026-06-10): it filed
+the project under the warehouse-lineage category (OpenLineage, dbt, metadata
+catalogs), which is exactly what this is not. See the banned list below.
 
 ## 1. The traffic-light copy system
 
@@ -50,7 +67,7 @@ hook. It makes no correctness claim. Runner-up, if "vibe-coded" feels too
 slangy for the repo header: `Tamper-evident receipts for ad-hoc data pipelines.
 Green if the chain is intact, red at the exact broken link.`
 
-**Topics:** `data-lineage` `tamper-evident` `data-integrity` `provenance`
+**Topics:** `tamper-signal` `tamper-evident` `data-integrity` `provenance`
 `ed25519` `hash-chain` `signed-receipts` `data-pipelines` `analytics`
 `verification` `python` `vibe-coding`
 
@@ -108,12 +125,17 @@ honest about the limits.
 - **tamper-evident**: not tamper-*proof*. Evident. We detect, we don't prevent.
 - **intact / broken**: the chain's only two honest endpoints.
 - **the exact link**: always pair a failure claim with its locatability.
-- **descend from**: dashboard numbers descend from the export. Lineage language.
+- **descend from**: dashboard numbers descend from the export. Continuity language.
 - **drop in**: how it installs. Small, frictionless, no infrastructure.
 - **a human should look**: yellow's whole semantics in five words.
 
 **Words we avoid:**
 
+- **lineage** (as a brand word): retired 2026-06-10. It imports the
+  warehouse-lineage category (OpenLineage, dbt, catalogs) we are explicitly
+  not in. Say "descend from," "continuity," or "the receipt chain." Plain
+  descriptive uses ("warehouse lineage tools") are fine when naming that
+  other category.
 - **blockchain**: yes, it's a hash chain. No consensus, no tokens, no network,
   just signed files on disk; the word imports a decade of baggage we don't want.
 - **trust layer / trustless**: vague, claims more than continuity.

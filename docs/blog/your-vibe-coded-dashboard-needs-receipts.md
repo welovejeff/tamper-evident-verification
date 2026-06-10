@@ -1,6 +1,6 @@
 # Your vibe-coded dashboard needs receipts
 
-*June 2026 · [lineage-receipts on GitHub](https://github.com/welovejeff/tamper-evident-verification)*
+*June 2026 · [Tamper Signal on GitHub](https://github.com/welovejeff/tamper-evident-verification)*
 
 Your social team exports a month of TikTok performance data. Someone opens an AI assistant, describes the dashboard they want, and has it running by the end of the afternoon. It looks great. The charts are clean, the totals are plausible, and everyone moves on.
 
@@ -68,7 +68,7 @@ Python 3.11+, MIT licensed. The pipeline tooling is Python today; the badge and 
 ```bash
 git clone https://github.com/welovejeff/tamper-evident-verification && cd tamper-evident-verification
 pip install -e .
-lineage demo
+receipts demo
 ```
 
 The demo runs the whole story end to end: it generates a deliberately messy export, ingests it, runs two AI-written-style transforms, verifies the chain (green), tampers with one spend value, and verifies again (red, with the link and the delta). Then it serves the badge so you can see all three states side by side.
@@ -76,9 +76,9 @@ The demo runs the whole story end to end: it generates a deliberately messy expo
 Wrapping your own transforms is one decorator:
 
 ```python
-from lineage import lineage_step
+from tamper_signal import receipt_step
 
-@lineage_step(chain_dir="receipts/", key_path="keys/signing.key")
+@receipt_step(chain_dir="receipts/", key_path="keys/signing.key")
 def transform_clean(records):
     return [r for r in records if r.get("campaign_name")]
 ```

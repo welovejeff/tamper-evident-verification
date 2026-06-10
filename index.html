@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>lineage-receipts · The light is green, the data is clean.</title>
+<title>Tamper Signal · The light is green, the data is clean.</title>
 <meta name="description" content="Signed receipts for vibe-coded data pipelines. Proves nobody changed your data, and shows the exact link if they did." />
 <meta property="og:title" content="The light is green, the data is clean." />
 <meta property="og:description" content="Signed receipts for vibe-coded data pipelines. Proves nobody changed your data, and shows the exact link if they did." />
@@ -296,7 +296,7 @@
 
 <div class="top">
   <div class="wrap">
-    <span class="wordmark"><i></i>LINEAGE-RECEIPTS</span>
+    <span class="wordmark"><i></i>TAMPER SIGNAL</span>
     <nav>
       <a href="#demo">live demo</a>
       <a href="#how">how it works</a>
@@ -359,11 +359,11 @@
         <h3>Social Performance</h3>
         <p class="sub">Weekly rollup from your exported analytics · updated 2h ago</p>
         <div class="metrics">
-          <div class="metric" data-lineage-column="spend_usd">
+          <div class="metric" data-receipt-column="spend_usd">
             <h4>Total Spend</h4>
             <div class="value" id="m-spend">$2,020,283</div>
           </div>
-          <div class="metric" data-lineage-column="clicks">
+          <div class="metric" data-receipt-column="clicks">
             <h4>Clicks</h4>
             <div class="value">6,359,340</div>
           </div>
@@ -393,7 +393,7 @@
     <p class="sec-lede">
       Receipts are plain JSON files on disk. The inspector below renders the actual
       receipts your browser just verified, and the terminal shows what
-      <code>lineage verify</code> prints for the same chain. Exit codes are the traffic
+      <code>receipts verify</code> prints for the same chain. Exit codes are the traffic
       light: 0 green, 1 red, 2 yellow.
     </p>
     <div class="twocol">
@@ -431,14 +431,14 @@
  [transform_agg] ──────▶ <span class="c">002_aggregate.json</span>
     │
     ▼
-<b>dashboard data</b>  ◀────── lineage verify: walk every link, check every signature</div>
+<b>dashboard data</b>  ◀────── receipts verify: walk every link, check every signature</div>
 
     <div class="codegrid">
       <div>
         <h3><b>PYTHON</b> · wrap any transform</h3>
-        <pre><code><span class="kw">from</span> lineage <span class="kw">import</span> lineage_step
+        <pre><code><span class="kw">from</span> tamper_signal <span class="kw">import</span> receipt_step
 
-<span class="fn">@lineage_step</span>(chain_dir=<span class="str">"receipts/"</span>, key_path=<span class="str">"keys/signing.key"</span>)
+<span class="fn">@receipt_step</span>(chain_dir=<span class="str">"receipts/"</span>, key_path=<span class="str">"keys/signing.key"</span>)
 <span class="kw">def</span> <span class="fn">transform_clean</span>(records):
     <span class="kw">return</span> [r <span class="kw">for</span> r <span class="kw">in</span> records <span class="kw">if</span> r.get(<span class="str">"campaign_name"</span>)]
 
@@ -448,15 +448,15 @@
       <div>
         <h3><b>ANY FRONTEND</b> · mount the light</h3>
         <pre><code>&lt;script type=<span class="str">"module"</span>&gt;
-  <span class="kw">import</span> { <span class="fn">mountLineageLight</span> } <span class="kw">from</span> <span class="str">"/badge/light.js"</span>;
-  <span class="fn">mountLineageLight</span>(
+  <span class="kw">import</span> { <span class="fn">mountTamperSignal</span> } <span class="kw">from</span> <span class="str">"/badge/light.js"</span>;
+  <span class="fn">mountTamperSignal</span>(
     document.querySelector(<span class="str">"header"</span>),
     <span class="str">"/receipts/chain.json"</span>
   );
 &lt;/script&gt;
 
 <span class="cmt">&lt;!-- React, with a bundler --&gt;</span>
-&lt;<span class="fn">LineageLight</span> chain=<span class="str">"/receipts/chain.json"</span> /&gt;</code></pre>
+&lt;<span class="fn">TamperSignal</span> chain=<span class="str">"/receipts/chain.json"</span> /&gt;</code></pre>
       </div>
     </div>
   </div>
@@ -523,9 +523,9 @@
 </footer>
 
 <script type="module">
-  import { mountLineageLight } from "./badge/light.js";
+  import { mountTamperSignal } from "./badge/light.js";
   import {
-    verifyLineage,
+    verifyReceipts,
     SHORT,
     totalsOf,
     stageNameOf,
@@ -538,21 +538,21 @@
       pub: undefined,
       spend: "$2,020,283",
       inspLabel: "intact",
-      cmd: "lineage verify chain.json",
+      cmd: "receipts verify chain.json",
     },
     yellow: {
       chain: "examples/chains/intact/chain.json",
       pub: "ab".repeat(32),
       spend: "$2,020,283",
       inspLabel: "intact, untrusted key",
-      cmd: "lineage verify chain.json --pub someone-elses.pub",
+      cmd: "receipts verify chain.json --pub someone-elses.pub",
     },
     red: {
       chain: "examples/chains/tampered/chain.json",
       pub: undefined,
       spend: "$2,020,185",
       inspLabel: "tampered",
-      cmd: "lineage verify chain.json",
+      cmd: "receipts verify chain.json",
     },
   };
 
@@ -631,7 +631,7 @@
     const line = (cls, text) => terminal.appendChild(el("span", { className: cls }, text + "\n"));
     line("t-prompt", `$ ${def.cmd}`);
     if (result.state === "unverifiable") {
-      line("", "(run it yourself: pip install -e . && lineage demo)");
+      line("", "(run it yourself: pip install -e . && receipts demo)");
       return;
     }
     const { receipts, linkResult, caveats } = result;
@@ -662,10 +662,10 @@
     inspState.textContent = def.inspLabel;
 
     if (lightHandle) lightHandle.destroy();
-    lightHandle = mountLineageLight(slot, def.chain, def.pub);
+    lightHandle = mountTamperSignal(slot, def.chain, def.pub);
 
     if (!resultCache[name]) {
-      resultCache[name] = await verifyLineage(def.chain, def.pub);
+      resultCache[name] = await verifyReceipts(def.chain, def.pub);
     }
     renderInspector(resultCache[name]);
     renderTerminal(resultCache[name], def);

@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Lineage Receipts Badge</title>
+    <title>Tamper Signal: the receipt badge</title>
     <style>
       body {
         font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
@@ -29,7 +29,7 @@
     </style>
   </head>
   <body>
-    <h1>Lineage Receipts</h1>
+    <h1>Tamper Signal</h1>
     <p>
       Each badge re-verifies the signatures and hash links of a receipt chain in
       your browser. It proves continuity (the dashboard numbers descend from the
@@ -46,25 +46,25 @@
     <div id="badge-tampered"></div>
 
     <script type="module">
-      import { renderLineageBadge } from "./badge.js";
+      import { renderReceiptBadge } from "./badge.js";
 
       // Default to the demo directories one level up from /badge/. Override the
       // intact chain with ?chain=<url> for other receipt sets.
       const params = new URLSearchParams(window.location.search);
       const intact = params.get("chain") || "../receipts/chain.json";
 
-      renderLineageBadge(document.getElementById("badge-intact"), intact);
+      renderReceiptBadge(document.getElementById("badge-intact"), intact);
 
       // Yellow: trust a key that is not the chain's embedded key. Signatures
       // verify under the embedded key, so the chain is internally consistent,
       // but it is vouched for by a key this page does not trust.
-      renderLineageBadge(
+      renderReceiptBadge(
         document.getElementById("badge-yellow"),
         intact,
         "ab".repeat(32)
       );
 
-      renderLineageBadge(
+      renderReceiptBadge(
         document.getElementById("badge-tampered"),
         "../receipts_tampered/chain.json"
       );

@@ -1,10 +1,10 @@
-"""Command-line entry points for lineage-receipts.
+"""Command-line entry points for Tamper Signal.
 
 Commands:
-  lineage keygen --out keys/
-  lineage ingest <file.xlsx> --origin "..." --key keys/signing.key --out receipts/
-  lineage verify receipts/chain.json --pub keys/signing.pub [--data <current.xlsx>]
-  lineage demo
+  receipts keygen --out keys/
+  receipts ingest <file.xlsx> --origin "..." --key keys/signing.key --out receipts/
+  receipts verify receipts/chain.json --pub keys/signing.pub [--data <current.xlsx>]
+  receipts demo
 """
 
 from __future__ import annotations
@@ -120,8 +120,8 @@ def cmd_demo(args: argparse.Namespace) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="lineage",
-        description="Signed data lineage receipts for analytics pipelines.",
+        prog="receipts",
+        description="Tamper Signal: signed receipts for analytics pipelines.",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 

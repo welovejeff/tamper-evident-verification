@@ -313,7 +313,7 @@ export const DataTabScene: React.FC = () => {
             ...rise(T.note, 10),
           }}
         >
-          installed by lineage-receipts
+          installed by tamper-signal
         </div>
       </div>
 

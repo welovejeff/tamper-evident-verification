@@ -3,9 +3,9 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "lineage-receipts"
-version = "1.0.0"
-description = "A signed data lineage chain for analytics pipelines: signed receipts at every stage, with verifiable continuity."
+name = "tamper-signal"
+version = "1.1.0"
+description = "Tamper Signal: signed receipts at every pipeline stage, with verifiable continuity and the exact broken link when there isn't."
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.11"
@@ -18,7 +18,7 @@ dependencies = [
 dev = ["pytest>=8.0"]
 
 [project.scripts]
-lineage = "lineage.cli:main"
+receipts = "tamper_signal.cli:main"
 
 [tool.setuptools]
-packages = ["lineage"]
+packages = ["tamper_signal"]

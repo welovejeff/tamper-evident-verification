@@ -1,10 +1,12 @@
-<sub>lineage-receipts</sub>
+<sub>tamper-signal</sub>
 
 # The light is green, the data is clean.
 
 Your social team exports a month of TikTok performance data. Someone vibe-codes a dashboard on top of it with an AI assistant in an afternoon. It looks great. Then a transform silently drops 22 rows, or the model hallucinates an aggregation, and the numbers in front of your boss are wrong. Nothing in that workflow catches it. This is the missing verification layer: every stage of the pipeline signs a receipt for what went in and what came out, and one command (or a badge on the dashboard itself) tells you whether the chain is intact, or exactly where it broke and by how much.
 
 **Live demo:** [welovejeff.github.io/tamper-evident-verification](https://welovejeff.github.io/tamper-evident-verification/) re-verifies a real committed receipt chain in your browser: swap in a tampered chain or an untrusted key and watch the light catch it.
+
+**Pointing a coding agent at this repo?** `AGENTS.md` is the full integration runbook: install, keygen, ingest, wrap transforms, mount the signal, verify. Tell your agent "add tamper signal" and it will find it.
 
 ## The problem
 
@@ -24,7 +26,7 @@ The badge and the verifier reduce the whole chain to one state:
 
 *The inline status light: a small dark instrument in your dashboard's header. When the chain breaks, it reaches into the page and flags the exact metric that no longer descends from the source.*
 
-Honest status: all three verdicts are implemented in `lineage verify` and the browser badge. Yellow today covers two detectable caveats (a coverage gap in the receipt numbering, and signatures that only verify under the chain's embedded key rather than the key you trust) plus opt-in control-total drift via `--warn-drift`. The Data tab and console animations in this README are design previews of later interface tiers, built from the working mockups in `designs/`. The badge also renders a separate amber state ("could not load" or "verification unsupported in this browser"); that is a capability fallback that says nothing about the chain, not the yellow verdict.
+Honest status: all three verdicts are implemented in `receipts verify` and the browser badge. Yellow today covers two detectable caveats (a coverage gap in the receipt numbering, and signatures that only verify under the chain's embedded key rather than the key you trust) plus opt-in control-total drift via `--warn-drift`. The Data tab and console animations in this README are design previews of later interface tiers, built from the working mockups in `designs/`. The badge also renders a separate amber state ("could not load" or "verification unsupported in this browser"); that is a capability fallback that says nothing about the chain, not the yellow verdict.
 
 ## 60-second quickstart
 
@@ -33,17 +35,17 @@ Python 3.11+. Open source (MIT), `pip`-installable.
 ```bash
 git clone <this repo> && cd tamper-evident-verification
 pip install -e .
-lineage demo
+receipts demo
 ```
 
-`lineage demo` runs the whole story end to end: generates a deliberately messy sample export, ingests it, runs two AI-written-style transforms, verifies the chain (PASS), then tampers with one spend value and verifies again (FAIL, pinpointing the broken link and the totals delta). It finishes by serving the badge at `http://localhost:8000/badge/badge.html` so you can see green, yellow, and red side by side.
+`receipts demo` runs the whole story end to end: generates a deliberately messy sample export, ingests it, runs two AI-written-style transforms, verifies the chain (PASS), then tampers with one spend value and verifies again (FAIL, pinpointing the broken link and the totals delta). It finishes by serving the badge at `http://localhost:8000/badge/badge.html` so you can see green, yellow, and red side by side.
 
 ## CLI
 
 ```bash
-lineage keygen --out keys/
-lineage ingest sample_export.xlsx --origin "TikTok export, May 2026" --key keys/signing.key --out receipts/
-lineage verify receipts/chain.json --pub keys/signing.pub --data dashboard.xlsx
+receipts keygen --out keys/
+receipts ingest sample_export.xlsx --origin "TikTok export, May 2026" --key keys/signing.key --out receipts/
+receipts verify receipts/chain.json --pub keys/signing.pub --data dashboard.xlsx
 ```
 
 `verify` exits with the traffic light: 0 green, 1 red, 2 yellow (verifies, with caveats). Add `--warn-drift` to also flag any control-totals movement across links as a caveat; it is off by default because filters and aggregations legitimately move totals.
@@ -51,9 +53,9 @@ lineage verify receipts/chain.json --pub keys/signing.pub --data dashboard.xlsx
 Transforms record their own receipts by wrapping any list-of-dicts to list-of-dicts function:
 
 ```python
-from lineage import lineage_step
+from tamper_signal import receipt_step
 
-@lineage_step(chain_dir="receipts/", key_path="keys/signing.key")
+@receipt_step(chain_dir="receipts/", key_path="keys/signing.key")
 def transform_clean(records):
     return [r for r in records if r.get("campaign_name")]
 ```
@@ -75,7 +77,7 @@ TikTok/Sprinklr export.xlsx
   [transform_agg]  ──> 002_transform_aggregate.json
         |
         v
-  dashboard data  <─── lineage verify: walk every link, check every signature
+  dashboard data  <─── receipts verify: walk every link, check every signature
 ```
 
 Each receipt contains the SHA-256 of its input, the SHA-256 of the transform's source code, the SHA-256 of its output, and human-legible control totals (row counts, numeric sums, date ranges, null counts). Receipts link because each stage's input hash must equal the prior stage's output hash. Everything is signed with Ed25519; `chain.json` is just an ordered list of receipt files plus the public key.
@@ -95,28 +97,28 @@ Hashes say "broken." Totals say "how broken."
 
 ## The badge
 
-`badge/badge.js` exports `renderLineageBadge(containerEl, chainUrl, pubKeyHex)`. Drop it into any web frontend, point it at your `receipts/chain.json`, and it re-verifies the whole chain client-side with Web Crypto Ed25519: every signature, every hash link. No build step, no framework, no server-side trust. The badge re-checks hash links only; it does not re-canonicalize xlsx in the browser.
+`badge/badge.js` exports `renderReceiptBadge(containerEl, chainUrl, pubKeyHex)`. Drop it into any web frontend, point it at your `receipts/chain.json`, and it re-verifies the whole chain client-side with Web Crypto Ed25519: every signature, every hash link. No build step, no framework, no server-side trust. The badge re-checks hash links only; it does not re-canonicalize xlsx in the browser.
 
-![Lineage badge: green intact chain and red broken chain](badge/badge-demo.png)
+![Receipt badge: green intact chain and red broken chain](badge/badge-demo.png)
 
 Green collapsed state reads like: `✓ Verified · TikTok export, May 2026 · 48,212 rows · 2 transforms · chain intact`. Expanding shows one row per receipt.
 
-## The inline status light
+## The signal: an inline status light
 
 `badge/light.js` is the v1 dashboard UI: a small dark pill that mounts in your header, runs the same in-browser verification as the badge, and shows the verdict as the light. It deliberately refuses to adopt your dashboard's theme; like a tamper sticker, its value comes from being recognizable anywhere. One call:
 
 ```html
 <script type="module">
-  import { mountLineageLight } from "/badge/light.js";
-  mountLineageLight(document.querySelector("header"), "/receipts/chain.json");
+  import { mountTamperSignal } from "/badge/light.js";
+  mountTamperSignal(document.querySelector("header"), "/receipts/chain.json");
 </script>
 ```
 
-React, with a bundler: `import { LineageLight } from "badge/light-react.js"` and `<LineageLight chain="/receipts/chain.json" />`.
+React, with a bundler: `import { TamperSignal } from "badge/light-react.js"` and `<TamperSignal chain="/receipts/chain.json" />`.
 
-The pill expands to a popover: the per-stage table when green, the caveat list when yellow, the broken link with its totals delta when red. In the red state the light also reaches into the page: give any metric element a `data-lineage-column="spend_usd"` attribute, and if that column moved at the broken link the element gets outlined and tagged `lineage: unverified value`. Mark up your metrics once and the light flags the exact number that no longer descends from the source.
+The pill expands to a popover: the per-stage table when green, the caveat list when yellow, the broken link with its totals delta when red. In the red state the light also reaches into the page: give any metric element a `data-receipt-column="spend_usd"` attribute, and if that column moved at the broken link the element gets outlined and tagged `tamper signal: unverified value`. Mark up your metrics once and the light flags the exact number that no longer descends from the source.
 
-Options on the fourth argument: `watch` (re-verify every N ms and pulse on transitions), `warnDrift`, `receiptsHref`, and `theme: "light"` so the pill stays the one foreign object on a dark host. `lineage demo` serves a live three-state example at `http://localhost:8000/badge/light.html`.
+Options on the fourth argument: `watch` (re-verify every N ms and pulse on transitions), `warnDrift`, `receiptsHref`, and `theme: "light"` so the pill stays the one foreign object on a dark host. `receipts demo` serves a live three-state example at `http://localhost:8000/badge/light.html`.
 
 ## Dashboards should show their work
 
@@ -136,7 +138,7 @@ Also worth knowing: the signing key lives on your machine, and today that local 
 
 - **Richer yellow taxonomy.** Yellow currently detects coverage gaps, unrecognized signing keys, and opt-in totals drift. Distinct severities and smarter drift heuristics are open questions (see `designs/01-NOTES.md`).
 - **Node-native integration.** Today the pipeline tooling is Python (`pip install -e .`); the badge already runs in any web frontend. A Node package for receipt creation in JS pipelines is planned. There is no npm package yet.
-- **External anchoring.** Sigstore transparency logs or RFC 3161 timestamps, so a chain can't be silently re-signed after the fact. The attachment points are already marked `FUTURE:` in `lineage/keys.py` and `lineage/receipts.py`.
+- **External anchoring.** Sigstore transparency logs or RFC 3161 timestamps, so a chain can't be silently re-signed after the fact. The attachment points are already marked `FUTURE:` in `tamper_signal/keys.py` and `tamper_signal/receipts.py`.
 - **Verification console.** A devtools-for-data window: the receipt chain as an inspectable pipeline, an event log of verify runs, and the break pinned at the severed link.
 
 ![The verification console: a pipeline of signed receipts where a tampered stage severs the chain at the exact link](docs/media/console.gif)
@@ -149,4 +151,4 @@ Those tools model lineage and quality at the warehouse and orchestration layer. 
 
 ## Contributing
 
-Open source under the MIT license (see `LICENSE`), designed to be added to any vibe-coded data project. The Python package is in `lineage/`, tests in `tests/` (run `pytest`), examples in `examples/`, the badge in `badge/`. Issues and PRs welcome. The original Luhn hash demo lives unchanged in `legacy/` and is off the main path.
+Open source under the MIT license (see `LICENSE`), designed to be added to any vibe-coded data project. The Python package is in `tamper_signal/`, tests in `tests/` (run `pytest`), examples in `examples/`, the badge in `badge/`. Issues and PRs welcome. The original Luhn hash demo lives unchanged in `legacy/` and is off the main path.

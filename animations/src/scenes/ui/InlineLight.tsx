@@ -228,7 +228,7 @@ export const InlineLightScene: React.FC = () => {
             fontSize: 18 * s,
           }}
         >
-          <span style={{ color: COLORS.dim, letterSpacing: 1.5 * s }}>LINEAGE</span>
+          <span style={{ color: COLORS.dim, letterSpacing: 1.5 * s }}>TAMPER SIGNAL</span>
           <span style={{ color: verdictColor, fontWeight: 700 }}>{verdict}</span>
         </div>
         <div style={{ padding: `${16 * s}px ${20 * s}px ${18 * s}px` }}>{children}</div>
@@ -335,7 +335,7 @@ export const InlineLightScene: React.FC = () => {
                           opacity: flagO,
                         }}
                       >
-                        ⚠ lineage: unverified value
+                        ⚠ tamper signal: unverified value
                       </div>
                     ) : null}
                   </div>
@@ -462,7 +462,7 @@ export const InlineLightScene: React.FC = () => {
             </div>
             <span>
               <span style={{ color: lit ? meta.color : COLORS.dim, fontWeight: 700 }}>
-                {lit ? meta.word : "LINEAGE"}
+                {lit ? meta.word : "SIGNAL"}
               </span>
               <span style={{ color: COLORS.dim }}>{lit ? meta.sub : " · verifying"}</span>
             </span>

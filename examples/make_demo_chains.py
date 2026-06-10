@@ -1,7 +1,7 @@
 """Generate the committed demo chains under examples/chains/.
 
 The GitHub Pages landing page (and anything else that needs a receipt chain
-without running `lineage demo` first) verifies these in the browser:
+without running `receipts demo` first) verifies these in the browser:
 
     examples/chains/intact/    the clean three-receipt chain (green)
     examples/chains/tampered/  the same chain with link 1 -> 2 broken (red)
@@ -27,10 +27,10 @@ from make_sample_export import make as make_sample
 from transform_clean import transform_clean
 from transform_aggregate import transform_aggregate
 
-from lineage.canonical import evidence_hash, load_xlsx, semantic_hash
-from lineage.demo import _write_tampered_chain_to
-from lineage.keys import generate_keys, load_private_key, public_hex_from_private
-from lineage.receipts import (
+from tamper_signal.canonical import evidence_hash, load_xlsx, semantic_hash
+from tamper_signal.demo import _write_tampered_chain_to
+from tamper_signal.keys import generate_keys, load_private_key, public_hex_from_private
+from tamper_signal.receipts import (
     SOURCE_RECEIPT_NAME,
     build_source_manifest,
     load_receipts,
@@ -38,7 +38,7 @@ from lineage.receipts import (
     write_chain,
     write_receipt,
 )
-from lineage.wrapper import lineage_step
+from tamper_signal.wrapper import receipt_step
 
 INTACT_DIR = "examples/chains/intact"
 TAMPERED_DIR = "examples/chains/tampered"
@@ -70,12 +70,12 @@ def main() -> int:
         write_receipt(INTACT_DIR, SOURCE_RECEIPT_NAME, manifest)
         write_chain(INTACT_DIR, [SOURCE_RECEIPT_NAME], public_hex)
 
-        @lineage_step(chain_dir=INTACT_DIR, key_path=f"{key_dir}/signing.key",
+        @receipt_step(chain_dir=INTACT_DIR, key_path=f"{key_dir}/signing.key",
                       code_file="examples/transform_clean.py")
         def clean(rows):
             return transform_clean(rows)
 
-        @lineage_step(chain_dir=INTACT_DIR, key_path=f"{key_dir}/signing.key",
+        @receipt_step(chain_dir=INTACT_DIR, key_path=f"{key_dir}/signing.key",
                       code_file="examples/transform_aggregate.py")
         def aggregate(rows):
             return transform_aggregate(rows)

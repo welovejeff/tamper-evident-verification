@@ -27,9 +27,9 @@
 ## Serving it: Node vs Python hosts
 - The console is a static page + the chain's receipt JSON; verification re-runs in-browser via
   WebCrypto Ed25519 (exactly what badge/badge.js already does — this UI sits on that verifier).
-- Node host: `lineage.mount(app)` adds `GET /__lineage` (console HTML) and `GET /__lineage/chain.json`;
-  the inline badge calls `window.open('/__lineage', 'lineage', 'width=900,height=700')`.
-- Python host: same route via a Flask/FastAPI blueprint or `python -m lineage.console` (stdlib
+- Node host: `tamperSignal.mount(app)` adds `GET /__receipts` (console HTML) and `GET /__receipts/chain.json`;
+  the inline badge calls `window.open('/__receipts', 'receipts', 'width=900,height=700')`.
+- Python host: same route via a Flask/FastAPI blueprint or `python -m tamper_signal.console` (stdlib
   http.server beside receipts/ — mirrors how badge.html fetches `../receipts/chain.json` today).
 - Static fallback: file:// or any static host works since verification is client-side; live "re-verify"
   then re-fetches receipts rather than re-running transforms.

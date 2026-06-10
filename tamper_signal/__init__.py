@@ -1,4 +1,4 @@
-"""lineage-receipts: a signed data lineage chain for analytics pipelines.
+"""Tamper Signal: a signed receipt chain for analytics pipelines.
 
 Each pipeline stage emits a signed receipt containing the hash of its input,
 the hash of its code, the hash of its output, and human-legible control totals.
@@ -12,6 +12,6 @@ chain faithfully verifies wrong numbers.
 
 SPEC_VERSION = "1.0"
 
-from .wrapper import lineage_step
+from .wrapper import receipt_step
 
-__all__ = ["SPEC_VERSION", "lineage_step"]
+__all__ = ["SPEC_VERSION", "receipt_step"]

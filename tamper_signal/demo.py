@@ -38,9 +38,9 @@ from .receipts import (
     write_receipt,
 )
 from .totals import control_totals, totals_delta
-from .wrapper import lineage_step
+from .wrapper import receipt_step
 
-# Demo workspace, all relative to the repo root (the cwd `lineage demo` runs in).
+# Demo workspace, all relative to the repo root (the cwd `receipts demo` runs in).
 KEYS_DIR = "keys"
 RECEIPTS_DIR = "receipts"
 TAMPERED_DIR = "receipts_tampered"
@@ -92,13 +92,13 @@ def run_demo(serve: bool = True, port: int = 8000) -> int:
     print(f"Ingested {Path(SAMPLE).name}: {manifest['control_totals']['row_count']} rows")
     print(f"  semantic_hash {manifest['semantic_hash']}")
 
-    _rule("3. run transforms through @lineage_step")
+    _rule("3. run transforms through @receipt_step")
 
-    @lineage_step(chain_dir=RECEIPTS_DIR, key_path=KEY_PATH, code_file="examples/transform_clean.py")
+    @receipt_step(chain_dir=RECEIPTS_DIR, key_path=KEY_PATH, code_file="examples/transform_clean.py")
     def clean(records):
         return transform_clean(records)
 
-    @lineage_step(chain_dir=RECEIPTS_DIR, key_path=KEY_PATH, code_file="examples/transform_aggregate.py")
+    @receipt_step(chain_dir=RECEIPTS_DIR, key_path=KEY_PATH, code_file="examples/transform_aggregate.py")
     def aggregate(records):
         return transform_aggregate(records)
 

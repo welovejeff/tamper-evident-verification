@@ -9,7 +9,7 @@ recognizable across *any* app: if you've seen it once, you can read it anywhere 
 second. Green = done thinking about it. Yellow/red = the seal itself tells you where to look.
 
 The pill never editorializes about the host's numbers; it only attests the chain. In the red
-state it additionally outlines the one host metric fed by the broken stage ("lineage:
+state it additionally outlines the one host metric fed by the broken stage ("tamper signal:
 unverified value") — the instrument reaching into the host page is the demo's money shot.
 
 ## Where the light lives
@@ -28,9 +28,9 @@ inverts to a light panel to preserve the foreign-object effect.
 
 ## API sketch
 ```js
-// light.js — same contract as renderLineageBadge(containerEl, chainUrl, pubKeyHex)
-mountLineageLight(hostEl, "/receipts/chain.json", pubKeyHex?)
-// React: <LineageLight chain="/receipts/chain.json" />
+// light.js — same contract as renderReceiptBadge(containerEl, chainUrl, pubKeyHex)
+mountTamperSignal(hostEl, "/receipts/chain.json", pubKeyHex?)
+// React: <TamperSignal chain="/receipts/chain.json" />
 ```
 - Reuses badge.js verification core verbatim (Ed25519 via Web Crypto, canonical JSON,
   hash-link walk, totals delta). Only the rendering layer differs.
@@ -44,7 +44,7 @@ mountLineageLight(hostEl, "/receipts/chain.json", pubKeyHex?)
 1. Yellow taxonomy: coverage gap vs. unknown key vs. drift are very different severities —
    one amber state, or amber + distinct icons inside the popover?
 2. Host metric flagging (red state) requires knowing which DOM nodes map to which chain
-   columns. Manual `data-lineage-column` attrs? Ship without it for v1?
+   columns. Manual `data-receipt-column` attrs? Ship without it for v1?
 3. Dark-host inversion rule needs a real spec (luminance threshold? explicit `theme` prop?).
 4. Popover currently shows last-verified time; should the pill itself decay (grey out) when
    the page has been open longer than some staleness budget?
@@ -57,7 +57,7 @@ mountLineageLight(hostEl, "/receipts/chain.json", pubKeyHex?)
    detects coverage gaps (numbering jumps) and unrecognized signing keys; totals drift is
    opt-in (`warnDrift` / `--warn-drift`) because filters and aggregations legitimately move
    totals. Distinct severities stay open for v2.
-2. Host metric flagging: shipped in v1 via manual `data-lineage-column` attrs. On red, the
+2. Host metric flagging: shipped in v1 via manual `data-receipt-column` attrs. On red, the
    light flags elements whose column appears in the broken link's totals delta
    (numeric_sums / null_counts; row and column counts have no single column to point at).
 3. Dark-host inversion: explicit `theme: "light"` option for now, no luminance detection.

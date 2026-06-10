@@ -1,11 +1,12 @@
-// Standalone lineage verification badge. No build step, no framework.
+// Tamper Signal: the standalone receipt verification badge. No build step,
+// no framework.
 //
 // This file is also the browser verification core for the inline status light
-// (light.js): verifyLineage(chainUrl, pubKeyHex) runs the whole pipeline
+// (light.js): verifyReceipts(chainUrl, pubKeyHex) runs the whole pipeline
 // (fetch, signatures, hash links, caveats) and returns a structured result;
 // the render layers differ.
 //
-// renderLineageBadge(containerEl, chainUrl, pubKeyHex)
+// renderReceiptBadge(containerEl, chainUrl, pubKeyHex)
 //   Fetches chain.json and every receipt, re-verifies all signatures with Web
 //   Crypto Ed25519, re-checks all hash links (receipt N input == receipt N-1
 //   output), and renders a collapsed green/yellow/red badge that expands to
@@ -20,7 +21,7 @@
 
 export const SHORT = (h) => (h && h.length > 10 ? `${h.slice(0, 4)}...${h.slice(-2)}` : h || "(none)");
 
-// --- Canonical JSON, byte-identical to lineage/canonical.py's JCS output. ---
+// --- Canonical JSON, byte-identical to tamper_signal/canonical.py's JCS output. ---
 // Leaves are strings, integers, booleans, or null (no floats). Object keys are
 // sorted; strings use JSON.stringify, whose escaping matches the Python side.
 function canonicalize(value) {
@@ -60,7 +61,7 @@ function hexToBytes(hex) {
   return out;
 }
 
-// --- Hash accessors mirroring lineage/receipts.py. ---
+// --- Hash accessors mirroring tamper_signal/receipts.py. ---
 export const outputHashOf = (r) =>
   r.kind === "source_manifest" ? r.semantic_hash : r.output_semantic_hash;
 export const inputHashOf = (r) => (r.kind === "source_manifest" ? null : r.input_semantic_hash);
@@ -68,7 +69,7 @@ export const totalsOf = (r) =>
   r.kind === "source_manifest" ? r.control_totals : r.output_control_totals;
 export const stageNameOf = (r) => (r.kind === "source_manifest" ? "source" : r.transform.name);
 
-// --- Totals delta, mirroring lineage/totals.py for the red expand. Reports
+// --- Totals delta, mirroring tamper_signal/totals.py for the red expand. Reports
 // row_count, column_count, numeric_sums and null_counts, with sorted (so
 // deterministic) column ordering to stay consistent with the CLI verifier. The
 // numeric diff is shown as before -> after (no Decimal arithmetic in-browser).
@@ -147,7 +148,7 @@ export async function loadChain(chainUrl) {
   return { chain, receipts };
 }
 
-// Gaps in the generated NNN_ receipt numbering, mirroring lineage/receipts.py's
+// Gaps in the generated NNN_ receipt numbering, mirroring tamper_signal/receipts.py's
 // _coverage_gaps. Hand-named receipt sets (no numeric prefix) opt out.
 export function coverageGaps(receiptNames) {
   const indices = [];
@@ -170,7 +171,7 @@ export function coverageGaps(receiptNames) {
   return gaps;
 }
 
-// Signature pass mirroring lineage/receipts.py: every receipt is checked
+// Signature pass mirroring tamper_signal/receipts.py: every receipt is checked
 // against the trusted key; one that fails there but verifies under the key
 // embedded in chain.json means the chain is internally consistent but vouched
 // for by a key the caller does not trust (yellow), not broken (red).
@@ -236,7 +237,7 @@ export function evaluate(receipts) {
 // the yellow verdict. opts.warnDrift adds a caveat for any control-totals
 // movement across intact links (off by default: filters and aggregations
 // legitimately move totals).
-export async function verifyLineage(chainUrl, pubKeyHex, opts = {}) {
+export async function verifyReceipts(chainUrl, pubKeyHex, opts = {}) {
   const verifiedAt = new Date().toISOString();
   let chain, receipts;
   try {
@@ -325,31 +326,31 @@ function el(tag, props = {}, children = []) {
 }
 
 function injectStyles() {
-  if (document.getElementById("lineage-badge-styles")) return;
+  if (document.getElementById("receipt-badge-styles")) return;
   const css = `
-  .lineage-badge{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+  .receipt-badge{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
     font-size:14px;border:1px solid #d0d5dd;border-radius:8px;max-width:640px;background:#fff;color:#1d2939}
-  .lineage-badge .lb-head{display:flex;align-items:center;gap:8px;padding:12px 14px;cursor:pointer;
+  .receipt-badge .lb-head{display:flex;align-items:center;gap:8px;padding:12px 14px;cursor:pointer;
     user-select:none}
-  .lineage-badge .lb-mark{font-weight:700}
-  .lineage-badge.lb-green{border-color:#abefc6}
-  .lineage-badge.lb-green .lb-mark{color:#067647}
-  .lineage-badge.lb-red{border-color:#fda29b}
-  .lineage-badge.lb-red .lb-mark{color:#b42318}
-  .lineage-badge.lb-amber{border-color:#fedf89}
-  .lineage-badge.lb-amber .lb-mark{color:#b54708}
-  .lineage-badge.lb-yellow{border-color:#fedf89}
-  .lineage-badge.lb-yellow .lb-mark{color:#b54708}
-  .lineage-badge .lb-caveats{margin-top:8px;color:#b54708;font-size:13px}
-  .lineage-badge .lb-body{border-top:1px solid #eaecf0;padding:10px 14px;display:none}
-  .lineage-badge.lb-open .lb-body{display:block}
-  .lineage-badge table{border-collapse:collapse;width:100%;font-size:13px}
-  .lineage-badge th,.lineage-badge td{text-align:left;padding:6px 8px;border-bottom:1px solid #f2f4f7}
-  .lineage-badge th{color:#475467;font-weight:600}
-  .lineage-badge code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:#475467}
-  .lineage-badge .lb-delta{margin-top:8px;color:#b42318;font-size:13px}
-  .lineage-badge .lb-caret{margin-left:auto;color:#98a2b3}`;
-  document.head.appendChild(el("style", { id: "lineage-badge-styles", textContent: css }));
+  .receipt-badge .lb-mark{font-weight:700}
+  .receipt-badge.lb-green{border-color:#abefc6}
+  .receipt-badge.lb-green .lb-mark{color:#067647}
+  .receipt-badge.lb-red{border-color:#fda29b}
+  .receipt-badge.lb-red .lb-mark{color:#b42318}
+  .receipt-badge.lb-amber{border-color:#fedf89}
+  .receipt-badge.lb-amber .lb-mark{color:#b54708}
+  .receipt-badge.lb-yellow{border-color:#fedf89}
+  .receipt-badge.lb-yellow .lb-mark{color:#b54708}
+  .receipt-badge .lb-caveats{margin-top:8px;color:#b54708;font-size:13px}
+  .receipt-badge .lb-body{border-top:1px solid #eaecf0;padding:10px 14px;display:none}
+  .receipt-badge.lb-open .lb-body{display:block}
+  .receipt-badge table{border-collapse:collapse;width:100%;font-size:13px}
+  .receipt-badge th,.receipt-badge td{text-align:left;padding:6px 8px;border-bottom:1px solid #f2f4f7}
+  .receipt-badge th{color:#475467;font-weight:600}
+  .receipt-badge code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:#475467}
+  .receipt-badge .lb-delta{margin-top:8px;color:#b42318;font-size:13px}
+  .receipt-badge .lb-caret{margin-left:auto;color:#98a2b3}`;
+  document.head.appendChild(el("style", { id: "receipt-badge-styles", textContent: css }));
 }
 
 function renderDetail(receipts) {
@@ -372,10 +373,10 @@ function renderDetail(receipts) {
   ]);
 }
 
-export async function renderLineageBadge(containerEl, chainUrl, pubKeyHex) {
+export async function renderReceiptBadge(containerEl, chainUrl, pubKeyHex) {
   injectStyles();
   containerEl.innerHTML = "";
-  const badge = el("div", { className: "lineage-badge" });
+  const badge = el("div", { className: "receipt-badge" });
   const mark = el("span", { className: "lb-mark" });
   const label = el("span", { className: "lb-label" });
   const caret = el("span", { className: "lb-caret", textContent: "▸" });
@@ -390,7 +391,7 @@ export async function renderLineageBadge(containerEl, chainUrl, pubKeyHex) {
     caret.textContent = badge.classList.contains("lb-open") ? "▾" : "▸";
   });
 
-  const result = await verifyLineage(chainUrl, pubKeyHex);
+  const result = await verifyReceipts(chainUrl, pubKeyHex);
   const { receipts, origin, finalRows, transforms, linkResult, caveats } = result;
 
   if (result.state === "unverifiable") {

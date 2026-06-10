@@ -1,4 +1,4 @@
-"""The @lineage_step transform decorator.
+"""The @receipt_step transform decorator.
 
 A wrapped function takes a list-of-dicts and returns a list-of-dicts. On each
 call the decorator: verifies the existing chain tail, asserts the input's
@@ -47,12 +47,12 @@ def _resolve_code_file(func: Callable[..., Any]) -> str:
         return absolute
 
 
-def lineage_step(
+def receipt_step(
     chain_dir: str = "receipts/",
     key_path: str = "keys/signing.key",
     code_file: str | None = None,
 ):
-    """Decorate a list-of-dicts -> list-of-dicts transform with lineage receipts.
+    """Decorate a list-of-dicts -> list-of-dicts transform with signed receipts.
 
     Args:
         chain_dir: directory holding chain.json and receipt files.
@@ -67,7 +67,7 @@ def lineage_step(
             existing = read_chain_files(chain_dir)
             if not existing:
                 raise ChainTailMismatch(
-                    f"No chain found in {chain_dir!r}; run `lineage ingest` first."
+                    f"No chain found in {chain_dir!r}; run `receipts ingest` first."
                 )
 
             # Load the key up front so we can verify the existing chain with the

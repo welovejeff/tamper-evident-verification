@@ -74,14 +74,14 @@ const NODES = [
 type LogKind = "info" | "note" | "cmd" | "ok" | "okBold" | "bad" | "badDim";
 const LOG: { t: number; kind: LogKind; text: string; cps?: number }[] = [
   { t: T.attach, kind: "info", text: "console attached to chain tiktok-q2 (4 receipts)" },
-  { t: T.cmd1, kind: "cmd", text: "lineage verify receipts/chain.json", cps: 25 },
+  { t: T.cmd1, kind: "cmd", text: "receipts verify receipts/chain.json", cps: 25 },
   { t: T.sig1, kind: "ok", text: "✓ signatures valid (4/4)" },
   { t: T.link01, kind: "ok", text: "✓ link 0 → 1" },
   { t: T.link12, kind: "ok", text: "✓ link 1 → 2" },
   { t: T.link23, kind: "ok", text: "✓ link 2 → 3" },
   { t: T.intact, kind: "okBold", text: "✓ CHAIN INTACT · 4 receipts" },
   { t: T.note, kind: "note", text: "# clean.py output changed on disk" },
-  { t: T.cmd2, kind: "cmd", text: "lineage verify receipts/chain.json", cps: 35 },
+  { t: T.cmd2, kind: "cmd", text: "receipts verify receipts/chain.json", cps: 35 },
   { t: T.sig2, kind: "ok", text: "✓ signatures valid (4/4)" },
   { t: T.link01b, kind: "ok", text: "✓ link 0 → 1" },
   { t: T.broken, kind: "bad", text: "✗ CHAIN BROKEN at link 1 → 2" },
@@ -216,7 +216,7 @@ export const ConsoleScene: React.FC = () => {
           transform: `scale(${winScale})`,
         }}
       >
-        <Terminal s={s} width="100%" title="lineage · verification console">
+        <Terminal s={s} width="100%" title="tamper signal · verification console">
           {/* full-bleed inner wrapper (cancels Terminal body padding) */}
           <div style={{ margin: -28 * s }}>
             {/* ── 1 ▸ status header: the room's traffic light ── */}

@@ -1,4 +1,4 @@
-"""Tests for the lineage-receipts MVP. Run with `pytest`."""
+"""Tests for the Tamper Signal MVP. Run with `pytest`."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from lineage.canonical import (
+from tamper_signal.canonical import (
     canonicalize,
     decimal_to_plain_string,
     load_xlsx,
@@ -15,8 +15,8 @@ from lineage.canonical import (
     semantic_hash,
     write_xlsx,
 )
-from lineage.keys import generate_keys, load_private_key, public_hex_from_private
-from lineage.receipts import (
+from tamper_signal.keys import generate_keys, load_private_key, public_hex_from_private
+from tamper_signal.receipts import (
     build_source_manifest,
     build_transform_receipt,
     code_hash_of,
@@ -24,8 +24,8 @@ from lineage.receipts import (
     verify_chain,
     verify_signature,
 )
-from lineage.totals import control_totals
-from lineage.wrapper import ChainTailMismatch, lineage_step
+from tamper_signal.totals import control_totals
+from tamper_signal.wrapper import ChainTailMismatch, receipt_step
 
 from decimal import Decimal
 
@@ -341,12 +341,12 @@ def test_wrapper_rejects_mismatched_input(tmp_path, monkeypatch):
         filename="s.xlsx", evidence_hash="00", byte_size=1, declared_origin="t",
         semantic_hash=semantic_hash(records), records=records, private_key=private,
     )
-    from lineage.receipts import write_chain, write_receipt, SOURCE_RECEIPT_NAME
+    from tamper_signal.receipts import write_chain, write_receipt, SOURCE_RECEIPT_NAME
 
     write_receipt("receipts", SOURCE_RECEIPT_NAME, manifest)
     write_chain("receipts", [SOURCE_RECEIPT_NAME], public_hex)
 
-    @lineage_step(chain_dir="receipts", key_path="keys/signing.key")
+    @receipt_step(chain_dir="receipts", key_path="keys/signing.key")
     def step(records):
         return records
 
@@ -376,7 +376,7 @@ def test_control_totals_accepts_non_normalized_keys():
 
 
 def test_verify_returns_false_on_malformed_hex():
-    from lineage.keys import verify
+    from tamper_signal.keys import verify
 
     # Non-hex public key / signature must fail, not raise.
     assert verify("not-hex", b"msg", "also-not-hex") is False
@@ -384,7 +384,7 @@ def test_verify_returns_false_on_malformed_hex():
 
 
 def test_read_receipt_blocks_path_traversal(tmp_path):
-    from lineage.receipts import read_receipt
+    from tamper_signal.receipts import read_receipt
 
     (tmp_path / "secret.txt").write_text("{}", encoding="utf-8")
     chain_dir = tmp_path / "receipts"
@@ -397,7 +397,7 @@ def test_line_separators_kept_literal_for_js_parity():
     # RFC 8785 keeps chars >= 0x20 literal; JS JSON.stringify does NOT escape
     # U+2028/U+2029 either (verified: it emits the literal char). So Python must
     # also keep them literal for the canonical bytes to match the browser.
-    from lineage.canonical import canonical_json_bytes
+    from tamper_signal.canonical import canonical_json_bytes
 
     out = canonical_json_bytes({"o": "x\u2028y\u2029z"})
     assert "\\u2028" not in out.decode("utf-8")
@@ -430,7 +430,7 @@ def test_verify_signature_fails_closed_on_bad_body(keypair):
 
 
 def test_totals_delta_survives_bad_decimal():
-    from lineage.totals import totals_delta
+    from tamper_signal.totals import totals_delta
 
     up = {"numeric_sums": {"spend": "10"}}
     down = {"numeric_sums": {"spend": "not-a-number"}}
@@ -439,7 +439,7 @@ def test_totals_delta_survives_bad_decimal():
 
 
 def test_accessors_are_defensive():
-    from lineage.receipts import (
+    from tamper_signal.receipts import (
         input_hash_of,
         output_hash_of,
         stage_name_of,
@@ -483,14 +483,14 @@ def test_wrapper_refuses_to_extend_broken_chain(tmp_path, monkeypatch):
         filename="s.xlsx", evidence_hash="00", byte_size=1, declared_origin="t",
         semantic_hash=semantic_hash(records), records=records, private_key=private,
     )
-    from lineage.receipts import write_chain, write_receipt, SOURCE_RECEIPT_NAME
+    from tamper_signal.receipts import write_chain, write_receipt, SOURCE_RECEIPT_NAME
 
     # Corrupt the manifest's signature so the existing chain fails verification.
     manifest["signature"]["value"] = "00" * 64
     write_receipt("receipts", SOURCE_RECEIPT_NAME, manifest)
     write_chain("receipts", [SOURCE_RECEIPT_NAME], public_hex)
 
-    @lineage_step(chain_dir="receipts", key_path="keys/signing.key")
+    @receipt_step(chain_dir="receipts", key_path="keys/signing.key")
     def step(records):
         return records
 
@@ -508,12 +508,12 @@ def test_wrapper_appends_linked_receipt(tmp_path, monkeypatch):
         filename="s.xlsx", evidence_hash="00", byte_size=1, declared_origin="t",
         semantic_hash=semantic_hash(records), records=records, private_key=private,
     )
-    from lineage.receipts import write_chain, write_receipt, SOURCE_RECEIPT_NAME, load_receipts
+    from tamper_signal.receipts import write_chain, write_receipt, SOURCE_RECEIPT_NAME, load_receipts
 
     write_receipt("receipts", SOURCE_RECEIPT_NAME, manifest)
     write_chain("receipts", [SOURCE_RECEIPT_NAME], public_hex)
 
-    @lineage_step(chain_dir="receipts", key_path="keys/signing.key")
+    @receipt_step(chain_dir="receipts", key_path="keys/signing.key")
     def passthrough(records):
         return records
 

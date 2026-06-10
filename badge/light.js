@@ -1,11 +1,11 @@
 // The inline status light: a small dark instrument that mounts in a host
 // dashboard's header and attests the receipt chain behind the page. Built on
-// the same verification core as the badge (verifyLineage in badge.js): Web
+// the same verification core as the badge (verifyReceipts in badge.js): Web
 // Crypto Ed25519 signatures, hash-link walk, yellow caveats. Only the
 // rendering layer differs. No build step, no framework.
 //
-// mountLineageLight(hostEl, chainUrl, pubKeyHex?, opts?)
-//   Same argument contract as renderLineageBadge, with the light appended to
+// mountTamperSignal(hostEl, chainUrl, pubKeyHex?, opts?)
+//   Same argument contract as renderReceiptBadge, with the light appended to
 //   hostEl rather than replacing its contents. Returns a handle:
 //   { el, refresh(), destroy(), getState() }.
 //
@@ -21,11 +21,11 @@
 // verdict: it says nothing about the chain and never wears the yellow color.
 //
 // In the red state the light also reaches into the host page: any element
-// carrying data-lineage-column="<column>" whose column appears in the broken
-// link's totals delta is outlined and tagged "lineage: unverified value".
+// carrying data-receipt-column="<column>" whose column appears in the broken
+// link's totals delta is outlined and tagged "tamper signal: unverified value".
 // Mapping DOM nodes to chain columns is the host author's one manual step.
 
-import { verifyLineage, SHORT, totalsOf, stageNameOf, outputHashOf } from "./badge.js";
+import { verifyReceipts, SHORT, totalsOf, stageNameOf, outputHashOf } from "./badge.js";
 
 let uid = 0;
 
@@ -56,7 +56,7 @@ function el(tag, props = {}, children = []) {
 }
 
 function injectLightStyles() {
-  if (document.getElementById("lineage-light-styles")) return;
+  if (document.getElementById("tamper-signal-styles")) return;
   const css = `
   .lr-light{position:relative;display:inline-block;margin-left:14px;
     font-family:ui-monospace,'SF Mono',Menlo,Monaco,'Cascadia Code',monospace;
@@ -100,7 +100,7 @@ function injectLightStyles() {
     color:var(--lr-text);font:12px/1.55 inherit;font-family:inherit;text-align:left;
     box-shadow:0 16px 48px rgba(4,8,14,0.45);z-index:2147483000;display:none}
   .lr-light .lr-pop.lr-open{display:block}
-  .lr-light .lr-pop-head{display:flex;align-items:baseline;gap:8px;background:var(--lr-chrome);
+  .lr-light .lr-pop-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px;background:var(--lr-chrome);
     border-bottom:1px solid var(--lr-border);border-radius:10px 10px 0 0;padding:9px 14px;font-size:11px}
   .lr-light .lr-wordmark{color:var(--lr-dim);letter-spacing:1px}
   .lr-light .lr-verdict{font-weight:700}
@@ -137,11 +137,11 @@ function injectLightStyles() {
   .lr-light .lr-tagline{color:var(--lr-green)}
   .lr-suspect{box-shadow:0 0 0 2px #f87171,0 0 0 5px rgba(248,113,113,0.18) !important}
   .lr-suspect-tag{font:10px/1 ui-monospace,'SF Mono',Menlo,monospace;color:#f87171;margin-top:6px}`;
-  document.head.appendChild(el("style", { id: "lineage-light-styles", textContent: css }));
+  document.head.appendChild(el("style", { id: "tamper-signal-styles", textContent: css }));
 }
 
 // Host-page columns whose totals moved across the broken link. Used to flag
-// [data-lineage-column] elements; row/column count changes have no single
+// [data-receipt-column] elements; row/column count changes have no single
 // column to point at, so only numeric_sums and null_counts participate.
 function changedColumns(up, down) {
   const cols = new Set();
@@ -185,8 +185,8 @@ function shortCaveatTag(caveats) {
   return "see details";
 }
 
-export function mountLineageLight(hostEl, chainUrl, pubKeyHex, opts) {
-  // Allow mountLineageLight(el, url, {watch: ...}) without a key argument.
+export function mountTamperSignal(hostEl, chainUrl, pubKeyHex, opts) {
+  // Allow mountTamperSignal(el, url, {watch: ...}) without a key argument.
   if (pubKeyHex && typeof pubKeyHex === "object") {
     opts = pubKeyHex;
     pubKeyHex = undefined;
@@ -206,12 +206,12 @@ export function mountLineageLight(hostEl, chainUrl, pubKeyHex, opts) {
   const pill = el("button", { className: "lr-pill", type: "button" }, [dot, text, caret]);
   pill.setAttribute("aria-expanded", "false");
   pill.setAttribute("aria-controls", `${id}-pop`);
-  pill.setAttribute("aria-label", "Data lineage verification status");
+  pill.setAttribute("aria-label", "Tamper Signal verification status");
 
   const verdict = el("span", { className: "lr-verdict" });
   const time = el("time", {});
   const popHead = el("div", { className: "lr-pop-head" }, [
-    el("span", { className: "lr-wordmark" }, "LINEAGE"),
+    el("span", { className: "lr-wordmark" }, "TAMPER SIGNAL"),
     verdict,
     time,
   ]);
@@ -224,7 +224,7 @@ export function mountLineageLight(hostEl, chainUrl, pubKeyHex, opts) {
   const popFoot = el("div", { className: "lr-pop-foot" }, [footNote, footLink]);
   const pop = el("div", { className: "lr-pop", id: `${id}-pop` }, [popHead, popBody, popFoot]);
   pop.setAttribute("role", "dialog");
-  pop.setAttribute("aria-label", "Lineage verification detail");
+  pop.setAttribute("aria-label", "Tamper Signal verification detail");
 
   const root = el("span", { className: "lr-light", id }, [pill, pop]);
   root.dataset.state = "checking";
@@ -274,10 +274,10 @@ export function mountLineageLight(hostEl, chainUrl, pubKeyHex, opts) {
       totalsOf(receipts[linkResult.brokenAt])
     );
     if (!cols.size) return;
-    for (const node of document.querySelectorAll("[data-lineage-column]")) {
-      if (!cols.has(node.getAttribute("data-lineage-column"))) continue;
+    for (const node of document.querySelectorAll("[data-receipt-column]")) {
+      if (!cols.has(node.getAttribute("data-receipt-column"))) continue;
       node.classList.add("lr-suspect");
-      const tag = el("div", { className: "lr-suspect-tag" }, "⚠ lineage: unverified value");
+      const tag = el("div", { className: "lr-suspect-tag" }, "⚠ tamper signal: unverified value");
       node.appendChild(tag);
       flagged.push({ node, tag });
     }
@@ -396,7 +396,7 @@ export function mountLineageLight(hostEl, chainUrl, pubKeyHex, opts) {
   let timer = null;
   let destroyed = false;
   async function refresh() {
-    const result = await verifyLineage(chainUrl, pubKeyHex, { warnDrift: opts.warnDrift });
+    const result = await verifyReceipts(chainUrl, pubKeyHex, { warnDrift: opts.warnDrift });
     if (!destroyed) render(result);
     return result;
   }

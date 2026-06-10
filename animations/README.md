@@ -1,6 +1,6 @@
-# Lineage Receipts Animations
+# Tamper Signal Animations
 
-Three explainer animations for the signed data lineage receipts protocol, each rendered two ways, plus three product-UI showcase GIFs for the README.
+Three explainer animations for the Tamper Signal receipt protocol, each rendered two ways, plus three product-UI showcase GIFs for the README.
 
 Explainers:
 

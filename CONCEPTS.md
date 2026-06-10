@@ -21,6 +21,9 @@ Human-legible aggregates (row counts, numeric sums, date ranges, null counts) re
 
 ## Verification verdicts
 
+### Tamper Signal (the signal)
+The product name, and the name of its flagship surface: the inline status light that mounts in a host dashboard and shows The light as its verdict. Each layer keeps its own noun: the mechanism is the Receipt, the verdict is The light, the thing that delivers both is the signal. The former brand word "lineage" is retired (it filed the project under the warehouse-lineage category it explicitly is not); the CLI is `receipts`, the Python package is `tamper_signal`.
+
 ### Continuity
 The property this system proves: the data behind a result descends from the original export through a known sequence of code, unchanged. Continuity is explicitly not correctness — a chain over wrong source data verifies faithfully. The product's one forbidden claim is that verification "ensures accuracy."
 

@@ -1,4 +1,4 @@
-# Voiceover Script — Signed Data Lineage Animations
+# Voiceover Script — Tamper Signal Explainer Animations
 
 Three animations, recorded as one continuous read (~53s) or split into three clips.
 Timecodes are relative to each clip's start. Delivery: conversational, creator-to-creator,

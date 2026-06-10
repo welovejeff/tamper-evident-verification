@@ -2,7 +2,7 @@
 
 ## Rationale
 The other two directions decorate the dashboard; this one changes its shape. Installing
-lineage-receipts means your dashboard grows a permanent second tab — the raw table behind
+Tamper Signal means your dashboard grows a permanent second tab — the raw table behind
 every chart. The stance is the feature: no chart without an inspectable table, and the
 table is where verification *points*. A green badge floating in a corner says "trust us";
 a forced Data tab says "look for yourself." The tab flip is staged as flipping a cabinet
@@ -11,7 +11,7 @@ Same app, suddenly showing its receipts.
 
 Design choices worth defending:
 - The injected tab keeps our mono/dark identity even inside the host's light tab bar
-  (mono label, 🧾, traffic dot, "· lineage-receipts" micro-attribution). It should look
+  (mono label, 🧾, traffic dot, "· tamper signal" micro-attribution). It should look
   slightly foreign — that's honest about what it is.
 - The verification dot lives ON the tab label, so even users who never click it see
   state change from the Dashboard view. Red is visible before you open the cabinet.
@@ -20,14 +20,14 @@ Design choices worth defending:
   expected / found / Δ / row count Δ.
 
 ## How injection works
-- **Node**: `lineageReceipts(app, { chain: "receipts/chain.json" })` — Express/Next
+- **Node**: `tamperSignal(app, { chain: "receipts/chain.json" })` — Express/Next
   middleware serves `/__data` (the tab content + verifier JS) and injects a small
   script into the host's HTML responses that registers the tab in (or creates) the
-  nav bar. React flavor: `<LineageProvider>` wraps the app, `useLineageTab()` mounts
+  nav bar. React flavor: `<TamperSignalProvider>` wraps the app, `useReceiptsTab()` mounts
   the route; charts registered via `<VerifiedChart table={...}>` feed the table view.
 - **Python**: Flask/FastAPI extension adds the `/__data` route + a Jinja include
-  (`{% include "lineage/tab.html" %}`) for the tab button; Streamlit/Dash get a
-  first-class component (`lineage.data_tab(chain_path)`).
+  (`{% include "tamper_signal/tab.html" %}`) for the tab button; Streamlit/Dash get a
+  first-class component (`tamper_signal.data_tab(chain_path)`).
 - Verification always re-runs client-side (same as badge.js): fetch chain.json,
   check hash links + ed25519 signatures in the browser. The tab never trusts the
   server's claim that the server is honest.

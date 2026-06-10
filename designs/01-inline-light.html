@@ -510,7 +510,7 @@
     <!-- ════════ OUR INSTRUMENT: the inline status light ════════ -->
     <div class="lr-light" id="lr-light" data-state="green">
       <button class="lr-pill" id="lr-pill" aria-expanded="false" aria-controls="lr-pop"
-              aria-label="Data lineage verification status">
+              aria-label="Tamper Signal verification status">
         <span class="lr-dot" id="lr-dot" aria-hidden="true"></span>
         <span aria-live="polite" id="lr-pill-text">
           <span class="lr-status-word" id="lr-word">VERIFIED</span>
@@ -519,9 +519,9 @@
         <span class="lr-caret" aria-hidden="true">▸</span>
       </button>
 
-      <div class="lr-pop" id="lr-pop" role="dialog" aria-label="Lineage verification detail" aria-modal="false">
+      <div class="lr-pop" id="lr-pop" role="dialog" aria-label="Tamper Signal verification detail" aria-modal="false">
         <div class="lr-pop-head">
-          <span class="lr-wordmark">LINEAGE</span>
+          <span class="lr-wordmark">TAMPER SIGNAL</span>
           <span class="lr-verdict" id="lr-verdict"></span>
           <time datetime="2026-06-10T14:02:11Z">verified 14:02:11Z</time>
         </div>
@@ -544,7 +544,7 @@
         <h3>Total Views</h3>
         <div class="value" id="views-value">2,847,210</div>
         <div class="trend" id="views-trend">▲ 12.4% vs last week</div>
-        <div class="lr-suspect-tag">⚠ lineage: unverified value</div>
+        <div class="lr-suspect-tag">⚠ tamper signal: unverified value</div>
       </section>
       <section class="metric" aria-label="Followers">
         <h3>Followers</h3>
@@ -599,17 +599,17 @@
         <h3><b>NODE</b> / any static frontend</h3>
         <pre><code><span class="c-comment">&lt;!-- 1. one script tag --&gt;</span>
 &lt;script type=<span class="c-str">"module"</span>&gt;
-  <span class="c-kw">import</span> { <span class="c-fn">mountLineageLight</span> }
-    <span class="c-kw">from</span> <span class="c-str">"https://unpkg.com/lineage-receipts/light.js"</span>;
+  <span class="c-kw">import</span> { <span class="c-fn">mountTamperSignal</span> }
+    <span class="c-kw">from</span> <span class="c-str">"/badge/light.js"</span>;
 
-  <span class="c-comment">// 2. one init call — same args as renderLineageBadge()</span>
-  <span class="c-fn">mountLineageLight</span>(
+  <span class="c-comment">// 2. one init call — same args as renderReceiptBadge()</span>
+  <span class="c-fn">mountTamperSignal</span>(
     document.querySelector(<span class="c-str">"header"</span>),
     <span class="c-str">"/receipts/chain.json"</span>   <span class="c-comment">// pubKeyHex optional; falls back to chain.json key</span>
   );
 &lt;/script&gt;</code></pre>
         <h3><b>REACT</b> one-liner</h3>
-        <pre><code>&lt;<span class="c-fn">LineageLight</span> chain=<span class="c-str">"/receipts/chain.json"</span> /&gt;</code></pre>
+        <pre><code>&lt;<span class="c-fn">TamperSignal</span> chain=<span class="c-str">"/receipts/chain.json"</span> /&gt;</code></pre>
         <p class="int-note">Verification runs entirely in the viewer's browser (Web Crypto Ed25519).
         The light re-checks every signature and every hash link on page load — no server trust required.</p>
       </div>
@@ -620,14 +620,14 @@ app = Flask(__name__, static_folder=<span class="c-str">"receipts"</span>,
             static_url_path=<span class="c-str">"/receipts"</span>)
 
 <span class="c-comment"># 2. one include in your layout template</span>
-{% <span class="c-kw">include</span> <span class="c-str">"lineage_light.html"</span> %}</code></pre>
+{% <span class="c-kw">include</span> <span class="c-str">"tamper_signal.html"</span> %}</code></pre>
         <h3><b>PYTHON</b> — FastAPI</h3>
         <pre><code><span class="c-comment"># 1. mount the receipts dir written by your pipeline</span>
 app.mount(<span class="c-str">"/receipts"</span>,
           StaticFiles(directory=<span class="c-str">"receipts"</span>))
 
 <span class="c-comment"># 2. drop the include into your Jinja layout</span>
-{% <span class="c-kw">include</span> <span class="c-str">"lineage_light.html"</span> %}</code></pre>
+{% <span class="c-kw">include</span> <span class="c-str">"tamper_signal.html"</span> %}</code></pre>
         <p class="int-note">Your pipeline already writes <code>receipts/chain.json</code> + per-stage receipt files;
         the include is a 1&nbsp;KB snippet that loads <code>light.js</code> pointed at that directory.</p>
       </div>
@@ -682,7 +682,7 @@ app.mount(<span class="c-str">"/receipts"</span>,
         '</tbody></table>' +
         '<div class="lr-gap">⚠ coverage gap: the numbers on screen descend from a verified chain, ' +
         'but the last transform ran without emitting a receipt. Re-run the rollup under ' +
-        '<code>lineage run</code> to close the gap.</div>'
+        'the <code>receipt_step</code> wrapper to close the gap.</div>'
     },
     red: {
       word: "BROKEN",

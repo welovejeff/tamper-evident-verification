@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Lineage Receipts: the inline status light</title>
+    <title>Tamper Signal: the inline status light</title>
     <style>
       /* Everything below is a FAKE host app (someone else's vibe-coded
          dashboard). The only thing we ship is the dark pill in each header. */
@@ -69,9 +69,9 @@
     <p class="note">
       <strong>THE INLINE STATUS LIGHT, LIVE.</strong>
       Three copies of the same fake host dashboard. Each header carries one
-      mountLineageLight() pointed at a real receipt chain served from this
+      mountTamperSignal() pointed at a real receipt chain served from this
       repo; every signature and hash link re-verifies in your browser. Click a
-      pill for the popover. Run <strong>lineage demo</strong> first if the
+      pill for the popover. Run <strong>receipts demo</strong> first if the
       receipt directories are missing.
     </p>
 
@@ -108,7 +108,7 @@
     </div>
 
     <!-- RED: the tampered chain. The spend metric carries
-         data-lineage-column="spend_usd", so the light flags it. -->
+         data-receipt-column="spend_usd", so the light flags it. -->
     <div class="host">
       <header>
         <span class="logo"><i></i>Clipboard Analytics</span>
@@ -119,11 +119,11 @@
         <h1>After tamper</h1>
         <p class="sub">The light reaches into the page and flags the metric fed by the broken stage</p>
         <div class="metrics">
-          <section class="metric" data-lineage-column="spend_usd">
+          <section class="metric" data-receipt-column="spend_usd">
             <h3>Total Spend</h3>
             <div class="value">$2,020,283</div>
           </section>
-          <section class="metric" data-lineage-column="clicks">
+          <section class="metric" data-receipt-column="clicks">
             <h3>Clicks</h3>
             <div class="value">6,359,340</div>
           </section>
@@ -133,18 +133,18 @@
     </div>
 
     <script type="module">
-      import { mountLineageLight } from "./light.js";
+      import { mountTamperSignal } from "./light.js";
 
-      mountLineageLight(document.getElementById("light-green"), "../receipts/chain.json");
+      mountTamperSignal(document.getElementById("light-green"), "../receipts/chain.json");
 
       // A trusted key that is not the chain's embedded key: yellow.
-      mountLineageLight(
+      mountTamperSignal(
         document.getElementById("light-yellow"),
         "../receipts/chain.json",
         "ab".repeat(32)
       );
 
-      mountLineageLight(
+      mountTamperSignal(
         document.getElementById("light-red"),
         "../receipts_tampered/chain.json"
       );
