@@ -340,6 +340,20 @@
     color: var(--text);
   }
   .card:hover { border-color: var(--faint); text-decoration: none; }
+  .card .card-thumb {
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 16 / 10;
+    object-fit: cover;
+    object-position: top;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    margin: 0 0 14px;
+    filter: saturate(0.92);
+    transition: filter 0.15s;
+  }
+  .card:hover .card-thumb { filter: saturate(1); }
   .card .card-k { font: 10px var(--mono); color: var(--faint); letter-spacing: 1.5px; margin: 0 0 8px; }
   .card h3 { margin: 0 0 6px; font-size: 16px; }
   .card p { margin: 0; color: var(--dim); font-size: 13px; }
@@ -599,6 +613,7 @@
     <div class="cards">
       <a class="card" href="badge/light.html">
         <p class="card-k">LIVE PAGES</p>
+        <img class="card-thumb" src="docs/media/thumbs/light-pages.jpg" alt="The light.html demo page: three host dashboards with green, yellow, and red signals" loading="lazy" width="720" height="450" />
         <h3>The light &amp; the badge</h3>
         <p>Standalone demo pages for the inline status light and the verification badge,
            all three verdicts side by side against real chains.</p>
@@ -606,6 +621,7 @@
       </a>
       <a class="card" href="designs/01-inline-light.html">
         <p class="card-k">DESIGN DIRECTIONS</p>
+        <img class="card-thumb" src="docs/media/thumbs/designs.jpg" alt="The inline light design mockup in its red state, with the broken metric flagged" loading="lazy" width="720" height="450" />
         <h3>The working mockups</h3>
         <p>Three interface tiers: the inline light (shipped), the verification console,
            and the Data tab. Live HTML, with the design notes alongside.</p>
@@ -613,6 +629,7 @@
       </a>
       <a class="card" href="https://github.com/welovejeff/tamper-evident-verification/blob/main/docs/blog/your-vibe-coded-dashboard-needs-receipts.md">
         <p class="card-k">THE STORY</p>
+        <img class="card-thumb" src="docs/media/thumbs/stoplight.jpg" alt="A matte black stoplight with the green light lit" loading="lazy" width="720" height="450" />
         <h3>Your vibe-coded dashboard needs receipts</h3>
         <p>The blog post: why AI-written pipelines fail silently, and what a receipt
            chain catches that a plausible-looking chart never will.</p>
