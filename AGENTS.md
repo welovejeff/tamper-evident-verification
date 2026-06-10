@@ -35,8 +35,11 @@ These govern copy, code comments, commit messages, and UI text you produce:
 Requires Python 3.11+.
 
 ```bash
-pip install git+https://github.com/welovejeff/tamper-evident-verification.git
+pip install tamper-signal
 ```
+
+(Installing from source also works:
+`pip install git+https://github.com/welovejeff/tamper-evident-verification.git`)
 
 This provides the `receipts` CLI and the `tamper_signal` Python package.
 Verify: `receipts --help` exits 0. JavaScript-only project? Use step 1b and

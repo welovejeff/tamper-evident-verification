@@ -32,11 +32,11 @@ Honest status: all three verdicts are implemented in `receipts verify` and the b
 
 ## 60-second quickstart
 
-Python 3.11+. Open source (MIT), `pip`-installable.
+Python 3.11+. Open source (MIT).
 
 ```bash
-git clone <this repo> && cd tamper-evident-verification
-pip install -e .
+pip install tamper-signal
+git clone https://github.com/welovejeff/tamper-evident-verification && cd tamper-evident-verification
 receipts demo
 ```
 
