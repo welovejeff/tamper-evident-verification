@@ -129,6 +129,16 @@ def run_demo(serve: bool = True, port: int = 8000) -> int:
         print(line)
     assert result.ok, "demo invariant: clean chain must verify"
 
+    # Write the verified Data tab document so badge/table.html has live data.
+    import json as _json
+
+    from .canonical import canonical_document
+
+    Path(RECEIPTS_DIR, "table.json").write_text(
+        _json.dumps(canonical_document(data_records), indent=2) + "\n", encoding="utf-8"
+    )
+    print(f"Verified table exported to {RECEIPTS_DIR}/table.json")
+
     _rule("5. tamper the dashboard, re-verify (expect FAIL)")
     tampered = [dict(r) for r in data_records]
     target = tampered[0]

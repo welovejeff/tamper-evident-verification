@@ -251,12 +251,34 @@ under `control_totals.numeric_sums` / `null_counts`.
 ## 8. The Data tab (when asked for table UI or views)
 
 The project's stance: a dashboard built on verified data should show the
-verified table, not just charts. If the user asks for the table UI, add a
-"Data" tab next to the charts that renders the final stage's output (the same
-file `--data` verifies), labeled with the current verdict. The design
-reference is `designs/03-data-tab.html` with notes in `designs/03-NOTES.md`;
-there is no packaged component yet, so build it in the host's own stack and
-say so honestly.
+verified table, not just charts. Two steps:
+
+1. After the pipeline runs, export the canonical table document:
+
+   ```bash
+   receipts export --chain receipts/chain.json --data path/to/dashboard_data.xlsx
+   ```
+
+   This writes `receipts/table.json` and refuses if the data does not match
+   the final receipt (the Data tab only ever shows attested data). Re-run it
+   whenever the pipeline runs, or the tab will honestly report a stale table.
+
+2. Mount the table (vendor `badge/table.js` beside badge.js, or import
+   `tamper-signal/table`):
+
+   ```html
+   <script type="module">
+     import { mountReceiptTable } from "/static/table.js";
+     mountReceiptTable(document.querySelector("#data-tab"), "/receipts/chain.json");
+   </script>
+   ```
+
+The component re-hashes the served document in the viewer's browser and
+compares it against the final receipt, so VERIFIED means the rows on screen
+are byte-for-byte the attested data. It renders its own states: green, yellow
+with caveats, chain broken (with the moved columns flagged), and "not the
+attested data" when table.json is stale or edited. Design reference:
+`designs/03-data-tab.html`.
 
 ## 9. Verify your work before reporting done
 

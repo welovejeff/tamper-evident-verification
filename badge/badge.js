@@ -24,7 +24,7 @@ export const SHORT = (h) => (h && h.length > 10 ? `${h.slice(0, 4)}...${h.slice(
 // --- Canonical JSON, byte-identical to tamper_signal/canonical.py's JCS output. ---
 // Leaves are strings, integers, booleans, or null (no floats). Object keys are
 // sorted; strings use JSON.stringify, whose escaping matches the Python side.
-function canonicalize(value) {
+export function canonicalize(value) {
   if (value === null) return "null";
   const t = typeof value;
   if (t === "boolean") return value ? "true" : "false";

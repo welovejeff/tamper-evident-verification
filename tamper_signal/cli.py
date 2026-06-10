@@ -322,6 +322,48 @@ def cmd_serve(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_export(args: argparse.Namespace) -> int:
+    """Write the canonical table document for the verified Data tab.
+
+    Refuses to export data that does not descend from the chain: the Data tab
+    only ever shows attested data, so an export of mismatched data would be a
+    lie waiting to render.
+    """
+    import json as _json
+
+    from .canonical import canonical_document, load_records as _load
+    from .receipts import output_hash_of
+
+    chain = read_chain(args.chain)
+    chain_dir = Path(args.chain).parent
+    try:
+        receipts = [read_receipt(str(chain_dir), name) for name in chain.get("receipts", [])]
+    except ValueError as exc:
+        print(f"Cannot load chain: {exc}", file=sys.stderr)
+        return 1
+    if not receipts:
+        print("Chain is empty; nothing to export against.", file=sys.stderr)
+        return 1
+
+    records = _load(args.data, sheet=args.sheet)
+    document = canonical_document(records)
+    data_hash = semantic_hash(records)
+    expected = output_hash_of(receipts[-1])
+    if data_hash != expected:
+        print("✗ Refusing to export: the data does not match the final receipt.", file=sys.stderr)
+        print(f"  expected output hash {expected}", file=sys.stderr)
+        print(f"  found    data hash   {data_hash}", file=sys.stderr)
+        print("  The Data tab only shows attested data. Re-run the pipeline or fix --data.", file=sys.stderr)
+        return 1
+
+    out_path = Path(args.out) if args.out else chain_dir / "table.json"
+    out_path.write_text(_json.dumps(document, indent=2) + "\n", encoding="utf-8")
+    print(f"Exported verified table: {out_path}")
+    print(f"  rows {len(document['rows'])}, columns {len(document['headers'])}")
+    print(f"  semantic_hash {data_hash} (matches final receipt)")
+    return 0
+
+
 def cmd_demo(args: argparse.Namespace) -> int:
     from .demo import run_demo
 
@@ -382,6 +424,16 @@ def build_parser() -> argparse.ArgumentParser:
     p_doctor.add_argument("--chain", default="receipts/chain.json", help="Chain path")
     p_doctor.add_argument("--url", default=None, help="Served chain.json URL to check")
     p_doctor.set_defaults(func=cmd_doctor)
+
+    p_export = sub.add_parser(
+        "export",
+        help="Write the canonical table document (table.json) for the verified Data tab",
+    )
+    p_export.add_argument("--chain", default="receipts/chain.json", help="Path to chain.json")
+    p_export.add_argument("--data", required=True, help="Data file that must match the final receipt")
+    p_export.add_argument("--out", default=None, help="Output path (default: <chain dir>/table.json)")
+    p_export.add_argument("--sheet", default=None, help="Worksheet name (xlsx only, optional)")
+    p_export.set_defaults(func=cmd_export)
 
     p_serve = sub.add_parser(
         "serve", help="Serve the receipts directory on localhost with CORS (dev only)"

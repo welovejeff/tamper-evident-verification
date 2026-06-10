@@ -135,3 +135,39 @@ def test_doctor_fails_on_broken_chain(tmp_path, monkeypatch, capsys):
     write_receipt(str(tmp_path / "receipts"), SOURCE_RECEIPT_NAME, receipt)
     assert main(["doctor"]) == 1
     assert "chain verifies" in capsys.readouterr().out
+
+
+# ---------------------------------------------------------------------------
+# receipts export (the verified Data tab document)
+# ---------------------------------------------------------------------------
+def test_export_writes_canonical_document_matching_final_receipt(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    _seed_chain(tmp_path)
+    records = sample_records()
+    data = tmp_path / "current.json"
+    data.write_text(json.dumps([
+        {k: (v.isoformat() if hasattr(v, "isoformat") else v) for k, v in r.items()}
+        for r in records
+    ]), encoding="utf-8")
+
+    assert main(["export", "--chain", "receipts/chain.json", "--data", str(data)]) == 0
+    document = json.loads((tmp_path / "receipts" / "table.json").read_text())
+    assert set(document) == {"headers", "rows"}
+    assert len(document["rows"]) == len(records)
+
+    # The document hashes to exactly the final receipt's output hash.
+    from tamper_signal.canonical import canonical_json_bytes
+    import hashlib
+
+    receipt = read_receipt(str(tmp_path / "receipts"), SOURCE_RECEIPT_NAME)
+    assert hashlib.sha256(canonical_json_bytes(document)).hexdigest() == receipt["semantic_hash"]
+
+
+def test_export_refuses_mismatched_data(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    _seed_chain(tmp_path)
+    data = tmp_path / "wrong.json"
+    data.write_text('[{"a": 1}]', encoding="utf-8")
+    assert main(["export", "--chain", "receipts/chain.json", "--data", str(data)]) == 1
+    assert not (tmp_path / "receipts" / "table.json").exists()
+    assert "Refusing to export" in capsys.readouterr().err

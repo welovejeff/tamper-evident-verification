@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Tamper Signal: the verified Data tab</title>
+    <style>
+      body {
+        margin: 0;
+        background: #e9ebef;
+        font-family: -apple-system, "Segoe UI", Roboto, Helvetica, sans-serif;
+        color: #1f2430;
+        padding: 36px 20px 80px;
+      }
+      .note {
+        max-width: 980px;
+        margin: 0 auto 22px;
+        font: 12px/1.5 ui-monospace, Menlo, monospace;
+        color: #5c6470;
+      }
+      .note strong { color: #2a313d; }
+      .case { max-width: 980px; margin: 0 auto 30px; }
+      .case h2 {
+        font: 600 14px -apple-system, "Segoe UI", sans-serif;
+        margin: 0 0 10px;
+      }
+      .case p { font-size: 13px; color: #6b7280; margin: 0 0 12px; }
+    </style>
+  </head>
+  <body>
+    <p class="note">
+      <strong>THE VERIFIED DATA TAB, LIVE.</strong>
+      Each table below is the canonical document written by
+      <strong>receipts export</strong>. Your browser re-serializes it with the
+      same JCS as the signer, hashes it with Web Crypto, and compares against
+      the final receipt. VERIFIED means the rows on screen are byte-for-byte
+      the attested data.
+    </p>
+
+    <div class="case">
+      <h2>Verified: intact chain, attested table</h2>
+      <p>Green light, open table.</p>
+      <div id="t-verified"></div>
+    </div>
+
+    <div class="case">
+      <h2>Not the attested data: intact chain, edited table.json</h2>
+      <p>One spend value was edited in the served file. The chain is fine; the table is not what was signed.</p>
+      <div id="t-edited"></div>
+    </div>
+
+    <div class="case">
+      <h2>Chain broken: tampered chain, same table</h2>
+      <p>The chain itself severs at link 1 to 2; columns whose totals moved at the break are flagged.</p>
+      <div id="t-broken"></div>
+    </div>
+
+    <script type="module">
+      import { mountReceiptTable } from "./table.js";
+
+      mountReceiptTable(
+        document.getElementById("t-verified"),
+        "../examples/chains/intact/chain.json",
+        { maxRows: 8 }
+      );
+      mountReceiptTable(
+        document.getElementById("t-edited"),
+        "../examples/chains/intact/chain.json",
+        "../examples/chains/intact/table-tampered.json",
+        { maxRows: 8 }
+      );
+      mountReceiptTable(
+        document.getElementById("t-broken"),
+        "../examples/chains/tampered/chain.json",
+        { maxRows: 8 }
+      );
+    </script>
+  </body>
+</html>

@@ -1,6 +1,6 @@
 {
   "spec_version": "1.1",
-  "public_key": "23691209878b6b09f288cb741e49bcc1af668595ffa424b5352228c7467597fc",
+  "public_key": "3be40ec88047022ee35721204f9b5bcd359d20d4086abf032e1fa060dd8c56f2",
   "receipts": [
     "000_source.json",
     "001_clean.json",

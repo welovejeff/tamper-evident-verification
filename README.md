@@ -144,6 +144,8 @@ Options on the fourth argument: `watch` (re-verify every N ms and pulse on trans
 
 We think any dashboard built on verified data should let you see the data. Not a tooltip, not an export-on-request: a Data tab, right next to the charts, showing the raw verified table the pretty numbers came from. If the chain is intact and the light is green, there is no reason to hide the rows, and if you find yourself wanting to hide them, that's worth sitting with. A chart asks you to believe; a table lets you check. Green light, open table: that's the whole standard.
 
+It ships: `receipts export` writes the canonical table document next to the chain (refusing data that does not match the final receipt), and `mountReceiptTable(el, "/receipts/chain.json")` from `badge/table.js` (npm: `tamper-signal/table`) renders it after re-hashing it in the viewer's browser against the final receipt. VERIFIED means the rows on screen are byte-for-byte the attested data; a stale or edited table.json renders dimmed under a "not the attested data" strip, and a broken chain flags the columns that moved at the break. Live demo: `badge/table.html`.
+
 ![The Data tab: the dashboard flips to a dark raw-table view where a broken chain is localized to the views column](docs/media/data-tab.gif)
 
 *Design preview: install the verification layer and your dashboard grows a Data tab. When the chain breaks, the break is localized to the column and total that no longer verify, right in the table.*

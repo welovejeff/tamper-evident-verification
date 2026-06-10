@@ -1,10 +1,10 @@
 {
   "kind": "source_manifest",
   "spec_version": "1.1",
-  "created_at": "2026-06-10T19:28:10Z",
+  "created_at": "2026-06-10T23:01:57Z",
   "source": {
     "filename": "sample_export.xlsx",
-    "evidence_hash": "c67fd34006bc7c410e5660778741f57509ddc6bfa05a258fd939a87d03be40ae",
+    "evidence_hash": "421d070b4ee20ce7eca46cfeea9297a72784a2acf13784cfafcd8c68d0ee871f",
     "byte_size": 180560,
     "declared_origin": "Sample social export, May 2026"
   },
@@ -29,7 +29,7 @@
   },
   "signature": {
     "alg": "ed25519",
-    "key_fingerprint": "18e478591ce21373",
-    "value": "c5b325a214f7ba098169fac98001d378a2d0409bce2a224e49b8ed4c97df9638821f0bfcf6e6b0c7f9bd8fb4b2ec3391d25e23c95a05abfc1b4c442c09792c0f"
+    "key_fingerprint": "b89663c0cc9ac547",
+    "value": "fc08d30cbc2c7dd9da1419285bc18942cb1fee368b93b33b2195f596f664490cabf14509b7567b8547a7261092add907e669bbb941e2986dabbc36cf4a64f20f"
   }
 }

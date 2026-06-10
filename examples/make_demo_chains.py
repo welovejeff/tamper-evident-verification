@@ -27,7 +27,7 @@ from make_sample_export import make as make_sample
 from transform_clean import transform_clean
 from transform_aggregate import transform_aggregate
 
-from tamper_signal.canonical import evidence_hash, load_xlsx, semantic_hash
+from tamper_signal.canonical import canonical_document, evidence_hash, load_xlsx, semantic_hash
 from tamper_signal.demo import _write_tampered_chain_to
 from tamper_signal.keys import generate_keys, load_private_key, public_hex_from_private
 from tamper_signal.receipts import (
@@ -80,13 +80,33 @@ def main() -> int:
         def aggregate(rows):
             return transform_aggregate(rows)
 
-        aggregate(clean(records))
+        final = aggregate(clean(records))
+
+        # The verified Data tab fixtures: the canonical table document the
+        # browser re-hashes (table.json), plus a one-cell-tampered copy that
+        # must render as NOT THE ATTESTED DATA.
+        import copy
+        import json
+
+        document = canonical_document(final)
+        pathlib_write = lambda name, doc: (
+            __import__("pathlib").Path(INTACT_DIR, name).write_text(
+                json.dumps(doc, indent=2) + "\n", encoding="utf-8"
+            )
+        )
+        pathlib_write("table.json", document)
+        tampered_doc = copy.deepcopy(document)
+        spend_col = tampered_doc["headers"].index("spend_usd")
+        tampered_doc["rows"][0][spend_col] = "999999.99"
+        pathlib_write("table-tampered.json", tampered_doc)
 
         result = verify_chain(load_receipts(INTACT_DIR), public_hex)
         assert result.verdict == "green", result.lines
         print(f"{INTACT_DIR}: {result.lines[0]}")
 
         _write_tampered_chain_to(INTACT_DIR, TAMPERED_DIR, private_key, public_hex)
+        # The tampered dir keeps the same table data; the chain itself is
+        # what's broken there. (copytree already carried table.json over.)
         broken = verify_chain(load_receipts(TAMPERED_DIR), public_hex)
         assert broken.verdict == "red", broken.lines
         print(f"{TAMPERED_DIR}: {broken.lines[0]}")

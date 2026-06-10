@@ -14,6 +14,7 @@
     "./light": "./badge/light.js",
     "./badge": "./badge/badge.js",
     "./element": "./badge/element.js",
+    "./table": "./badge/table.js",
     "./react": "./badge/light-react.js"
   },
   "bin": {
@@ -24,6 +25,7 @@
     "badge/badge.js",
     "badge/light.js",
     "badge/element.js",
+    "badge/table.js",
     "badge/light-react.js",
     "AGENTS.md"
   ],

@@ -215,6 +215,24 @@ def canonicalize(records: list[dict[str, Any]]) -> bytes:
 
 def canonicalize_table(headers: list[str], rows: list[list[Any]]) -> bytes:
     """Canonicalize an already-parsed table. `headers` will be re-normalized."""
+    return _jcs_serialize(canonical_table_document(headers, rows))
+
+
+def canonical_document(records: list[dict[str, Any]]) -> dict[str, Any]:
+    """The canonical {"headers": [...], "rows": [...]} document for records.
+
+    This is the exact object whose JCS bytes the semantic hash covers. It is
+    what `receipts export` writes for the verified Data tab: a browser can
+    re-serialize it with the (already byte-identical) JCS in badge.js, hash it
+    with Web Crypto, and compare against the final receipt's output hash,
+    proving the table on screen IS the attested data.
+    """
+    headers, rows = _records_to_table(records)
+    return canonical_table_document(headers, rows)
+
+
+def canonical_table_document(headers: list[str], rows: list[list[Any]]) -> dict[str, Any]:
+    """Build the canonical document (normalized, column- and row-sorted)."""
     headers = normalize_headers(headers)
 
     # Sort columns into normalized-alphabetical order, carrying cells along.
@@ -235,8 +253,7 @@ def canonicalize_table(headers: list[str], rows: list[list[Any]]) -> bytes:
 
     normalized_rows.sort(key=sort_key)
 
-    document = {"headers": sorted_headers, "rows": normalized_rows}
-    return _jcs_serialize(document)
+    return {"headers": sorted_headers, "rows": normalized_rows}
 
 
 def _sort_token(cell: str | bool | None) -> str:
