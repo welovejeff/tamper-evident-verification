@@ -132,8 +132,22 @@
       </main>
     </div>
 
+    <!-- WEB COMPONENT: same light, one tag, any framework. -->
+    <div class="host">
+      <header>
+        <span class="logo"><i></i>Clipboard Analytics</span>
+        <span class="spacer"></span>
+        <tamper-signal chain="../receipts/chain.json"></tamper-signal>
+      </header>
+      <main>
+        <h1>As a web component</h1>
+        <p class="sub">&lt;tamper-signal chain="/receipts/chain.json"&gt;&lt;/tamper-signal&gt; via badge/element.js</p>
+      </main>
+    </div>
+
     <script type="module">
       import { mountTamperSignal } from "./light.js";
+      import "./element.js";
 
       mountTamperSignal(document.getElementById("light-green"), "../receipts/chain.json");
 
