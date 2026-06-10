@@ -1,6 +1,7 @@
 """The @receipt_step transform decorator.
 
-A wrapped function takes a list-of-dicts and returns a list-of-dicts. On each
+A wrapped function takes a list-of-dicts or a pandas DataFrame and returns
+the same kind of structure. On each
 call the decorator: verifies the existing chain tail, asserts the input's
 semantic hash matches the tail's output hash (hard error if not), runs the
 function, hashes the source of the *undecorated* function, computes the output
@@ -14,6 +15,7 @@ import inspect
 import os
 from typing import Any, Callable
 
+from .adapters import to_records
 from .canonical import semantic_hash
 from .keys import load_private_key, public_hex_from_private
 from .receipts import (
@@ -52,7 +54,11 @@ def receipt_step(
     key_path: str = "keys/signing.key",
     code_file: str | None = None,
 ):
-    """Decorate a list-of-dicts -> list-of-dicts transform with signed receipts.
+    """Decorate a transform with signed receipts.
+
+    The transform takes and returns either a list-of-dicts or a pandas
+    DataFrame; frames are converted to records for hashing only and pass
+    through the function untouched.
 
     Args:
         chain_dir: directory holding chain.json and receipt files.
@@ -87,9 +93,11 @@ def receipt_step(
                 )
 
             # Assert the input descends from the chain tail BEFORE running.
+            # DataFrames convert to records for hashing only; the user's
+            # function receives whatever the caller passed, untouched.
             tail = receipts[-1]
             tail_output = output_hash_of(tail)
-            input_hash = semantic_hash(records)
+            input_hash = semantic_hash(to_records(records, context="input"))
             if input_hash != tail_output:
                 raise ChainTailMismatch(
                     "Input data does not match the chain tail output hash.\n"
@@ -100,7 +108,8 @@ def receipt_step(
                 )
 
             output = func(records, *args, **kwargs)
-            output_hash = semantic_hash(output)
+            output_records = to_records(output, context="output")
+            output_hash = semantic_hash(output_records)
 
             # functools.wraps sets __wrapped__ to the undecorated function, so we
             # hash the original source even when other decorators stack on top.
@@ -111,7 +120,7 @@ def receipt_step(
                 code_file=code_file or _resolve_code_file(undecorated),
                 input_semantic_hash=input_hash,
                 output_semantic_hash=output_hash,
-                output_records=output,
+                output_records=output_records,
                 private_key=private_key,
             )
 
