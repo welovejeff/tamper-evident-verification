@@ -25,12 +25,12 @@ These govern copy, code comments, commit messages, and UI text you produce:
    is yellow, a human should look." / red "The light is red, the chain is
    broken." Only green rhymes. Do not invent new rhymes.
 3. No em dashes in user-facing copy.
-4. There is no npm package. Do not add one to package.json or promise one in
-   docs. Receipt creation is Python; browser verification is two dependency-free
-   JS files you vendor (step 5).
+4. Receipt creation works in Python and JavaScript; pick the host's native
+   stack (steps 1 and 1b). Do not promise features that are not in this
+   file.
 5. Never commit a private key. `keys/` and `*.key` belong in .gitignore.
 
-## 1. Install the Python side
+## 1. Install (Python pipelines)
 
 Requires Python 3.11+.
 
@@ -39,7 +39,36 @@ pip install git+https://github.com/welovejeff/tamper-evident-verification.git
 ```
 
 This provides the `receipts` CLI and the `tamper_signal` Python package.
-Verify: `receipts --help` exits 0.
+Verify: `receipts --help` exits 0. JavaScript-only project? Use step 1b and
+the JS equivalents; the two stacks produce interchangeable chains.
+
+## 1b. Install (JavaScript pipelines)
+
+Requires Node 18.17+.
+
+```bash
+npm install tamper-signal
+```
+
+This provides the `tamper-signal` CLI (keygen / ingest / verify, exit codes
+0 green, 1 red, 2 yellow) and the programmatic API:
+
+```js
+import { receiptStep, loadCsv } from "tamper-signal";
+
+const clean = receiptStep(
+  (records) => records.filter((r) => r.campaign_name !== null),
+  { chainDir: "receipts/", keyPath: "keys/signing.key", codeFile: "pipeline.js" }
+);
+const output = await clean(loadCsv("export.csv"));
+```
+
+`receiptStep` wraps a sync or async records -> records function with the
+same contract as Python's `receipt_step`: verify the chain tail first,
+refuse foreign input, sign and append a receipt. The browser files are the
+same package: `tamper-signal/light`, `tamper-signal/badge`,
+`tamper-signal/element`, `tamper-signal/react`. JS reads .csv/.tsv/.json/
+.ndjson; only the Python side reads .xlsx.
 
 ## 2. Generate a signing keypair (once per project)
 
@@ -58,8 +87,11 @@ receipts ingest path/to/export.xlsx --origin "TikTok export, May 2026" \
 ```
 
 `--origin` is free text describing where the file came from; it appears in the
-signal's UI, so write it for humans. Input format is .xlsx today. This writes
-`receipts/000_source.json` and `receipts/chain.json`.
+signal's UI, so write it for humans. Input formats: .xlsx/.xlsm (Python only),
+.csv, .tsv, .json (array of objects), .ndjson/.jsonl. The semantic hash is
+identical across formats, so an xlsx ingest verifies against a CSV or JSON
+copy of the same data. This writes `receipts/000_source.json` and
+`receipts/chain.json`.
 
 ## 4. Wrap every transform stage
 
@@ -71,10 +103,11 @@ def transform_clean(records):
     return [r for r in records if r.get("campaign_name")]
 ```
 
-Contract: the function takes a list of dicts and returns a list of dicts. The
-wrapper verifies the existing chain first, refuses to run if the input data
-does not descend from the chain tail (`ChainTailMismatch`), then signs and
-appends a receipt for the stage.
+Contract: the function takes and returns either a list of dicts or a pandas
+DataFrame (frames are hashed as records and pass through the function
+untouched; NaN becomes the canonical null). The wrapper verifies the existing
+chain first, refuses to run if the input data does not descend from the chain
+tail (`ChainTailMismatch`), then signs and appends a receipt for the stage.
 
 If a stage cannot fit the list-of-dicts contract, leave it unwrapped and tell
 the user that stage is not attested. Do not fabricate a receipt for work the
@@ -94,7 +127,9 @@ movement across links (only for pipelines expected to preserve totals).
 
 ## 6. Add the signal to the host UI
 
-Vendor two files from this repo into the host app, side by side (light.js
+With a bundler, import straight from the npm package
+(`import { mountTamperSignal } from "tamper-signal/light"`). Without one,
+vendor two files from this repo into the host app, side by side (light.js
 imports `./badge.js` relatively):
 
 - `badge/badge.js` (verification core + the expandable badge)
@@ -110,8 +145,19 @@ header:
 </script>
 ```
 
-React hosts: also vendor `badge/light-react.js`, then
-`<TamperSignal chain="/receipts/chain.json" />`.
+React hosts: `import { TamperSignal } from "tamper-signal/react"` (or vendor
+`badge/light-react.js`), then `<TamperSignal chain="/receipts/chain.json" />`.
+
+Any other framework, or plain HTML: the web component. Import
+`tamper-signal/element` (or vendor `badge/element.js`, which needs light.js
+and badge.js beside it) and write one tag:
+
+```html
+<tamper-signal chain="/receipts/chain.json"></tamper-signal>
+```
+
+Attributes mirror the options: `pub-key`, `watch`, `warn-drift`,
+`receipts-href`, `theme`.
 
 Static serving examples: Flask
 `app = Flask(__name__, static_folder="receipts", static_url_path="/receipts")`;
@@ -180,6 +226,7 @@ say so honestly.
 | Path | What it is |
 |---|---|
 | `tamper_signal/` | Python package: canonicalization, keys, receipts, verify, `receipt_step` |
+| `node/` | JavaScript package: same API (`receiptStep`, `verifyChain`), interchangeable chains |
 | `badge/badge.js` | Browser verification core + the receipt badge |
 | `badge/light.js` | The signal (inline status light), `mountTamperSignal` |
 | `badge/light-react.js` | `<TamperSignal />` React wrapper |

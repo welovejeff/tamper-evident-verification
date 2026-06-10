@@ -63,7 +63,7 @@ And once the light is green, we think your dashboard should show its work. Not a
 
 ## Try it in five minutes
 
-Python 3.11+, MIT licensed. The pipeline tooling is Python today; the badge and the light run in any frontend. (A Node package for receipt creation is on the roadmap, so JS pipelines can sign receipts too.)
+Python 3.11+ or Node 18.17+, MIT licensed. Python and JavaScript pipelines both sign receipts (the chains are interchangeable), and the badge and the light run in any frontend.
 
 ```bash
 git clone https://github.com/welovejeff/tamper-evident-verification && cd tamper-evident-verification

@@ -1,0 +1,59 @@
+# Release on version tags (v1.2.0): run both test suites, then publish the
+# Python package to PyPI and the JavaScript package to npm.
+#
+# One-time setup, done in each registry's web UI:
+# - PyPI: add a "trusted publisher" for this repo/workflow on the
+#   tamper-signal project (no token needed; uses the id-token permission).
+# - npm: after the first manual `npm publish`, either configure trusted
+#   publishing for this repo/workflow on the package settings, or create a
+#   granular automation token and save it as the NPM_TOKEN repo secret.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: pip install -e ".[dev]"
+      - run: pytest
+      - run: npm test
+
+  pypi:
+    needs: test
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install build
+      - run: python -m build
+      - uses: pypa/gh-action-pypi-publish@release/v1
+
+  npm:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+      - run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

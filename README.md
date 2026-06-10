@@ -48,7 +48,7 @@ receipts ingest sample_export.xlsx --origin "TikTok export, May 2026" --key keys
 receipts verify receipts/chain.json --pub keys/signing.pub --data dashboard.xlsx
 ```
 
-`verify` exits with the traffic light: 0 green, 1 red, 2 yellow (verifies, with caveats). Add `--warn-drift` to also flag any control-totals movement across links as a caveat; it is off by default because filters and aggregations legitimately move totals.
+`ingest` and `verify --data` accept .xlsx, .csv, .tsv, .json (array of objects), and .ndjson; the semantic hash is identical across formats, so an xlsx ingest verifies against a CSV copy of the same data. `verify` exits with the traffic light: 0 green, 1 red, 2 yellow (verifies, with caveats). Add `--warn-drift` to also flag any control-totals movement across links as a caveat; it is off by default because filters and aggregations legitimately move totals.
 
 Transforms record their own receipts by wrapping any list-of-dicts to list-of-dicts function:
 
@@ -60,7 +60,23 @@ def transform_clean(records):
     return [r for r in records if r.get("campaign_name")]
 ```
 
-The wrapper verifies the chain tail first, refuses to run if the input hash doesn't match it, runs the function, then signs and appends a receipt.
+The wrapper verifies the chain tail first, refuses to run if the input hash doesn't match it, runs the function, then signs and appends a receipt. Transforms can also take and return pandas DataFrames; frames are hashed as records and pass through untouched.
+
+## JavaScript pipelines
+
+The same receipts, native to Node (18.17+): `npm install tamper-signal` provides a `tamper-signal` CLI (keygen, ingest, verify, with the same exit codes) and a programmatic API. Chains are interchangeable across the two stacks; the canonicalization is byte-identical, proven by golden vectors generated from the Python side.
+
+```js
+import { receiptStep, loadCsv } from "tamper-signal";
+
+const clean = receiptStep(
+  (records) => records.filter((r) => r.campaign_name !== null),
+  { chainDir: "receipts/", keyPath: "keys/signing.key" }
+);
+const output = await clean(loadCsv("export.csv"));
+```
+
+JavaScript reads .csv, .tsv, .json, and .ndjson; spreadsheets go through the Python CLI. The browser surfaces ship in the same package: `tamper-signal/light`, `tamper-signal/badge`, `tamper-signal/element`, `tamper-signal/react`.
 
 ## How the chain works
 
@@ -114,7 +130,7 @@ Green collapsed state reads like: `✓ Verified · TikTok export, May 2026 · 48
 </script>
 ```
 
-React, with a bundler: `import { TamperSignal } from "badge/light-react.js"` and `<TamperSignal chain="/receipts/chain.json" />`.
+React, with a bundler: `import { TamperSignal } from "tamper-signal/react"` and `<TamperSignal chain="/receipts/chain.json" />`. Everything else (Vue, Svelte, plain HTML): import `tamper-signal/element` and write `<tamper-signal chain="/receipts/chain.json"></tamper-signal>`.
 
 The pill expands to a popover: the per-stage table when green, the caveat list when yellow, the broken link with its totals delta when red. In the red state the light also reaches into the page: give any metric element a `data-receipt-column="spend_usd"` attribute, and if that column moved at the broken link the element gets outlined and tagged `tamper signal: unverified value`. Mark up your metrics once and the light flags the exact number that no longer descends from the source.
 
@@ -137,7 +153,6 @@ Also worth knowing: the signing key lives on your machine, and today that local 
 ## Roadmap
 
 - **Richer yellow taxonomy.** Yellow currently detects coverage gaps, unrecognized signing keys, and opt-in totals drift. Distinct severities and smarter drift heuristics are open questions (see `designs/01-NOTES.md`).
-- **Node-native integration.** Today the pipeline tooling is Python (`pip install -e .`); the badge already runs in any web frontend. A Node package for receipt creation in JS pipelines is planned. There is no npm package yet.
 - **External anchoring.** Sigstore transparency logs or RFC 3161 timestamps, so a chain can't be silently re-signed after the fact. The attachment points are already marked `FUTURE:` in `tamper_signal/keys.py` and `tamper_signal/receipts.py`.
 - **Verification console.** A devtools-for-data window: the receipt chain as an inspectable pipeline, an event log of verify runs, and the break pinned at the severed link.
 
