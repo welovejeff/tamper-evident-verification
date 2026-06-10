@@ -17,6 +17,10 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "pandas>=2.0"]
 
+[project.urls]
+Homepage = "https://tampersignal.com/"
+Repository = "https://github.com/welovejeff/tamper-evident-verification"
+
 [project.scripts]
 receipts = "tamper_signal.cli:main"
 
