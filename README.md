@@ -2,6 +2,8 @@
 
 # The light is green, the data is clean.
 
+[![npm](https://img.shields.io/npm/v/tamper-signal)](https://www.npmjs.com/package/tamper-signal) [![Socket Badge](https://badge.socket.dev/npm/package/tamper-signal/1.2.0)](https://socket.dev/npm/package/tamper-signal/overview/1.2.0) [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
 Your social team exports a month of TikTok performance data. Someone vibe-codes a dashboard on top of it with an AI assistant in an afternoon. It looks great. Then a transform silently drops 22 rows, or the model hallucinates an aggregation, and the numbers in front of your boss are wrong. Nothing in that workflow catches it. This is the missing verification layer: every stage of the pipeline signs a receipt for what went in and what came out, and one command (or a badge on the dashboard itself) tells you whether the chain is intact, or exactly where it broke and by how much.
 
 **Live demo:** [tampersignal.com](https://tampersignal.com/) re-verifies a real committed receipt chain in your browser: swap in a tampered chain or an untrusted key and watch the light catch it.
