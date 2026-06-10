@@ -81,6 +81,27 @@
     font-size: 15px;
     margin: 0 0 30px;
   }
+  .cta-commands { display: flex; flex-wrap: wrap; gap: 10px; margin: 0 0 14px; }
+  .cmd-chip {
+    display: inline-flex; align-items: center; gap: 7px;
+    font: 13px var(--mono);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    color: var(--text);
+    background: #07090d;
+    cursor: pointer;
+  }
+  .cmd-chip:hover { border-color: var(--faint); }
+  .cmd-chip:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+  .cmd-chip .ps { color: var(--faint); }
+  .cmd-chip .copy-hint {
+    font-size: 10px; color: var(--faint);
+    border-left: 1px solid var(--border);
+    padding-left: 8px; margin-left: 3px;
+  }
+  .cmd-chip.copied { border-color: rgba(52, 211, 153, 0.5); }
+  .cmd-chip.copied .copy-hint { color: var(--green); }
   .cta-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
   .btn {
     display: inline-flex; align-items: center; gap: 8px;
@@ -332,10 +353,22 @@
     <p class="caveat">
       It can't tell you the data is right, but it can prove nobody changed it.
     </p>
+    <div class="cta-commands" aria-label="Install commands, click to copy">
+      <button type="button" class="cmd-chip" data-copy="pip install tamper-signal">
+        <span class="ps">$</span> pip install tamper-signal <span class="copy-hint">copy</span>
+      </button>
+      <button type="button" class="cmd-chip" data-copy="npm install tamper-signal">
+        <span class="ps">$</span> npm install tamper-signal <span class="copy-hint">copy</span>
+      </button>
+      <button type="button" class="cmd-chip"
+        data-copy="Add Tamper Signal (signed data receipts) to this project. Read and follow the integration runbook: https://github.com/welovejeff/tamper-evident-verification/blob/main/AGENTS.md">
+        <span class="ps">&gt;</span> "add tamper signal" <span class="copy-hint">copy agent prompt</span>
+      </button>
+    </div>
     <div class="cta-row">
       <a class="btn primary" href="#demo">break a pipeline ↓</a>
       <a class="btn" href="https://github.com/welovejeff/tamper-evident-verification">view on GitHub</a>
-      <span class="pipline"><code>pip install -e .</code> · python 3.11+ · MIT</span>
+      <span class="pipline">python 3.11+ or node 18+ · MIT</span>
     </div>
   </div>
 </header>
@@ -701,6 +734,25 @@
   }
 
   buttons.forEach((b) => b.addEventListener("click", () => setState(b.dataset.set)));
+
+  // Click-to-copy install chips in the hero.
+  for (const chip of document.querySelectorAll(".cmd-chip")) {
+    const hint = chip.querySelector(".copy-hint");
+    const idle = hint.textContent;
+    chip.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(chip.dataset.copy);
+      } catch {
+        return; // clipboard unavailable (permissions, http); leave the chip as a label
+      }
+      chip.classList.add("copied");
+      hint.textContent = "copied ✓";
+      setTimeout(() => {
+        chip.classList.remove("copied");
+        hint.textContent = idle;
+      }, 1400);
+    });
+  }
 
   // Deep-link for sharing: ?state=red|yellow|green
   const initial = new URLSearchParams(location.search).get("state");
