@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Lineage Receipts: the inline status light</title>
+    <style>
+      /* Everything below is a FAKE host app (someone else's vibe-coded
+         dashboard). The only thing we ship is the dark pill in each header. */
+      body {
+        margin: 0;
+        background: #e9ebef;
+        font-family: -apple-system, "Segoe UI", Roboto, Helvetica, sans-serif;
+        color: #1f2430;
+        padding: 36px 20px 80px;
+      }
+      .note {
+        max-width: 880px;
+        margin: 0 auto 22px;
+        font: 12px/1.5 ui-monospace, Menlo, monospace;
+        color: #5c6470;
+      }
+      .note strong { color: #2a313d; }
+      .host {
+        max-width: 880px;
+        margin: 0 auto 26px;
+        background: #f4f5f7;
+        border-radius: 12px;
+        box-shadow: 0 12px 40px rgba(20, 26, 40, 0.14);
+        overflow: visible;
+      }
+      .host header {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 14px 22px;
+        background: #fff;
+        border-bottom: 1px solid #e6e8ee;
+        border-radius: 12px 12px 0 0;
+      }
+      .logo {
+        display: flex; align-items: center; gap: 9px;
+        font-weight: 700; font-size: 15px;
+      }
+      .logo i {
+        width: 26px; height: 26px; border-radius: 8px; display: block;
+        background: linear-gradient(135deg, #2dd4bf, #fda4af);
+      }
+      .spacer { margin-left: auto; }
+      .host main { padding: 20px 22px 24px; }
+      .host h1 { font-size: 18px; margin: 0 0 4px; }
+      .host .sub { font-size: 13px; color: #6b7280; margin: 0 0 18px; }
+      .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+      .metric {
+        background: #fff;
+        border: 1px solid #e6e8ee;
+        border-radius: 14px;
+        padding: 16px 18px;
+      }
+      .metric h3 {
+        margin: 0 0 6px; font-size: 12px; font-weight: 600;
+        color: #6b7280; text-transform: uppercase; letter-spacing: 0.4px;
+      }
+      .metric .value { font-size: 24px; font-weight: 700; letter-spacing: -0.5px; }
+      @media (max-width: 720px) { .metrics { grid-template-columns: 1fr; } }
+    </style>
+  </head>
+  <body>
+    <p class="note">
+      <strong>THE INLINE STATUS LIGHT, LIVE.</strong>
+      Three copies of the same fake host dashboard. Each header carries one
+      mountLineageLight() pointed at a real receipt chain served from this
+      repo; every signature and hash link re-verifies in your browser. Click a
+      pill for the popover. Run <strong>lineage demo</strong> first if the
+      receipt directories are missing.
+    </p>
+
+    <!-- GREEN: the intact demo chain. -->
+    <div class="host">
+      <header>
+        <span class="logo"><i></i>Clipboard Analytics</span>
+        <span class="spacer"></span>
+        <span id="light-green"></span>
+      </header>
+      <main>
+        <h1>Social Performance</h1>
+        <p class="sub">Weekly rollup from your exported analytics</p>
+        <div class="metrics">
+          <section class="metric"><h3>Rows</h3><div class="value">304</div></section>
+          <section class="metric"><h3>Transforms</h3><div class="value">2</div></section>
+          <section class="metric"><h3>Chain</h3><div class="value">intact</div></section>
+        </div>
+      </main>
+    </div>
+
+    <!-- YELLOW: same intact chain, but this page trusts a different key, so
+         the receipts only verify under the chain's own embedded key. -->
+    <div class="host">
+      <header>
+        <span class="logo"><i></i>Clipboard Analytics</span>
+        <span class="spacer"></span>
+        <span id="light-yellow"></span>
+      </header>
+      <main>
+        <h1>Same chain, untrusted key</h1>
+        <p class="sub">Internally consistent, vouched for by a key this page does not trust</p>
+      </main>
+    </div>
+
+    <!-- RED: the tampered chain. The spend metric carries
+         data-lineage-column="spend_usd", so the light flags it. -->
+    <div class="host">
+      <header>
+        <span class="logo"><i></i>Clipboard Analytics</span>
+        <span class="spacer"></span>
+        <span id="light-red"></span>
+      </header>
+      <main>
+        <h1>After tamper</h1>
+        <p class="sub">The light reaches into the page and flags the metric fed by the broken stage</p>
+        <div class="metrics">
+          <section class="metric" data-lineage-column="spend_usd">
+            <h3>Total Spend</h3>
+            <div class="value">$2,020,283</div>
+          </section>
+          <section class="metric" data-lineage-column="clicks">
+            <h3>Clicks</h3>
+            <div class="value">6,359,340</div>
+          </section>
+          <section class="metric"><h3>Rows</h3><div class="value">304</div></section>
+        </div>
+      </main>
+    </div>
+
+    <script type="module">
+      import { mountLineageLight } from "./light.js";
+
+      mountLineageLight(document.getElementById("light-green"), "../receipts/chain.json");
+
+      // A trusted key that is not the chain's embedded key: yellow.
+      mountLineageLight(
+        document.getElementById("light-yellow"),
+        "../receipts/chain.json",
+        "ab".repeat(32)
+      );
+
+      mountLineageLight(
+        document.getElementById("light-red"),
+        "../receipts_tampered/chain.json"
+      );
+    </script>
+  </body>
+</html>

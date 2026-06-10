@@ -1,5 +1,10 @@
 // Standalone lineage verification badge. No build step, no framework.
 //
+// This file is also the browser verification core for the inline status light
+// (light.js): verifyLineage(chainUrl, pubKeyHex) runs the whole pipeline
+// (fetch, signatures, hash links, caveats) and returns a structured result;
+// the render layers differ.
+//
 // renderLineageBadge(containerEl, chainUrl, pubKeyHex)
 //   Fetches chain.json and every receipt, re-verifies all signatures with Web
 //   Crypto Ed25519, re-checks all hash links (receipt N input == receipt N-1
@@ -13,7 +18,7 @@
 //
 // pubKeyHex is optional; when omitted the key embedded in chain.json is used.
 
-const SHORT = (h) => (h && h.length > 10 ? `${h.slice(0, 4)}...${h.slice(-2)}` : h || "(none)");
+export const SHORT = (h) => (h && h.length > 10 ? `${h.slice(0, 4)}...${h.slice(-2)}` : h || "(none)");
 
 // --- Canonical JSON, byte-identical to lineage/canonical.py's JCS output. ---
 // Leaves are strings, integers, booleans, or null (no floats). Object keys are
@@ -56,12 +61,12 @@ function hexToBytes(hex) {
 }
 
 // --- Hash accessors mirroring lineage/receipts.py. ---
-const outputHashOf = (r) =>
+export const outputHashOf = (r) =>
   r.kind === "source_manifest" ? r.semantic_hash : r.output_semantic_hash;
-const inputHashOf = (r) => (r.kind === "source_manifest" ? null : r.input_semantic_hash);
-const totalsOf = (r) =>
+export const inputHashOf = (r) => (r.kind === "source_manifest" ? null : r.input_semantic_hash);
+export const totalsOf = (r) =>
   r.kind === "source_manifest" ? r.control_totals : r.output_control_totals;
-const stageNameOf = (r) => (r.kind === "source_manifest" ? "source" : r.transform.name);
+export const stageNameOf = (r) => (r.kind === "source_manifest" ? "source" : r.transform.name);
 
 // --- Totals delta, mirroring lineage/totals.py for the red expand. Reports
 // row_count, column_count, numeric_sums and null_counts, with sorted (so
@@ -69,7 +74,7 @@ const stageNameOf = (r) => (r.kind === "source_manifest" ? "source" : r.transfor
 // numeric diff is shown as before -> after (no Decimal arithmetic in-browser).
 const sortedUnion = (a, b) => [...new Set([...Object.keys(a), ...Object.keys(b)])].sort();
 
-function totalsDelta(up, down) {
+export function totalsDelta(up, down) {
   const lines = [];
   if (up.row_count !== down.row_count) {
     const d = down.row_count - up.row_count;
@@ -97,7 +102,7 @@ function totalsDelta(up, down) {
   return lines;
 }
 
-async function ed25519Available() {
+export async function ed25519Available() {
   if (!window.crypto || !crypto.subtle) return false;
   try {
     await crypto.subtle.importKey("raw", new Uint8Array(32), { name: "Ed25519" }, false, [
@@ -109,7 +114,7 @@ async function ed25519Available() {
   }
 }
 
-async function verifySignature(receipt, pubKeyHex) {
+export async function verifySignature(receipt, pubKeyHex) {
   const key = await crypto.subtle.importKey(
     "raw",
     hexToBytes(pubKeyHex),
@@ -128,7 +133,7 @@ async function verifySignature(receipt, pubKeyHex) {
 // could make the viewer's browser fetch arbitrary / cross-origin resources.
 const SAFE_RECEIPT_NAME = /^[A-Za-z0-9._-]+$/;
 
-async function loadChain(chainUrl) {
+export async function loadChain(chainUrl) {
   const base = new URL(chainUrl, window.location.href);
   const chain = await (await fetch(base)).json();
   const receipts = [];
@@ -144,7 +149,7 @@ async function loadChain(chainUrl) {
 
 // Gaps in the generated NNN_ receipt numbering, mirroring lineage/receipts.py's
 // _coverage_gaps. Hand-named receipt sets (no numeric prefix) opt out.
-function coverageGaps(receiptNames) {
+export function coverageGaps(receiptNames) {
   const indices = [];
   for (const name of receiptNames) {
     const prefix = String(name).split("_", 1)[0];
@@ -169,7 +174,7 @@ function coverageGaps(receiptNames) {
 // against the trusted key; one that fails there but verifies under the key
 // embedded in chain.json means the chain is internally consistent but vouched
 // for by a key the caller does not trust (yellow), not broken (red).
-async function checkSignatures(receipts, trustedKeyHex, chainKeyHex) {
+export async function checkSignatures(receipts, trustedKeyHex, chainKeyHex) {
   let valid = true;
   let unrecognized = false;
   const useFallback = chainKeyHex && chainKeyHex !== trustedKeyHex;
@@ -198,7 +203,7 @@ async function checkSignatures(receipts, trustedKeyHex, chainKeyHex) {
   return { valid, unrecognized };
 }
 
-function evaluate(receipts) {
+export function evaluate(receipts) {
   // Returns {ok, brokenAt, brokenStage, delta}. Signatures checked separately.
   for (let i = 1; i < receipts.length; i++) {
     const expected = outputHashOf(receipts[i - 1]);
@@ -215,6 +220,99 @@ function evaluate(receipts) {
     }
   }
   return { ok: true };
+}
+
+// The whole browser verification pipeline as one call, shared by the badge and
+// the inline status light. Returns a structured result:
+//
+//   state          "green" | "yellow" | "red" | "unverifiable"
+//   reason         short human phrase for red / unverifiable states
+//   caveats        yellow caveat strings (empty for green)
+//   linkResult     evaluate() output ({ok} or {ok:false, brokenAt, ...})
+//   signaturesValid, chain, receipts, origin, finalRows, transforms, verifiedAt
+//
+// "unverifiable" is the capability fallback (fetch failed, no Web Crypto
+// Ed25519): it says nothing about the chain and must never be conflated with
+// the yellow verdict. opts.warnDrift adds a caveat for any control-totals
+// movement across intact links (off by default: filters and aggregations
+// legitimately move totals).
+export async function verifyLineage(chainUrl, pubKeyHex, opts = {}) {
+  const verifiedAt = new Date().toISOString();
+  let chain, receipts;
+  try {
+    ({ chain, receipts } = await loadChain(chainUrl));
+  } catch (_e) {
+    return { state: "unverifiable", reason: "could not load chain", caveats: [], verifiedAt };
+  }
+  if (!(await ed25519Available())) {
+    return {
+      state: "unverifiable",
+      reason: "verification unsupported in this browser",
+      caveats: [],
+      chain,
+      receipts,
+      verifiedAt,
+    };
+  }
+
+  const summary = {
+    chain,
+    receipts,
+    verifiedAt,
+    origin: "source",
+    finalRows: undefined,
+    transforms: 0,
+    signaturesValid: true,
+    linkResult: { ok: true },
+    caveats: [],
+  };
+  if (!receipts.length) {
+    return { ...summary, state: "red", reason: "chain empty" };
+  }
+  const source = receipts.find((r) => r.kind === "source_manifest");
+  summary.origin = (source && source.source.declared_origin) || "source";
+  summary.finalRows = totalsOf(receipts[receipts.length - 1]).row_count;
+  summary.transforms = receipts.filter((r) => r.kind === "transform_receipt").length;
+
+  const trustedKey = pubKeyHex || chain.public_key;
+  const sigResult = await checkSignatures(receipts, trustedKey, chain.public_key);
+  summary.signaturesValid = sigResult.valid;
+  summary.linkResult = evaluate(receipts);
+
+  if (!sigResult.valid) {
+    return { ...summary, state: "red", reason: "signature invalid" };
+  }
+  if (!summary.linkResult.ok) {
+    return {
+      ...summary,
+      state: "red",
+      reason: `chain broken at ${summary.linkResult.brokenStage}`,
+    };
+  }
+
+  // Chain verifies. Collect yellow caveats; none means green.
+  if (sigResult.unrecognized) {
+    summary.caveats.push(
+      "unrecognized signing key: receipts verify under the chain's embedded key, " +
+        "not the key this page trusts"
+    );
+  }
+  for (const gap of coverageGaps(chain.receipts || [])) {
+    summary.caveats.push(
+      `coverage gap: receipt ${gap}; a stage may have run without leaving a receipt`
+    );
+  }
+  if (opts.warnDrift) {
+    for (let i = 1; i < receipts.length; i++) {
+      const delta = totalsDelta(totalsOf(receipts[i - 1]), totalsOf(receipts[i]));
+      if (delta.length) {
+        summary.caveats.push(
+          `totals drift at ${stageNameOf(receipts[i])}: ${delta.join(", ")}`
+        );
+      }
+    }
+  }
+  return { ...summary, state: summary.caveats.length ? "yellow" : "green" };
 }
 
 function el(tag, props = {}, children = []) {
@@ -292,57 +390,27 @@ export async function renderLineageBadge(containerEl, chainUrl, pubKeyHex) {
     caret.textContent = badge.classList.contains("lb-open") ? "▾" : "▸";
   });
 
-  let chain, receipts;
-  try {
-    ({ chain, receipts } = await loadChain(chainUrl));
-  } catch (e) {
+  const result = await verifyLineage(chainUrl, pubKeyHex);
+  const { receipts, origin, finalRows, transforms, linkResult, caveats } = result;
+
+  if (result.state === "unverifiable") {
     badge.classList.add("lb-amber");
     mark.textContent = "!";
-    label.textContent = "could not load chain";
+    label.textContent = result.reason;
     return;
   }
 
-  const keyHex = pubKeyHex || chain.public_key;
-
-  if (!(await ed25519Available())) {
-    badge.classList.add("lb-amber");
-    mark.textContent = "!";
-    label.textContent = "verification unsupported in this browser";
+  if (result.state === "green") {
+    badge.classList.add("lb-green");
+    mark.textContent = "✓";
+    label.textContent =
+      `Verified · ${origin} · ${Number(finalRows).toLocaleString()} rows · ` +
+      `${transforms} transform${transforms === 1 ? "" : "s"} · chain intact`;
+    body.appendChild(renderDetail(receipts));
     return;
   }
 
-  // Re-verify every signature first (trusted key, chain key as fallback).
-  const sigResult = await checkSignatures(receipts, keyHex, chain.public_key);
-
-  const linkResult = evaluate(receipts);
-  const source = receipts.find((r) => r.kind === "source_manifest");
-  const origin = (source && source.source.declared_origin) || "source";
-  const finalRows = totalsOf(receipts[receipts.length - 1]).row_count;
-  const transforms = receipts.filter((r) => r.kind === "transform_receipt").length;
-
-  if (sigResult.valid && linkResult.ok) {
-    // Chain verifies. Collect yellow caveats; none means green.
-    const caveats = [];
-    if (sigResult.unrecognized) {
-      caveats.push(
-        "unrecognized signing key: receipts verify under the chain's embedded key, " +
-          "not the key this page trusts"
-      );
-    }
-    for (const gap of coverageGaps(chain.receipts || [])) {
-      caveats.push(`coverage gap: receipt ${gap}; a stage may have run without leaving a receipt`);
-    }
-
-    if (!caveats.length) {
-      badge.classList.add("lb-green");
-      mark.textContent = "✓";
-      label.textContent =
-        `Verified · ${origin} · ${Number(finalRows).toLocaleString()} rows · ` +
-        `${transforms} transform${transforms === 1 ? "" : "s"} · chain intact`;
-      body.appendChild(renderDetail(receipts));
-      return;
-    }
-
+  if (result.state === "yellow") {
     badge.classList.add("lb-yellow");
     mark.textContent = "⚠";
     label.textContent =
@@ -357,11 +425,7 @@ export async function renderLineageBadge(containerEl, chainUrl, pubKeyHex) {
 
   badge.classList.add("lb-red");
   mark.textContent = "✗";
-  if (!sigResult.valid) {
-    label.textContent = "Signature invalid";
-  } else {
-    label.textContent = `Chain broken at ${linkResult.brokenStage}`;
-  }
+  label.textContent = result.reason.charAt(0).toUpperCase() + result.reason.slice(1);
   body.appendChild(renderDetail(receipts));
   if (linkResult.ok === false && linkResult.delta && linkResult.delta.length) {
     body.appendChild(

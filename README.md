@@ -99,6 +99,23 @@ Hashes say "broken." Totals say "how broken."
 
 Green collapsed state reads like: `✓ Verified · TikTok export, May 2026 · 48,212 rows · 2 transforms · chain intact`. Expanding shows one row per receipt.
 
+## The inline status light
+
+`badge/light.js` is the v1 dashboard UI: a small dark pill that mounts in your header, runs the same in-browser verification as the badge, and shows the verdict as the light. It deliberately refuses to adopt your dashboard's theme; like a tamper sticker, its value comes from being recognizable anywhere. One call:
+
+```html
+<script type="module">
+  import { mountLineageLight } from "/badge/light.js";
+  mountLineageLight(document.querySelector("header"), "/receipts/chain.json");
+</script>
+```
+
+React, with a bundler: `import { LineageLight } from "badge/light-react.js"` and `<LineageLight chain="/receipts/chain.json" />`.
+
+The pill expands to a popover: the per-stage table when green, the caveat list when yellow, the broken link with its totals delta when red. In the red state the light also reaches into the page: give any metric element a `data-lineage-column="spend_usd"` attribute, and if that column moved at the broken link the element gets outlined and tagged `lineage: unverified value`. Mark up your metrics once and the light flags the exact number that no longer descends from the source.
+
+Options on the fourth argument: `watch` (re-verify every N ms and pulse on transitions), `warnDrift`, `receiptsHref`, and `theme: "light"` so the pill stays the one foreign object on a dark host. `lineage demo` serves a live three-state example at `http://localhost:8000/badge/light.html`.
+
 ## Dashboards should show their work
 
 We think any dashboard built on verified data should let you see the data. Not a tooltip, not an export-on-request: a Data tab, right next to the charts, showing the raw verified table the pretty numbers came from. If the chain is intact and the light is green, there is no reason to hide the rows, and if you find yourself wanting to hide them, that's worth sitting with. A chart asks you to believe; a table lets you check. Green light, open table: that's the whole standard.

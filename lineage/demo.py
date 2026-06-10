@@ -197,6 +197,7 @@ def _serve_badge(port: int) -> None:
 
     url = f"http://localhost:{port}/badge/badge.html"
     print(f"\nServing badge at {url}")
+    print(f"Inline status light demo at http://localhost:{port}/badge/light.html")
     print("Press Ctrl+C to stop.")
     handler = http.server.SimpleHTTPRequestHandler
     try:

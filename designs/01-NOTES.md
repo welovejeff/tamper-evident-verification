@@ -50,3 +50,19 @@ mountLineageLight(hostEl, "/receipts/chain.json", pubKeyHex?)
    the page has been open longer than some staleness budget?
 5. Does the pill need a "verifying…" boot state for slow receipt fetches, and what does
    failure-to-load look like (badge.js uses amber "could not load chain")?
+
+## Decisions (2026-06-10, v1 shipped as badge/light.js)
+1. Yellow taxonomy: one amber state with a caveat list in the popover. The pill sub-label
+   names the first caveat ("coverage gap" / "unknown key" / "totals drift"). The verifier
+   detects coverage gaps (numbering jumps) and unrecognized signing keys; totals drift is
+   opt-in (`warnDrift` / `--warn-drift`) because filters and aggregations legitimately move
+   totals. Distinct severities stay open for v2.
+2. Host metric flagging: shipped in v1 via manual `data-lineage-column` attrs. On red, the
+   light flags elements whose column appears in the broken link's totals delta
+   (numeric_sums / null_counts; row and column counts have no single column to point at).
+3. Dark-host inversion: explicit `theme: "light"` option for now, no luminance detection.
+4. Staleness decay: not built. The popover shows verified-at time; `watch` re-verifies on
+   an interval and pulses on state transitions.
+5. Boot and failure states: built. "CHECKING · verifying" on boot, then "UNVERIFIED ·
+   <reason>" as the capability fallback (chain failed to load, or no Web Crypto Ed25519).
+   It renders grey, never the yellow color: a fallback is not a verdict.
