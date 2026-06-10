@@ -26,7 +26,7 @@ Honest status: the current MVP implements **green and red** (`lineage verify` PA
 
 ## 60-second quickstart
 
-Python 3.11+. Open source, `pip`-installable.
+Python 3.11+. Open source (MIT), `pip`-installable.
 
 ```bash
 git clone <this repo> && cd tamper-evident-verification
@@ -128,4 +128,4 @@ Those tools model lineage and quality at the warehouse and orchestration layer. 
 
 ## Contributing
 
-Open source, designed to be added to any vibe-coded data project. The Python package is in `lineage/`, tests in `tests/` (run `pytest`), examples in `examples/`, the badge in `badge/`. Issues and PRs welcome. The original Luhn hash demo lives unchanged in `legacy/` and is off the main path.
+Open source under the MIT license (see `LICENSE`), designed to be added to any vibe-coded data project. The Python package is in `lineage/`, tests in `tests/` (run `pytest`), examples in `examples/`, the badge in `badge/`. Issues and PRs welcome. The original Luhn hash demo lives unchanged in `legacy/` and is off the main path.

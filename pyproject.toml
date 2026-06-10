@@ -7,6 +7,7 @@ name = "lineage-receipts"
 version = "1.0.0"
 description = "A signed data lineage chain for analytics pipelines: signed receipts at every stage, with verifiable continuity."
 readme = "README.md"
+license = {text = "MIT"}
 requires-python = ">=3.11"
 dependencies = [
     "openpyxl>=3.1",
