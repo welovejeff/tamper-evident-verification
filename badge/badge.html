@@ -26,9 +26,30 @@
         color: #475467;
         font-size: 14px;
       }
+    
+      .ts-demos-nav {
+        display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: center;
+        font: 11px ui-monospace, 'SF Mono', Menlo, monospace;
+        background: #0b0f14; border: 1px solid #1f2937; border-radius: 10px;
+        padding: 10px 14px; max-width: 720px; margin: 0 auto 18px;
+        color: #3d4854; letter-spacing: 0.6px;
+      }
+      .ts-demos-nav a { color: #8b98a5; text-decoration: none; }
+      .ts-demos-nav a:hover { color: #e5e7eb; }
+      .ts-demos-nav a[aria-current="page"] { color: #67e8f9; }
+      .ts-demos-nav .back { margin-left: auto; color: #34d399; }
     </style>
   </head>
   <body>
+    <nav class="ts-demos-nav" aria-label="Tamper Signal demos">
+      <span>DEMOS ·</span>
+      <a href="light.html">status light</a>
+      <a href="badge.html" aria-current="page">badge</a>
+      <a href="table.html">data table</a>
+      <a href="console.html">console</a>
+      <a class="back" href="../">← back to tampersignal.com</a>
+    </nav>
+
     <h1>Tamper Signal</h1>
     <p>
       Each badge re-verifies the signatures and hash links of a receipt chain in

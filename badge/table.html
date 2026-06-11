@@ -25,9 +25,30 @@
         margin: 0 0 10px;
       }
       .case p { font-size: 13px; color: #6b7280; margin: 0 0 12px; }
+    
+      .ts-demos-nav {
+        display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: center;
+        font: 11px ui-monospace, 'SF Mono', Menlo, monospace;
+        background: #0b0f14; border: 1px solid #1f2937; border-radius: 10px;
+        padding: 10px 14px; max-width: 980px; margin: 0 auto 18px;
+        color: #3d4854; letter-spacing: 0.6px;
+      }
+      .ts-demos-nav a { color: #8b98a5; text-decoration: none; }
+      .ts-demos-nav a:hover { color: #e5e7eb; }
+      .ts-demos-nav a[aria-current="page"] { color: #67e8f9; }
+      .ts-demos-nav .back { margin-left: auto; color: #34d399; }
     </style>
   </head>
   <body>
+    <nav class="ts-demos-nav" aria-label="Tamper Signal demos">
+      <span>DEMOS ·</span>
+      <a href="light.html">status light</a>
+      <a href="badge.html">badge</a>
+      <a href="table.html" aria-current="page">data table</a>
+      <a href="console.html">console</a>
+      <a class="back" href="../">← back to tampersignal.com</a>
+    </nav>
+
     <p class="note">
       <strong>THE VERIFIED DATA TAB, LIVE.</strong>
       Each table below is the canonical document written by
