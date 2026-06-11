@@ -46,8 +46,11 @@ export function generateKeys(outDir) {
   return { privatePath, publicPath };
 }
 
+// When TAMPER_SIGNAL_KEY is set, its contents (the PEM text) are used instead
+// of the file, so CI pipelines can sign without a key file on disk.
 export function loadPrivateKey(path) {
-  return createPrivateKey(readFileSync(path));
+  const env = process.env.TAMPER_SIGNAL_KEY;
+  return createPrivateKey(env || readFileSync(path));
 }
 
 export function loadPublicKeyHex(path) {

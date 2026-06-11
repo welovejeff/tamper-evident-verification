@@ -82,11 +82,15 @@ def test_verify_json_green(tmp_path, monkeypatch, capsys):
 
 def test_verify_json_red_carries_structured_break(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
-    _seed_chain(tmp_path)
-    # Tamper the receipt without re-signing: signature failure, red.
+    public_hex = _seed_chain(tmp_path)
+    # Tamper the receipt without re-signing: signature failure, red. Rewriting
+    # the chain keeps its recorded receipt hashes current, so the failure
+    # surfaces at the signature layer this test targets (the hash layer has
+    # its own test in test_tier4_hardening).
     receipt = read_receipt(str(tmp_path / "receipts"), SOURCE_RECEIPT_NAME)
     receipt["semantic_hash"] = "0" * 64
     write_receipt(str(tmp_path / "receipts"), SOURCE_RECEIPT_NAME, receipt)
+    write_chain(str(tmp_path / "receipts"), [SOURCE_RECEIPT_NAME], public_hex)
 
     code = main(["verify", "receipts/chain.json", "--json"])
     payload = json.loads(capsys.readouterr().out)

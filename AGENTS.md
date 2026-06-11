@@ -73,6 +73,11 @@ same package: `tamper-signal/light`, `tamper-signal/badge`,
 `tamper-signal/element`, `tamper-signal/react`. JS reads .csv/.tsv/.json/
 .ndjson; only the Python side reads .xlsx.
 
+CI signing works here too: `TAMPER_SIGNAL_KEY` (PEM contents of the private
+key) wins over any key path, same semantics as the Python side (step 5).
+`tamper-signal verify --json` emits the same structured verdict as the
+Python CLI.
+
 ## 2. Scaffold the project (once)
 
 ```bash
@@ -129,8 +134,20 @@ optional and checks the file the dashboard actually reads against the final
 receipt. `--warn-drift` additionally flags any control-totals movement across
 links (only for pipelines expected to preserve totals).
 
-Add `--json` to get a structured verdict instead of the text report. Parse
-this rather than scraping text:
+Key rotation: `--pub` repeats. Old chains stay green while new receipts sign
+under a new key: `receipts verify chain.json --pub new.pub --pub old.pub`. A
+signature valid under any trusted key is trusted; the browser surfaces accept
+a list the same way (the `<tamper-signal>` element takes a space-separated
+`pub-key` list).
+
+CI signing: set `TAMPER_SIGNAL_KEY` to the PEM contents of the private key
+(a repo secret) and the wrapper, ingest, and export sign without a key file
+on disk. The env var wins over any `--key` path while set. The Node CLI
+(`tamper-signal ingest`) honors the same env var with the same precedence.
+
+Add `--json` to get a structured verdict instead of the text report (both
+CLIs: `receipts verify --json` and `tamper-signal verify --json` emit the
+same payload). Parse this rather than scraping text:
 
 ```json
 {
@@ -150,11 +167,21 @@ this rather than scraping text:
     "totals_delta": ["row_count 4987 -> 304 (-4683)"]
   },
   "data_mismatch": null,
-  "report": ["human-legible lines"]
+  "receipt_mismatch": null,
+  "report": ["human-legible lines"],
+  "anchor": ["anchor report lines; present only when --anchor is passed"]
 }
 ```
 
-`broken_link` and `data_mismatch` are null unless the verdict is red.
+`broken_link`, `data_mismatch`, and `receipt_mismatch` are null unless the
+verdict is red, and all three stay null when red comes from an anchor
+mismatch (the chain itself is intact; the reason is in `anchor` and
+`report`). `receipt_mismatch` lists receipt files that no longer match the
+sha256 chain.json records for them: a receipt was rewritten after the chain
+was. With `--anchor`, the `anchor` array is added and the anchor outcome is
+folded into `verdict`, `exit_code`, `caveats`, and `report` (a missing
+anchor turns a green run yellow; a mismatch turns it red), so the payload
+never contradicts itself.
 
 ### CI: verify the chain on every push
 
@@ -184,6 +211,52 @@ jobs:
 
 Exit 1 (red) fails the build; exit 2 (yellow) surfaces a warning annotation
 without failing.
+
+## 5b. Anchoring (optional, for disputes and audits)
+
+The local keypair is the day-to-day root of trust; its known gap is that
+whoever holds the key can re-sign a fresh chain. When existence-at-a-time
+matters (client disputes, audits), anchor the chain in the public Sigstore
+transparency log:
+
+```bash
+pip install "tamper-signal[anchor]"
+receipts anchor                       # browser login locally; automatic in GitHub Actions
+receipts verify receipts/chain.json --anchor
+```
+
+Agent note: run `receipts anchor` in CI (GitHub Actions and similar), where
+an ambient OIDC credential makes it non-interactive. Outside CI it opens a
+browser login and blocks until a human completes it; do not invoke it from
+an unattended session.
+
+The anchor covers receipt contents, not just names: chain.json records the
+sha256 of every receipt file, and `verify` enforces those hashes, so a
+receipt re-signed after anchoring is red even though chain.json itself did
+not change. Chains written before 1.5.0 carry no receipt hashes; anchoring
+them yields a yellow "anchor covers chain.json only" caveat until the
+pipeline re-runs.
+
+`anchor.json` (next to chain.json) records the Sigstore bundle plus the
+identity and issuer used; `verify --anchor` enforces that identity, reports
+the logged time on success, exits 2 when no anchor exists, and exits 1 when
+the chain changed after anchoring. `receipts anchor --json` emits the anchor
+record (identity, issuer, integrated time) as JSON for CI logs. An anchor
+made with `--staging` is rejected at verify time unless you pass
+`--anchor-staging`, so the anchor file cannot pick a weaker trust root. To
+pin whose anchor is acceptable instead of trusting the recorded one, pass
+`--anchor-identity` (and optionally `--anchor-issuer`); in CI that looks
+like:
+
+```bash
+receipts verify receipts/chain.json --anchor \
+  --anchor-identity "https://github.com/OWNER/REPO/.github/workflows/anchor.yml@refs/heads/main" \
+  --anchor-issuer "https://token.actions.githubusercontent.com"
+```
+
+Re-anchor after every pipeline run that changes the chain. Honest scope: an
+anchor proves this exact chain existed at the logged time under the recorded
+identity, nothing more.
 
 ## 6. Add the signal to the host UI
 

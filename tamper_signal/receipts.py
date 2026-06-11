@@ -11,6 +11,7 @@ receipt object minus its `signature` block.
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 import inspect
 import json
 from pathlib import Path
@@ -56,9 +57,10 @@ def _sign_body(body: dict[str, Any], private_key: Ed25519PrivateKey) -> dict[str
         "alg": "ed25519",
         "key_fingerprint": key_fingerprint(bytes.fromhex(public_hex)),
         "value": sign(private_key, message),
-        # FUTURE: attach external anchoring here (Sigstore transparency-log
-        # entry or an RFC 3161 timestamp over `message`) so a receipt can be
-        # proven to have existed at a point in time, independent of this key.
+        # External anchoring lives at the chain level: `receipts anchor`
+        # (tamper_signal/anchor.py) signs chain.json into the Sigstore
+        # transparency log, proving the chain existed at a point in time
+        # independent of this key.
     }
     return {**body, "signature": signature}
 
@@ -211,12 +213,27 @@ def read_chain(chain_path: str) -> dict[str, Any]:
     return json.loads(Path(chain_path).read_text(encoding="utf-8"))
 
 
+def receipt_file_hashes(chain_dir: str, receipt_files: list[str]) -> dict[str, str]:
+    """sha256 of each receipt file's raw bytes, keyed by filename."""
+    return {
+        name: hashlib.sha256((Path(chain_dir) / name).read_bytes()).hexdigest()
+        for name in receipt_files
+    }
+
+
 def write_chain(chain_dir: str, receipt_files: list[str], public_hex: str) -> Path:
-    """Write/overwrite chain.json listing receipt files plus the public key."""
+    """Write/overwrite chain.json listing receipt files plus the public key.
+
+    chain.json records the sha256 of each receipt file so it commits to the
+    receipt contents, not just their names: anchoring chain.json then
+    transitively witnesses every receipt. The receipt files must already be
+    on disk (every caller writes receipts before the chain).
+    """
     chain = {
         "spec_version": SPEC_VERSION,
         "public_key": public_hex,
         "receipts": receipt_files,
+        "receipt_hashes": receipt_file_hashes(chain_dir, receipt_files),
     }
     path = Path(chain_dir) / CHAIN_FILENAME
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -263,6 +280,7 @@ class ChainResult:
         # Structured failure details for machine consumers (verify --json).
         self.broken_link_detail: dict[str, Any] | None = None
         self.data_mismatch: dict[str, Any] | None = None
+        self.receipt_mismatch: list[str] | None = None  # files vs chain.json hashes
 
     @property
     def verdict(self) -> str:
@@ -323,15 +341,26 @@ def _coverage_gaps(receipt_names: list[str]) -> list[str]:
     return gaps
 
 
+def _as_trusted_keys(public_hex: str | list[str] | None) -> list[str]:
+    """Normalize the trusted-key argument to a list (rotation support)."""
+    if public_hex is None:
+        return []
+    if isinstance(public_hex, str):
+        return [public_hex]
+    return [key for key in public_hex if key]
+
+
 def verify_chain(
     receipts: list[dict[str, Any]],
-    public_hex: str,
+    public_hex: str | list[str],
     data_semantic_hash: str | None = None,
     data_totals: dict[str, Any] | None = None,
     *,
     chain_public_hex: str | None = None,
     receipt_names: list[str] | None = None,
     warn_drift: bool = False,
+    recorded_hashes: dict[str, str] | None = None,
+    actual_hashes: dict[str, str] | None = None,
 ) -> ChainResult:
     """Verify signatures, links, and (optionally) a current-data hash.
 
@@ -342,8 +371,13 @@ def verify_chain(
 
     The keyword-only arguments feed the yellow verdict (verifies, with caveats):
 
+    `public_hex` may be a single trusted key or a list of them (key
+    rotation: new receipts sign under the new key while old receipts still
+    verify under the old one; a signature valid under ANY trusted key is
+    trusted).
+
     - chain_public_hex: the key embedded in chain.json. A receipt whose
-      signature fails under the trusted `public_hex` but verifies under this
+      signature fails under every trusted key but verifies under this
       key makes the chain internally consistent yet vouched for by a key the
       caller does not trust: the "unrecognized signing key" caveat, not a
       broken chain. Signatures invalid under both keys are still red.
@@ -352,6 +386,10 @@ def verify_chain(
     - warn_drift: flag any control-totals movement across intact links as a
       caveat. Off by default because filters and aggregations legitimately
       move totals; turn it on for pipelines expected to preserve them.
+    - recorded_hashes / actual_hashes: the receipt-file sha256 map chain.json
+      records and the one computed from the files on disk. A mismatch means a
+      receipt was rewritten after chain.json was: red, at the exact file.
+      Chains written before hashes were recorded pass None and skip the check.
     """
     result = ChainResult()
 
@@ -359,11 +397,29 @@ def verify_chain(
         result.fail("✗ CHAIN EMPTY: no receipts to verify")
         return result
 
-    # 1) Signatures, against the trusted key first, the chain key as fallback.
+    # 0) Receipt files against the hashes chain.json records. This is what
+    # lets an anchored chain.json transitively witness receipt contents.
+    if recorded_hashes is not None and actual_hashes is not None:
+        mismatched = [
+            name
+            for name in (receipt_names or [])
+            if actual_hashes.get(name) != recorded_hashes.get(name)
+        ]
+        if mismatched:
+            result.receipt_mismatch = mismatched
+            for name in mismatched:
+                result.fail(
+                    f"✗ RECEIPT FILE MISMATCH: {name} does not match the hash "
+                    "recorded in chain.json; the receipt was rewritten after the chain was"
+                )
+            return result
+
+    # 1) Signatures, against the trusted keys first, the chain key as fallback.
+    trusted = _as_trusted_keys(public_hex)
     unrecognized: list[int] = []
-    use_fallback = bool(chain_public_hex) and chain_public_hex != public_hex
+    use_fallback = bool(chain_public_hex) and chain_public_hex not in trusted
     for index, receipt in enumerate(receipts):
-        if verify_signature(receipt, public_hex):
+        if any(verify_signature(receipt, key) for key in trusted):
             continue
         if use_fallback and verify_signature(receipt, chain_public_hex):
             unrecognized.append(index)
@@ -375,10 +431,11 @@ def verify_chain(
         return result
     if unrecognized:
         stages = ", ".join(stage_name_of(receipts[i]) for i in unrecognized)
+        fingerprints = ", ".join(_fingerprint_or(key) for key in trusted) or "(none)"
         result.caveat(
             f"unrecognized signing key: {len(unrecognized)} receipt(s) ({stages}) "
             f"verify under the chain's embedded key {_fingerprint_or(chain_public_hex)}, "
-            f"not the trusted key {_fingerprint_or(public_hex)}"
+            f"not any of the {len(trusted)} trusted key(s) ({fingerprints})"
         )
 
     # 2) Links.

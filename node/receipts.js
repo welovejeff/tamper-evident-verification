@@ -156,9 +156,27 @@ export function readChain(chainPath) {
   return JSON.parse(readFileSync(chainPath, "utf-8"));
 }
 
+export function receiptFileHashes(chainDir, receiptFiles) {
+  // sha256 of each receipt file's raw bytes, keyed by filename.
+  const out = {};
+  for (const name of receiptFiles) {
+    out[name] = createHash("sha256").update(readFileSync(join(chainDir, name))).digest("hex");
+  }
+  return out;
+}
+
 export function writeChain(chainDir, receiptFiles, publicHex) {
+  // chain.json records the sha256 of each receipt file so it commits to the
+  // receipt contents, not just their names: anchoring chain.json then
+  // transitively witnesses every receipt. The receipt files must already be
+  // on disk (every caller writes receipts before the chain).
   mkdirSync(chainDir, { recursive: true });
-  const chain = { spec_version: SPEC_VERSION, public_key: publicHex, receipts: receiptFiles };
+  const chain = {
+    spec_version: SPEC_VERSION,
+    public_key: publicHex,
+    receipts: receiptFiles,
+    receipt_hashes: receiptFileHashes(chainDir, receiptFiles),
+  };
   const path = join(chainDir, CHAIN_FILENAME);
   writeFileSync(path, JSON.stringify(chain, null, 2) + "\n");
   return path;
@@ -220,11 +238,37 @@ const short = (value) =>
       ? value
       : `${value.slice(0, 4)}...${value.slice(-2)}`;
 
+// Mirrors _as_trusted_keys in tamper_signal/receipts.py; badge/badge.js
+// checkSignatures inlines the same rule -- update all three in lockstep when
+// the normalization changes.
+function asTrustedKeys(publicHex) {
+  if (publicHex === null || publicHex === undefined) return [];
+  return (Array.isArray(publicHex) ? publicHex : [publicHex]).filter(Boolean);
+}
+
 // Mirrors tamper_signal/receipts.py verify_chain, including the yellow
-// verdict. Returns { ok, verdict, caveats, lines, brokenLink }.
+// verdict. Returns { ok, verdict, caveats, lines, brokenLink, brokenLinkDetail,
+// dataMismatch, receiptMismatch }.
 export function verifyChain(receipts, publicHex, dataSemanticHash = null, dataTotals = null, options = {}) {
-  const { chainPublicHex = null, receiptNames = null, warnDrift = false } = options;
-  const result = { ok: true, verdict: "green", caveats: [], lines: [], brokenLink: null };
+  const {
+    chainPublicHex = null,
+    receiptNames = null,
+    warnDrift = false,
+    recordedHashes = null,
+    actualHashes = null,
+  } = options;
+  // publicHex may be a single trusted key or a list (key rotation).
+  const trusted = asTrustedKeys(publicHex);
+  const result = {
+    ok: true,
+    verdict: "green",
+    caveats: [],
+    lines: [],
+    brokenLink: null,
+    brokenLinkDetail: null,
+    dataMismatch: null,
+    receiptMismatch: null,
+  };
   const fail = (...lines) => {
     result.ok = false;
     result.verdict = "red";
@@ -236,11 +280,29 @@ export function verifyChain(receipts, publicHex, dataSemanticHash = null, dataTo
     return result;
   }
 
-  // 1) Signatures, trusted key first, chain key as fallback.
+  // 0) Receipt files against the hashes chain.json records. This is what
+  // lets an anchored chain.json transitively witness receipt contents.
+  if (recordedHashes !== null && actualHashes !== null) {
+    const mismatched = (receiptNames ?? []).filter(
+      (name) => actualHashes[name] !== recordedHashes[name]
+    );
+    if (mismatched.length) {
+      result.receiptMismatch = mismatched;
+      for (const name of mismatched) {
+        fail(
+          `✗ RECEIPT FILE MISMATCH: ${name} does not match the hash ` +
+            "recorded in chain.json; the receipt was rewritten after the chain was"
+        );
+      }
+      return result;
+    }
+  }
+
+  // 1) Signatures, trusted keys first, chain key as fallback.
   const unrecognized = [];
-  const useFallback = Boolean(chainPublicHex) && chainPublicHex !== publicHex;
+  const useFallback = Boolean(chainPublicHex) && !trusted.includes(chainPublicHex);
   receipts.forEach((receipt, index) => {
-    if (verifySignature(receipt, publicHex)) return;
+    if (trusted.some((key) => verifySignature(receipt, key))) return;
     if (useFallback && verifySignature(receipt, chainPublicHex)) {
       unrecognized.push(index);
       return;
@@ -257,9 +319,10 @@ export function verifyChain(receipts, publicHex, dataSemanticHash = null, dataTo
         return "<malformed key>";
       }
     };
+    const fingerprints = trusted.map(fp).join(", ") || "(none)";
     result.caveats.push(
       `unrecognized signing key: ${unrecognized.length} receipt(s) (${stages}) verify under ` +
-        `the chain's embedded key ${fp(chainPublicHex)}, not the trusted key ${fp(publicHex)}`
+        `the chain's embedded key ${fp(chainPublicHex)}, not any of the ${trusted.length} trusted key(s) (${fingerprints})`
     );
   }
 
@@ -270,6 +333,13 @@ export function verifyChain(receipts, publicHex, dataSemanticHash = null, dataTo
     if (found !== expected) {
       result.brokenLink = index;
       const delta = totalsDelta(totalsOf(receipts[index - 1]), totalsOf(receipts[index]));
+      result.brokenLinkDetail = {
+        link: [index - 1, index],
+        stage: stageNameOf(receipts[index]),
+        expected_input_hash: expected,
+        found_input_hash: found,
+        totals_delta: delta,
+      };
       fail(
         `✗ CHAIN BROKEN at link ${index - 1} -> ${index} (${stageNameOf(receipts[index])})`,
         `  expected input hash ${short(expected)}  (output of ${stageNameOf(receipts[index - 1])})`,
@@ -286,6 +356,12 @@ export function verifyChain(receipts, publicHex, dataSemanticHash = null, dataTo
     const expected = outputHashOf(final);
     if (dataSemanticHash !== expected) {
       const delta = dataTotals !== null ? totalsDelta(totalsOf(final), dataTotals) : null;
+      result.dataMismatch = {
+        stage: stageNameOf(final),
+        expected_output_hash: expected,
+        found_data_hash: dataSemanticHash,
+        totals_delta: delta,
+      };
       fail(
         `✗ DATA MISMATCH against final receipt (${stageNameOf(final)})`,
         `  expected output hash ${short(expected)}`,

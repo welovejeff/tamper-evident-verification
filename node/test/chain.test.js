@@ -2,7 +2,7 @@
 // verify green; tamper -> red; foreign input -> ChainTailMismatch.
 
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -15,6 +15,7 @@ import {
   buildSourceManifest,
   loadReceipts,
   readReceipt,
+  receiptFileHashes,
   verifyChain,
   writeChain,
   writeReceipt,
@@ -94,4 +95,86 @@ test("foreign input is refused before the transform runs", async () => {
   );
   await assert.rejects(step([{ not: "the chain tail" }]), ChainTailMismatch);
   assert.equal(ran, false);
+});
+
+test("rotated trusted-key sets verify chains signed under the old key", async () => {
+  const { chainDir, publicHex } = setup();
+  const otherDir = mkdtempSync(join(tmpdir(), "tamper-signal-rot-"));
+  generateKeys(otherDir);
+  const newHex = publicHexFromPrivate(loadPrivateKey(join(otherDir, "signing.key")));
+
+  const receipts = loadReceipts(chainDir);
+  // New + old trusted: green. New only (no fallback): red.
+  assert.equal(verifyChain(receipts, [newHex, publicHex]).verdict, "green");
+  assert.equal(verifyChain(receipts, [newHex]).verdict, "red");
+});
+
+test("writeChain records a sha256 for every receipt file", () => {
+  const { chainDir } = setup();
+  const chain = JSON.parse(readFileSync(join(chainDir, "chain.json"), "utf-8"));
+  assert.deepEqual(Object.keys(chain.receipt_hashes), chain.receipts);
+  for (const hash of Object.values(chain.receipt_hashes)) assert.match(hash, /^[0-9a-f]{64}$/);
+});
+
+test("receipt rewritten after the chain is a red receipt-file mismatch", () => {
+  const { chainDir, publicHex } = setup();
+  const receipt = readReceipt(chainDir, SOURCE_RECEIPT_NAME);
+  receipt.semantic_hash = "0".repeat(64);
+  writeReceipt(chainDir, SOURCE_RECEIPT_NAME, receipt);
+
+  const chain = JSON.parse(readFileSync(join(chainDir, "chain.json"), "utf-8"));
+  const result = verifyChain(loadReceipts(chainDir), publicHex, null, null, {
+    chainPublicHex: chain.public_key,
+    receiptNames: chain.receipts,
+    recordedHashes: chain.receipt_hashes,
+    actualHashes: receiptFileHashes(chainDir, chain.receipts),
+  });
+  assert.equal(result.verdict, "red");
+  assert.deepEqual(result.receiptMismatch, [SOURCE_RECEIPT_NAME]);
+  assert.ok(result.lines[0].includes("RECEIPT FILE MISMATCH"));
+});
+
+test("unrecognized signing key with a trusted set is yellow and names the keyset", () => {
+  const { chainDir, publicHex } = setup();
+  const otherDir = mkdtempSync(join(tmpdir(), "tamper-signal-rot-"));
+  generateKeys(otherDir);
+  const newHex = publicHexFromPrivate(loadPrivateKey(join(otherDir, "signing.key")));
+
+  const receipts = loadReceipts(chainDir);
+  // Verifies under the chain-embedded key but not the trusted set: yellow.
+  const result = verifyChain(receipts, [newHex], null, null, { chainPublicHex: publicHex });
+  assert.equal(result.verdict, "yellow");
+  assert.match(result.caveats[0], /1 trusted key/);
+});
+
+test("CLI verify --json emits the machine-readable verdict", async () => {
+  const { execFileSync } = await import("node:child_process");
+  const { fileURLToPath } = await import("node:url");
+  const { chainDir } = setup();
+  const cli = fileURLToPath(new URL("../cli.js", import.meta.url));
+  const out = execFileSync(process.execPath, [cli, "verify", join(chainDir, "chain.json"), "--json"], {
+    encoding: "utf-8",
+  });
+  const payload = JSON.parse(out);
+  assert.equal(payload.verdict, "green");
+  assert.equal(payload.exit_code, 0);
+  assert.deepEqual(payload.stages, ["source"]);
+  assert.equal(payload.receipt_mismatch, null);
+  assert.ok(Array.isArray(payload.report));
+});
+
+test("TAMPER_SIGNAL_KEY env supplies the signing key", () => {
+  const dir = mkdtempSync(join(tmpdir(), "tamper-signal-env-"));
+  generateKeys(dir);
+  const pem = readFileSync(join(dir, "signing.key"), "utf-8");
+  // Expected value comes from the FILE before the env override exists, so the
+  // assertion really compares env-loading against file-loading.
+  const expected = publicHexFromPrivate(loadPrivateKey(join(dir, "signing.key")));
+  process.env.TAMPER_SIGNAL_KEY = pem;
+  try {
+    const key = loadPrivateKey(join(dir, "missing.key"));
+    assert.equal(publicHexFromPrivate(key), expected);
+  } finally {
+    delete process.env.TAMPER_SIGNAL_KEY;
+  }
 });

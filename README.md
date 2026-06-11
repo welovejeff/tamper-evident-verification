@@ -2,7 +2,7 @@
 
 # The light is green, the data is clean.
 
-[![PyPI](https://img.shields.io/pypi/v/tamper-signal)](https://pypi.org/project/tamper-signal/) [![npm](https://img.shields.io/npm/v/tamper-signal)](https://www.npmjs.com/package/tamper-signal) [![Socket Badge (npm)](https://badge.socket.dev/npm/package/tamper-signal/1.4.0)](https://socket.dev/npm/package/tamper-signal/overview/1.4.0) [![Socket Badge (PyPI)](https://badge.socket.dev/pypi/package/tamper-signal/1.4.0)](https://socket.dev/pypi/package/tamper-signal/overview/1.4.0) [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![PyPI](https://img.shields.io/pypi/v/tamper-signal)](https://pypi.org/project/tamper-signal/) [![npm](https://img.shields.io/npm/v/tamper-signal)](https://www.npmjs.com/package/tamper-signal) [![Socket Badge (npm)](https://badge.socket.dev/npm/package/tamper-signal/1.5.0)](https://socket.dev/npm/package/tamper-signal/overview/1.4.0) [![Socket Badge (PyPI)](https://badge.socket.dev/pypi/package/tamper-signal/1.5.0)](https://socket.dev/pypi/package/tamper-signal/overview/1.4.0) [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 Your social team exports a month of TikTok performance data. Someone vibe-codes a dashboard on top of it with an AI assistant in an afternoon. It looks great. Then a transform silently drops 22 rows, or the model hallucinates an aggregation, and the numbers in front of your boss are wrong. Nothing in that workflow catches it. This is the missing verification layer: every stage of the pipeline signs a receipt for what went in and what came out, and one command (or a badge on the dashboard itself) tells you whether the chain is intact, or exactly where it broke and by how much.
 
@@ -52,7 +52,7 @@ receipts doctor               # integration self-check with actionable fixes
 receipts serve                # serve receipts/ on localhost with CORS (dev only)
 ```
 
-`ingest` and `verify --data` accept .xlsx, .csv, .tsv, .json (array of objects), and .ndjson; the semantic hash is identical across formats, so an xlsx ingest verifies against a CSV copy of the same data. `verify` exits with the traffic light: 0 green, 1 red, 2 yellow (verifies, with caveats). Add `--warn-drift` to also flag any control-totals movement across links as a caveat; it is off by default because filters and aggregations legitimately move totals. `--json` emits a structured verdict (schema in `AGENTS.md`) for CI and coding agents.
+`--pub` repeats for key rotation (any trusted key verifies), and `TAMPER_SIGNAL_KEY` can carry the PEM private key in CI so no key file touches disk. `ingest` and `verify --data` accept .xlsx, .csv, .tsv, .json (array of objects), and .ndjson; the semantic hash is identical across formats, so an xlsx ingest verifies against a CSV copy of the same data. `verify` exits with the traffic light: 0 green, 1 red, 2 yellow (verifies, with caveats). Add `--warn-drift` to also flag any control-totals movement across links as a caveat; it is off by default because filters and aggregations legitimately move totals. `--json` emits a structured verdict (schema in `AGENTS.md`) for CI and coding agents.
 
 Transforms record their own receipts by wrapping any list-of-dicts to list-of-dicts function:
 
@@ -160,16 +160,19 @@ The light answers "is it fine?"; the console answers "where, exactly, and by how
 
 *The verification console: calm when green, surgical when red.*
 
+## Anchoring (optional)
+
+`pip install "tamper-signal[anchor]"`, then `receipts anchor` signs the exact bytes of chain.json into the public Sigstore transparency log under your OIDC identity (browser login locally, automatic in GitHub Actions). Because chain.json records the sha256 of every receipt file, the anchor covers the receipts themselves, not just their names. `receipts verify --anchor` then proves this exact chain, receipts included, existed at the logged time, independent of the signing key, closing the "whoever holds the key can quietly re-sign everything" gap for the moments that matter. A missing anchor is a yellow caveat; a chain that changed after anchoring is red.
+
 ## What this proves, and what it doesn't
 
 This proves **continuity, not correctness**. It can't tell you the data is right, but it can prove nobody changed it. The chain shows the dashboard numbers descend from the ingested export through a known sequence of code, and it locates the exact stage where a number changed unexpectedly. If the source export is itself wrong, the chain faithfully verifies wrong numbers. It is not a data-quality tool.
 
-Also worth knowing: the signing key lives on your machine, and today that local Ed25519 keypair is the whole root of trust. Anyone holding the key can sign a fresh, internally consistent chain. External anchoring (below) is what closes that gap.
+Also worth knowing: the signing key lives on your machine, and day to day that local Ed25519 keypair is the root of trust. Anyone holding the key can sign a fresh, internally consistent chain; anchoring (above) is what closes that gap when it matters.
 
 ## Roadmap
 
 - **Richer yellow taxonomy.** Yellow currently detects coverage gaps, unrecognized signing keys, and opt-in totals drift. Distinct severities and smarter drift heuristics are open questions (see `designs/01-NOTES.md`).
-- **External anchoring.** Sigstore transparency logs or RFC 3161 timestamps, so a chain can't be silently re-signed after the fact. The attachment points are already marked `FUTURE:` in `tamper_signal/keys.py` and `tamper_signal/receipts.py`.
 
 
 ## Relation to OpenLineage, dbt, and Great Expectations

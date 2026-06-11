@@ -5,6 +5,7 @@
 // rendering layer differs. No build step, no framework.
 //
 // mountTamperSignal(hostEl, chainUrl, pubKeyHex?, opts?)
+//   pubKeyHex: a trusted key hex, or an array of them (key rotation).
 //   Same argument contract as renderReceiptBadge, with the light appended to
 //   hostEl rather than replacing its contents. Returns a handle:
 //   { el, ready, refresh(), destroy(), getState(), setOpen(open) }.
@@ -197,7 +198,8 @@ function shortCaveatTag(caveats) {
 
 export function mountTamperSignal(hostEl, chainUrl, pubKeyHex, opts) {
   // Allow mountTamperSignal(el, url, {watch: ...}) without a key argument.
-  if (pubKeyHex && typeof pubKeyHex === "object") {
+  // Arrays are trusted keysets (rotation), not options.
+  if (pubKeyHex && typeof pubKeyHex === "object" && !Array.isArray(pubKeyHex)) {
     opts = pubKeyHex;
     pubKeyHex = undefined;
   }

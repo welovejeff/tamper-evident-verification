@@ -5,5 +5,10 @@
     "000_source.json",
     "001_clean.json",
     "003_aggregate.json"
-  ]
+  ],
+  "receipt_hashes": {
+    "000_source.json": "95903835dde23573166f36ab93fd46e18d590f7bbb6ff54add77bb4bb44cf6cf",
+    "001_clean.json": "3a53d017cdb5fe18c3339c55bdd5451e2c846809d8e94a5743e602986f2644a9",
+    "003_aggregate.json": "277d80d55cc12fb6b5ae842d0ab6f139b021bf391250b8e8440d136e041f3800"
+  }
 }
