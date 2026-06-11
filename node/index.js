@@ -44,5 +44,5 @@ export {
   writeChain,
   writeReceipt,
 } from "./receipts.js";
-export { controlTotals, totalsDelta } from "./totals.js";
+export { controlTotals, groupedNumericColumns, totalsDelta } from "./totals.js";
 export { ChainTailMismatch, receiptStep } from "./wrapper.js";

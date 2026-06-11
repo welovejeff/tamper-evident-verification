@@ -356,6 +356,16 @@ Column names must match the normalized names in the receipts' control totals
 `receipts/chain.json`, open the listed receipt files, and use the exact keys
 under `control_totals.numeric_sums` / `null_counts`.
 
+**Only plain decimals are summed.** Control totals cover values that parse as
+plain decimals — `12345`, `-3.5`, `2.4e6`. Thousands-grouped strings like
+`"289,084"` or `"1 198 372"` (very common in real exports) are *not* coerced,
+so their column never reaches `numeric_sums`, and a `data-receipt-column` on it
+can never flag a change — silently. Grouping isn't auto-stripped on purpose: it
+would diverge from the Python canonicalization and is locale-ambiguous (`"1,234"`
+is 1234 or 1.234?). Fix it upstream with a signed normalize stage that strips
+the separators before the receipt is written. `tamper-signal ingest` prints a
+warning naming any such columns; programmatically, call `groupedNumericColumns(records)`.
+
 ## 8. The Data tab (when asked for table UI or views)
 
 The project's stance: a dashboard built on verified data should show the

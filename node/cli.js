@@ -28,7 +28,7 @@ import {
   writeChain,
   writeReceipt,
 } from "./receipts.js";
-import { controlTotals } from "./totals.js";
+import { controlTotals, groupedNumericColumns } from "./totals.js";
 
 const USAGE = `usage: tamper-signal <command>
 
@@ -88,6 +88,20 @@ function cmdIngest(args) {
   console.log(`  semantic_hash ${manifest.semantic_hash}`);
   console.log(`  rows ${totals.row_count}, columns ${totals.column_count}`);
   console.log(`  source manifest -> ${values.out.replace(/\/?$/, "/")}${SOURCE_RECEIPT_NAME}`);
+
+  // Surface columns that look numeric but were excluded from numeric_sums
+  // because their values are comma/space-grouped. Left silent, a
+  // data-receipt-column on these can never flag a change (see issue #21).
+  const grouped = groupedNumericColumns(records);
+  if (grouped.length) {
+    console.error("");
+    for (const { column, example } of grouped) {
+      console.error(`  warning: column "${column}" looks numeric (e.g. "${example}") but was excluded from control totals.`);
+    }
+    console.error("  Grouped numbers don't parse as plain decimals, so these columns won't appear in numeric_sums and a");
+    console.error("  data-receipt-column on them can never flag a change. Add a normalize step that strips the separators");
+    console.error("  before ingest. Only plain decimals (no thousands grouping) are summed.");
+  }
   return 0;
 }
 
