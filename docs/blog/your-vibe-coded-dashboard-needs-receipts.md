@@ -1,6 +1,6 @@
 # Your vibe-coded dashboard needs receipts
 
-*June 2026 · [Tamper Signal on GitHub](https://github.com/welovejeff/tamper-evident-verification)*
+*By [Jeff MacDonald](https://github.com/welovejeff) · June 2026*
 
 Your social team exports a month of TikTok performance data. Someone opens an AI assistant, describes the dashboard they want, and has it running by the end of the afternoon. It looks great. The charts are clean, the totals are plausible, and everyone moves on.
 

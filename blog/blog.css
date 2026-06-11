@@ -62,6 +62,8 @@ code, pre { font-family: var(--mono); }
 }
 .post-item:last-child { border-bottom: 1px solid var(--border); }
 .post-item .post-date { font: 11px var(--mono); color: var(--faint); letter-spacing: 1px; text-transform: uppercase; margin: 0 0 8px; }
+.post-item .post-date a { color: var(--dim); }
+.post-item .post-date a:hover { color: var(--text); text-decoration: none; }
 .post-item h2 { font-size: 22px; letter-spacing: -0.4px; margin: 0 0 8px; }
 .post-item h2 a { color: var(--text); }
 .post-item h2 a:hover { color: var(--green); text-decoration: none; }
