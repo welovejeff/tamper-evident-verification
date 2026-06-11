@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Your vibe-coded dashboard needs receipts · Tamper Signal</title>
+<meta name="description" content="AI-built dashboards fail silently: they drop rows and double-count without crashing. Signed receipts at every step prove your numbers still descend from the source — and name the exact link if they don't." />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="Your vibe-coded dashboard needs receipts" />
+<meta property="og:description" content="AI-built dashboards fail silently. Signed receipts at every step prove nobody changed your data, and name the exact link if they did." />
+<meta property="og:image" content="https://tampersignal.com/docs/media/thumbs/stoplight.jpg" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:image" content="https://tampersignal.com/docs/media/thumbs/stoplight.jpg" />
+<link rel="canonical" href="https://tampersignal.com/blog/your-vibe-coded-dashboard-needs-receipts.html" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='%2334d399'/%3E%3C/svg%3E" />
+<link rel="stylesheet" href="blog.css" />
+</head>
+<body>
+
+<div class="top">
+  <div class="wrap">
+    <a class="logo-stacked" href="/" aria-label="Tamper Signal — home">
+      <span class="ls-rail" aria-hidden="true"><i class="r"></i><i class="y"></i><i class="g"></i></span>
+      <span class="ls-words">TAMPER<br>SIGNAL</span>
+    </a>
+    <nav>
+      <a href="/#demo">live demo</a>
+      <a href="/#how">how it works</a>
+      <a href="/blog/" aria-current="page">blog</a>
+      <a href="/#explore">explore</a>
+      <a href="https://github.com/welovejeff/tamper-evident-verification">github</a>
+    </nav>
+  </div>
+</div>
+
+<article class="post">
+  <div class="wrap">
+    <a class="post-back" href="/blog/">← all posts</a>
+    <h1>Your vibe-coded dashboard needs receipts</h1>
+    <p class="post-meta">June 2026 · <a href="https://github.com/welovejeff/tamper-evident-verification">Tamper Signal on GitHub</a></p>
+
+    <p>Your social team exports a month of TikTok performance data. Someone opens an AI assistant, describes the dashboard they want, and has it running by the end of the afternoon. It looks great. The charts are clean, the totals are plausible, and everyone moves on.</p>
+
+    <p>Then a transform silently drops 22 rows. Or the model hallucinates an aggregation and views come up 24,889 short. The dashboard still renders. The chart still looks plausible. The wrong number goes in front of your boss, and nothing in that workflow ever knew.</p>
+
+    <figure>
+      <img src="/docs/media/problem.gif" alt="An AI-built dashboard glitching: views inflate and rows quietly disappear while everything keeps rendering" loading="lazy" />
+    </figure>
+
+    <h2>Vibe-coded pipelines fail silently</h2>
+
+    <p>This is the specific failure mode of AI-written data code: it works most of the time, and when it doesn't, it doesn't crash. It drops rows. It double-counts. It coerces a column wrong and quietly shifts every total. Nobody re-checks 48,000 rows by hand, because nobody re-checks 48,000 rows by hand.</p>
+
+    <p>The traditional answers assume infrastructure you don't have. Warehouse lineage, dbt, data-quality suites: all great, all built for teams with a warehouse, an orchestrator, and a metadata catalog. The team running xlsx-to-dashboard has none of that, and is the team most exposed.</p>
+
+    <p>What that team needs is something closer to a receipt.</p>
+
+    <h2>Sign a receipt at every step</h2>
+
+    <p>Here is the whole mechanism. Every stage of your pipeline signs a receipt: a fingerprint of the data it received, a fingerprint of the code it ran, a fingerprint of the data it produced. Receipts link, because each stage's input fingerprint has to match the previous stage's output fingerprint. Chain them together and the whole pipeline becomes verifiable, end to end.</p>
+
+    <figure>
+      <img src="/docs/media/how.gif" alt="Each pipeline step emits a signed receipt, and matching fingerprints link them into a chain" loading="lazy" />
+    </figure>
+
+    <p>Each receipt also carries control totals: row counts, numeric sums, date ranges, null counts. The hashes can tell you a chain is broken; the totals tell you how broken. That difference matters when you are staring at a red light at 4:55pm.</p>
+
+    <p>Everything is signed with Ed25519, and everything is plain files on disk. No database, no server, no catalog. Yes, it is technically a hash chain; no, it is not that other thing. There is no consensus, no network, no tokens. Just receipts, like the shoebox under your bed, except these ones check themselves.</p>
+
+    <h2>Run verify, get a verdict</h2>
+
+    <p>One command walks the chain: every signature, every link, and optionally your current dashboard file against the final receipt.</p>
+
+    <figure>
+      <img src="/docs/media/proof.gif" alt="Verify passes on the intact chain, then someone tampers with a value and verify fails at the exact link" loading="lazy" />
+    </figure>
+
+    <p>The verdict is a traffic light.</p>
+
+    <div class="verdict"><span class="lt g" aria-hidden="true"></span><p><strong>The light is green, the data is clean.</strong> Every link verifies, every signature checks. Your dashboard numbers descend from the original export, untouched.</p></div>
+    <div class="verdict"><span class="lt y" aria-hidden="true"></span><p><strong>The light is yellow, a human should look.</strong> The chain verifies, with caveats: a gap in the receipt coverage, a signing key you haven't said you trust, totals drifting in ways you asked it to flag. Yellow never blames. It asks for eyes.</p></div>
+    <div class="verdict"><span class="lt r" aria-hidden="true"></span><p><strong>The light is red, the chain is broken.</strong> And this is the part worth paying for, even though it costs nothing: red doesn't shrug. It names the exact link and the exact delta.</p></div>
+
+    <pre><code>✗ CHAIN BROKEN at link 1 -&gt; 2 (transform_aggregate)
+  expected input hash a3f1...9c  (output of transform_clean)
+  found    input hash 77b2...d4
+  Control totals delta vs upstream: row_count 48212 -&gt; 48190 (-22)</code></pre>
+
+    <p>Not "validation failed." Not a stack trace. The stage, the expected fingerprint, the found fingerprint, and 22 missing rows. A red light that points is a different product than an alarm that panics.</p>
+
+    <h2>What this proves, and what it doesn't</h2>
+
+    <p>This proves continuity, not correctness. It can't tell you the data is right, but it can prove nobody changed it.</p>
+
+    <p>If the source export is wrong, the chain will faithfully verify wrong numbers all the way to your dashboard. It is not a data-quality tool, and any tool in this space that promises to "ensure accuracy" is describing something it cannot do. What the chain gives you is narrower and, honestly, more useful when things break: certainty about where a number came from, and the exact point where that stopped being true.</p>
+
+    <h2>The light lives in the dashboard</h2>
+
+    <p>The verdict isn't only a CLI thing. A small badge, or the newer inline status light, drops into any web frontend and re-verifies the whole chain in the viewer's browser using Web Crypto: every signature, every link, on page load. No server-side trust required. When the chain breaks, the light can even flag the specific on-page metric that no longer descends from the source.</p>
+
+    <p>And once the light is green, we think your dashboard should show its work. Not a tooltip, not an export-on-request: a Data tab, right next to the charts, with the raw verified table the pretty numbers came from. If the chain is intact there is no reason to hide the rows, and if you find yourself wanting to hide them, that's worth sitting with. A chart asks you to believe; a table lets you check.</p>
+
+    <h2>Try it in five minutes</h2>
+
+    <p>Python 3.11+ or Node 18.17+, MIT licensed. Python and JavaScript pipelines both sign receipts (the chains are interchangeable), and the badge and the light run in any frontend.</p>
+
+    <pre><code>pip install tamper-signal
+git clone https://github.com/welovejeff/tamper-evident-verification &amp;&amp; cd tamper-evident-verification
+receipts demo</code></pre>
+
+    <p>The demo runs the whole story end to end: it generates a deliberately messy export, ingests it, runs two AI-written-style transforms, verifies the chain (green), tampers with one spend value, and verifies again (red, with the link and the delta). Then it serves the badge so you can see all three states side by side.</p>
+
+    <p>Wrapping your own transforms is one decorator:</p>
+
+    <pre><code>from tamper_signal import receipt_step
+
+@receipt_step(chain_dir="receipts/", key_path="keys/signing.key")
+def transform_clean(records):
+    return [r for r in records if r.get("campaign_name")]</code></pre>
+
+    <p>The wrapper verifies the chain tail before running, refuses to extend a broken chain, and signs a new receipt when it's done.</p>
+
+    <p class="post-end">Trust receipts, not vibes.</p>
+  </div>
+</article>
+
+<footer>
+  <div class="wrap">
+    <span>MIT licensed</span>
+    <span>·</span>
+    <a href="https://github.com/welovejeff/tamper-evident-verification">github.com/welovejeff/tamper-evident-verification</a>
+    <span>·</span>
+    <a href="/">tampersignal.com</a>
+  </div>
+</footer>
+
+</body>
+</html>
