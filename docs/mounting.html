@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Mounting the signal · Tamper Signal docs</title>
+<meta name="description" content="Put the verdict on the page: the inline status light, the badge, the data tab, and the console, plus one-call attach helpers for Flask, FastAPI, Express, Next.js, and Streamlit, and flagging a broken metric in place." />
+<meta property="og:title" content="Mounting the signal · Tamper Signal docs" />
+<meta property="og:description" content="Put the verdict on the page: status light, badge, data tab, console, framework helpers, and metric flagging." />
+<meta property="og:image" content="https://tampersignal.com/docs/media/og-card.png" />
+<link rel="canonical" href="https://tampersignal.com/docs/mounting.html" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='%2334d399'/%3E%3C/svg%3E" />
+<link rel="stylesheet" href="docs.css" />
+</head>
+<body>
+
+<div class="top">
+  <div class="wrap">
+    <a class="logo-stacked" href="/" aria-label="Tamper Signal — home">
+      <span class="ls-rail" aria-hidden="true"><i class="r"></i><i class="y"></i><i class="g"></i></span>
+      <span class="ls-words">TAMPER<br>SIGNAL</span>
+    </a>
+    <button class="menu-btn" type="button" aria-expanded="false" aria-controls="site-nav">menu <span class="mb-caret">▾</span></button>
+    <nav id="site-nav">
+      <a href="/#demo">live demo</a>
+      <a href="/#how">how it works</a>
+      <a href="/docs/" aria-current="location">docs</a>
+      <a href="/blog/">blog</a>
+      <a href="https://github.com/welovejeff/tamper-evident-verification">github</a>
+    </nav>
+  </div>
+</div>
+
+<div class="docs-shell">
+  <aside class="docs-side">
+    <button class="side-toggle" type="button" aria-expanded="false">On this site <span class="st-caret" aria-hidden="true">▾</span></button>
+    <div class="side-inner">
+      <div class="side-group">
+        <p class="side-label">Start here</p>
+        <ul>
+          <li><a href="/docs/">Overview</a></li>
+          <li><a href="/docs/concepts.html">Core concepts</a></li>
+          <li><a href="/docs/quickstart.html">Quickstart</a></li>
+        </ul>
+      </div>
+      <div class="side-group">
+        <p class="side-label">Reference</p>
+        <ul>
+          <li><a href="/docs/cli.html">CLI</a></li>
+          <li><a href="/docs/api.html">Python &amp; JS API</a></li>
+          <li><a href="/docs/mounting.html" aria-current="page">Mounting the signal</a></li>
+        </ul>
+      </div>
+      <div class="side-group">
+        <p class="side-label">Going deeper</p>
+        <ul>
+          <li><a href="/docs/advanced.html">Power user</a></li>
+        </ul>
+      </div>
+    </div>
+  </aside>
+
+  <main class="docs-main">
+    <a class="doc-back" href="/docs/">← Docs home</a>
+    <p class="doc-kicker">Reference</p>
+    <h1>Mounting the signal</h1>
+    <p class="lede">The light is most useful where the numbers live: on the dashboard itself. Everything here re-verifies the chain in the viewer's own browser using Web Crypto, with no build step, no framework requirement, and no server state. There are four surfaces; pick by how much you want to show.</p>
+
+    <h2 id="surfaces">The four surfaces</h2>
+    <div class="tbl-scroll">
+      <table class="ref">
+        <thead><tr><th>Surface</th><th>Import</th><th>For</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Status light</strong></td><td><code>tamper-signal/light</code></td><td>A small pill in the dashboard header. The flagship surface.</td></tr>
+          <tr><td><strong>Badge</strong></td><td><code>tamper-signal/badge</code></td><td>A one-line verdict that expands to a per-stage table.</td></tr>
+          <tr><td><strong>Data tab</strong></td><td><code>tamper-signal/table</code></td><td>The verified table itself, re-hashed in the browser.</td></tr>
+          <tr><td><strong>Console</strong></td><td><code>tamper-signal/console</code></td><td>The chain as an inspectable pipeline, link by link.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 id="light">The inline status light</h2>
+    <p>A dark, monospace pill that shows the traffic light and expands to a popover: a per-stage table when green, the caveat list when yellow, the broken link and totals delta when red.</p>
+    <pre><code><span class="c">&lt;!-- serve receipts/ statically, then mount in the header --&gt;</span>
+<span class="k">&lt;script</span> type=<span class="s">"module"</span><span class="k">&gt;</span>
+  <span class="k">import</span> { mountTamperSignal } <span class="k">from</span> <span class="s">"/static/light.js"</span>;
+  mountTamperSignal(document.querySelector(<span class="s">"header"</span>), <span class="s">"/receipts/chain.json"</span>);
+<span class="k">&lt;/script&gt;</span></code></pre>
+    <p>With a bundler it is the same call from the package:</p>
+    <pre><code><span class="k">import</span> { mountTamperSignal } <span class="k">from</span> <span class="s">"tamper-signal/light"</span>;</code></pre>
+
+    <h3>Options</h3>
+    <div class="tbl-scroll">
+      <table class="ref">
+        <thead><tr><th>Option</th><th>Effect</th></tr></thead>
+        <tbody>
+          <tr><td><code>watch</code></td><td>Re-verify every N milliseconds and pulse the pill on a transition.</td></tr>
+          <tr><td><code>warnDrift</code></td><td>Treat control-total movement as a yellow caveat, matching <code>--warn-drift</code>.</td></tr>
+          <tr><td><code>receiptsHref</code></td><td>Where the popover's "view receipts" link points.</td></tr>
+          <tr><td><code>surface: "dark"</code></td><td>Invert the pill for a dark host. Default is <code>"light"</code>. (<code>invert: true</code> is a shortcut.)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout note">
+      <span class="co-label">Leave the pill alone</span>
+      <p>The pill is intentionally dark and monospace so it reads as an instrument, not a host control. Place it at the right end of your header, after your own controls, and do not restyle it to match the page. On a dark host, pass <code>{ surface: "dark" }</code> so it inverts cleanly.</p>
+    </div>
+
+    <h3>React and web component</h3>
+    <pre><code><span class="c">// React</span>
+<span class="k">import</span> { TamperSignal } <span class="k">from</span> <span class="s">"tamper-signal/react"</span>;
+&lt;TamperSignal chain=<span class="s">"/receipts/chain.json"</span> /&gt;
+
+<span class="c">// Plain HTML, via tamper-signal/element</span>
+&lt;tamper-signal chain=<span class="s">"/receipts/chain.json"</span>&gt;&lt;/tamper-signal&gt;</code></pre>
+
+    <h2 id="badge">The badge</h2>
+    <p>A compact verified line that expands into a per-stage table. Good for the top of a report rather than a live header.</p>
+    <pre><code><span class="k">import</span> { renderReceiptBadge } <span class="k">from</span> <span class="s">"tamper-signal/badge"</span>;
+renderReceiptBadge(el, <span class="s">"/receipts/chain.json"</span>, pubKeyHex);</code></pre>
+    <p>Collapsed it reads, in green, <code>✓ Verified · TikTok export, May 2026 · 48,212 rows · 2 transforms · chain intact</code>, or in red, <code>✗ Chain broken at transform_aggregate</code>.</p>
+
+    <h2 id="table">The data tab</h2>
+    <p>Renders the attested table from <code>table.json</code>, re-hashes it in the viewer's browser, and compares against the final receipt. A verified data tab means the rows on screen are byte for byte the attested data, not a fresh query that might disagree.</p>
+    <pre><code><span class="c"># 1. export the canonical table (Python or Node)</span>
+<span class="k">receipts</span> export --chain receipts/chain.json --data dashboard.xlsx
+
+<span class="c"># 2. mount it</span>
+<span class="k">&lt;script</span> type=<span class="s">"module"</span><span class="k">&gt;</span>
+  <span class="k">import</span> { mountReceiptTable } <span class="k">from</span> <span class="s">"/static/table.js"</span>;
+  mountReceiptTable(document.querySelector(<span class="s">"#data-tab"</span>), <span class="s">"/receipts/chain.json"</span>);
+<span class="k">&lt;/script&gt;</span></code></pre>
+
+    <h2 id="console">The console</h2>
+    <p>The chain as an inspectable pipeline: each link carries the hash it proved, a break severs the link with a break card pinned in place, coverage gaps show up as ghost nodes, and the event log mirrors <code>receipts verify</code> line by line. Every attach helper serves it automatically at <code>/tamper-signal/console</code>.</p>
+    <pre><code><span class="k">import</span> { mountReceiptConsole } <span class="k">from</span> <span class="s">"tamper-signal/console"</span>;
+mountReceiptConsole(el, <span class="s">"/receipts/chain.json"</span>);</code></pre>
+
+    <h2 id="helpers">One-call framework helpers</h2>
+    <p>Each attach helper serves your <code>receipts/</code> directory and the verifier assets, and returns a ready-to-drop snippet so you do not wire paths by hand.</p>
+    <pre><code><span class="c"># Flask</span>
+<span class="k">from</span> tamper_signal.flask_ext <span class="k">import</span> attach
+signal = attach(app, receipts_dir=<span class="s">"receipts/"</span>)   <span class="c"># {{ signal.snippet | safe }}</span>
+
+<span class="c"># FastAPI</span>
+<span class="k">from</span> tamper_signal.fastapi_ext <span class="k">import</span> attach
+signal = attach(app, receipts_dir=<span class="s">"receipts/"</span>)</code></pre>
+    <pre><code><span class="c">// Express</span>
+<span class="k">import</span> { tamperSignal } <span class="k">from</span> <span class="s">"tamper-signal/express"</span>;
+<span class="k">const</span> signal = tamperSignal(app, { receiptsDir: <span class="s">"receipts/"</span> });
+<span class="c">// render signal.snippet once in your layout</span></code></pre>
+    <div class="tbl-scroll">
+      <table class="ref">
+        <thead><tr><th>Host</th><th>How</th></tr></thead>
+        <tbody>
+          <tr><td>Flask</td><td><code>tamper_signal.flask_ext.attach(app, ...)</code></td></tr>
+          <tr><td>FastAPI</td><td><code>tamper_signal.fastapi_ext.attach(app, ...)</code></td></tr>
+          <tr><td>Express</td><td><code>tamperSignal(app, { receiptsDir })</code> from <code>tamper-signal/express</code></td></tr>
+          <tr><td>Next.js</td><td>Copy <code>receipts/</code> into <code>public/receipts/</code> during the pipeline run, then <code>&lt;TamperSignal chain="/receipts/chain.json" /&gt;</code></td></tr>
+          <tr><td>Streamlit</td><td><code>from tamper_signal.streamlit_ext import signal, verified_dataframe</code> (server-side verified, a weaker check)</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 id="flagging">Flag a broken metric in place</h2>
+    <p>The signal can reach into the page and outline the exact numbers that no longer descend from the source. Add <code>data-receipt-column</code> to any element that displays a metric, naming the column it comes from. When the chain breaks at a link where that column moved, the signal outlines the element and tags it <code>tamper signal: unverified value</code>.</p>
+    <pre><code>&lt;div class=<span class="s">"kpi"</span> data-receipt-column=<span class="s">"spend_(usd)"</span>&gt;
+  $98,441.02
+&lt;/div&gt;</code></pre>
+    <p>Column names are the normalized keys from the receipts' control totals: lowercased, spaces turned to underscores. Read them from <code>numeric_sums</code> and <code>null_counts</code> in the receipt files.</p>
+    <div class="callout warn">
+      <span class="co-label">A real limit worth knowing</span>
+      <p>Only plain decimals are summed into <code>numeric_sums</code>. A thousands-grouped string like <code>"289,084"</code> or <code>"1 198 372"</code> is not coerced to a number, so that column never reaches the totals, and <code>data-receipt-column</code> on it cannot flag a change. The fix is upstream: a signed normalize stage that turns the column into plain decimals. The <code>ingest</code> command prints a warning naming such columns, and <code>groupedNumericColumns(records)</code> finds them in code.</p>
+    </div>
+
+    <h2 id="verify-ui">Verify your wiring</h2>
+    <ul>
+      <li>The pill reads <code>VERIFIED · chain intact</code>; click it for the per-stage popover.</li>
+      <li>Point it at <code>examples/chains/intact/</code> for green and <code>examples/chains/tampered/</code> for red, as a negative test.</li>
+      <li>If it reads <code>UNVERIFIED · could not load chain</code>, the receipts directory is not being served at that URL (usually CORS). That state is a capability fallback, not a verdict about your data.</li>
+      <li>If it reads <code>verification unsupported in this browser</code>, the browser lacks Web Crypto Ed25519; verify from the CLI instead.</li>
+    </ul>
+
+    <div class="doc-next">
+      <a class="dn-l" href="/docs/api.html">
+        <span class="dn-label">← Back</span>
+        <span class="dn-title">Python &amp; JS API</span>
+      </a>
+      <a class="dn-r" href="/docs/advanced.html">
+        <span class="dn-label">Next →</span>
+        <span class="dn-title">Power user</span>
+      </a>
+    </div>
+  </main>
+</div>
+
+<footer>
+  <div class="wrap">
+    <span>MIT licensed</span>
+    <span>·</span>
+    <a href="https://github.com/welovejeff/tamper-evident-verification">github.com/welovejeff/tamper-evident-verification</a>
+    <span>·</span>
+    <a href="/">tampersignal.com</a>
+  </div>
+</footer>
+
+<script>
+  const menuBtn = document.querySelector(".menu-btn");
+  const siteNav = document.getElementById("site-nav");
+  if (menuBtn && siteNav) {
+    menuBtn.addEventListener("click", () => {
+      const open = siteNav.classList.toggle("open");
+      menuBtn.setAttribute("aria-expanded", String(open));
+    });
+    siteNav.addEventListener("click", (e) => {
+      if (e.target.tagName === "A") { siteNav.classList.remove("open"); menuBtn.setAttribute("aria-expanded", "false"); }
+    });
+  }
+  const sideToggle = document.querySelector(".side-toggle");
+  const docsSide = document.querySelector(".docs-side");
+  if (sideToggle && docsSide) {
+    sideToggle.addEventListener("click", () => {
+      const open = docsSide.classList.toggle("open");
+      sideToggle.setAttribute("aria-expanded", String(open));
+    });
+  }
+</script>
+
+</body>
+</html>

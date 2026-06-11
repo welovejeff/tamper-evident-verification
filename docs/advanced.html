@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Power user · Tamper Signal docs</title>
+<meta name="description" content="The deep capabilities: key rotation, signing in CI without a key file, gating a build on the light, anchoring a chain to a public log, cross-stack Python and JS chains, control-total drift, and format-agnostic hashing." />
+<meta property="og:title" content="Power user · Tamper Signal docs" />
+<meta property="og:description" content="Key rotation, CI signing, anchoring, cross-stack chains, drift, and format-agnostic hashing." />
+<meta property="og:image" content="https://tampersignal.com/docs/media/og-card.png" />
+<link rel="canonical" href="https://tampersignal.com/docs/advanced.html" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='%2334d399'/%3E%3C/svg%3E" />
+<link rel="stylesheet" href="docs.css" />
+</head>
+<body>
+
+<div class="top">
+  <div class="wrap">
+    <a class="logo-stacked" href="/" aria-label="Tamper Signal — home">
+      <span class="ls-rail" aria-hidden="true"><i class="r"></i><i class="y"></i><i class="g"></i></span>
+      <span class="ls-words">TAMPER<br>SIGNAL</span>
+    </a>
+    <button class="menu-btn" type="button" aria-expanded="false" aria-controls="site-nav">menu <span class="mb-caret">▾</span></button>
+    <nav id="site-nav">
+      <a href="/#demo">live demo</a>
+      <a href="/#how">how it works</a>
+      <a href="/docs/" aria-current="location">docs</a>
+      <a href="/blog/">blog</a>
+      <a href="https://github.com/welovejeff/tamper-evident-verification">github</a>
+    </nav>
+  </div>
+</div>
+
+<div class="docs-shell">
+  <aside class="docs-side">
+    <button class="side-toggle" type="button" aria-expanded="false">On this site <span class="st-caret" aria-hidden="true">▾</span></button>
+    <div class="side-inner">
+      <div class="side-group">
+        <p class="side-label">Start here</p>
+        <ul>
+          <li><a href="/docs/">Overview</a></li>
+          <li><a href="/docs/concepts.html">Core concepts</a></li>
+          <li><a href="/docs/quickstart.html">Quickstart</a></li>
+        </ul>
+      </div>
+      <div class="side-group">
+        <p class="side-label">Reference</p>
+        <ul>
+          <li><a href="/docs/cli.html">CLI</a></li>
+          <li><a href="/docs/api.html">Python &amp; JS API</a></li>
+          <li><a href="/docs/mounting.html">Mounting the signal</a></li>
+        </ul>
+      </div>
+      <div class="side-group">
+        <p class="side-label">Going deeper</p>
+        <ul>
+          <li><a href="/docs/advanced.html" aria-current="page">Power user</a></li>
+        </ul>
+      </div>
+    </div>
+  </aside>
+
+  <main class="docs-main">
+    <a class="doc-back" href="/docs/">← Docs home</a>
+    <p class="doc-kicker">Going deeper</p>
+    <h1>Power user</h1>
+    <p class="lede">The capabilities that show up once a chain is part of a real workflow: rotating keys without breaking old receipts, signing in CI with no key on disk, gating a build on the light, witnessing a chain in public, and crossing between stacks and formats freely.</p>
+
+    <h2 id="rotation">Key rotation</h2>
+    <p>Keys change. When they do, you do not want every receipt signed under the old key to suddenly read as untrusted. Verification accepts more than one trusted key: pass <code>--pub</code> as many times as you need, and any listed key satisfies a receipt.</p>
+    <pre><code><span class="k">receipts</span> verify receipts/chain.json --pub keys/new.pub --pub keys/old.pub</code></pre>
+    <p>Old receipts stay green under the old key while new receipts sign under the new one. In the browser surfaces, the <code>pub-key</code> attribute takes a space-separated list for the same effect.</p>
+
+    <h2 id="ci-signing">Signing in CI without a key file</h2>
+    <p>A private key should never be written to a CI runner's disk. Put the PEM contents in a repository secret and expose it as <code>TAMPER_SIGNAL_KEY</code>. The wrapper, <code>ingest</code>, and <code>export</code> all read it, and it wins over any <code>--key</code> path. The semantics are identical in both stacks.</p>
+    <pre><code><span class="k">export</span> TAMPER_SIGNAL_KEY=<span class="s">"$(cat keys/signing.key)"</span>   <span class="c"># from a secret, not the repo</span>
+<span class="k">receipts</span> ingest export.csv --origin <span class="s">"nightly"</span> --out receipts/</code></pre>
+
+    <h2 id="ci-gate">Gating a build on the light</h2>
+    <p>Because the exit code is the light, a CI job can fail on red and merely warn on yellow. This makes a broken chain a build failure, while a caveat surfaces for a human without blocking the pipeline.</p>
+    <pre><code><span class="k">name:</span> tamper-signal
+<span class="k">on:</span> [push]
+<span class="k">jobs:</span>
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: <span class="s">"3.12"</span> }
+      - run: pip install tamper-signal
+      - name: Verify the receipt chain
+        run: |
+          set +e
+          receipts verify receipts/chain.json --json | tee verdict.json
+          code=$?
+          if [ <span class="s">"$code"</span> = <span class="s">"2"</span> ]; then
+            echo <span class="s">"::warning::The light is yellow, a human should look."</span>
+            exit 0
+          fi
+          exit $code</code></pre>
+
+    <h2 id="anchoring">Anchoring to a public log</h2>
+    <p>The local key is the day-to-day root of trust, but whoever holds it could in principle re-sign a whole new chain. Anchoring closes that gap for the moments that matter: it records the chain in a Sigstore transparency log, an append-only public ledger, under your identity, witnessed independently of your key. See the <a href="/docs/concepts.html#anchor">notary analogy</a> in concepts.</p>
+    <pre><code><span class="k">pip install</span> <span class="s">"tamper-signal[anchor]"</span>
+<span class="k">receipts</span> anchor                              <span class="c"># browser login locally; ambient OIDC in GitHub Actions</span>
+<span class="k">receipts</span> verify receipts/chain.json --anchor</code></pre>
+    <p>With <code>--anchor</code>, verify proves this exact chain existed at the logged time under the recorded identity. A missing anchor is a yellow caveat (exit 2); a chain that changed after it was anchored is red (exit 1). In CI you pin the identity and issuer explicitly:</p>
+    <pre><code><span class="k">receipts</span> verify receipts/chain.json --anchor \
+  --anchor-identity <span class="s">"https://github.com/OWNER/REPO/.github/workflows/anchor.yml@refs/heads/main"</span> \
+  --anchor-issuer <span class="s">"https://token.actions.githubusercontent.com"</span></code></pre>
+    <div class="honesty">
+      <span class="co-label">Still continuity, not correctness</span>
+      <p>An anchor proves existence at a time, witnessed by someone who is not you. It says nothing about whether the data was right, and nothing about the moments before it was anchored. It strengthens the chain's history; it does not change what the chain claims.</p>
+    </div>
+
+    <h2 id="cross-stack">Cross-stack chains</h2>
+    <p>Python and JavaScript are equal citizens. The canonicalization is byte-identical, proven by <a href="/docs/concepts.html#canon">golden vectors</a> generated from the Python side, so a chain started in one stack verifies in the other.</p>
+    <div class="analogy">
+      <p class="an-head">Why it works</p>
+      <div class="an-body">
+        <p>Both implementations weigh against the same reference standard. A receipt does not record "Python produced this" or "Node produced this"; it records the canonical hash, and both stacks compute that hash the same way. A drift between them would fail a golden-vector test long before it ever reached a user as a false tamper verdict.</p>
+      </div>
+      <p class="an-map">Common pattern: <strong>ingest an xlsx once with Python</strong>, then run the rest of the pipeline and verify in <strong>Node</strong>.</p>
+    </div>
+
+    <h2 id="drift">Control-total drift</h2>
+    <p>Filters and aggregations move totals on purpose, so a moving total is not a tamper by itself. That is why drift warnings are opt-in. Turn them on when you want a human to glance at any movement across links, and leave them off for pipelines that legitimately reshape the data.</p>
+    <pre><code><span class="k">receipts</span> verify receipts/chain.json --pub keys/signing.pub --warn-drift</code></pre>
+    <p>With <code>--warn-drift</code>, control-total movement becomes a yellow caveat rather than passing silently. The same switch exists as the <code>warnDrift</code> option on the browser surfaces.</p>
+
+    <h2 id="formats">Format-agnostic hashing</h2>
+    <p>The semantic hash is taken over the meaning of the data, not its packaging, so the same rows hash the same whether they arrive as xlsx, CSV, TSV, JSON, or NDJSON. Two consequences worth leaning on:</p>
+    <ul>
+      <li>An xlsx ingest verifies against a CSV copy of the same data. You can change storage formats between stages without breaking the chain.</li>
+      <li>Row order is not part of integrity (rows are sorted before hashing), and numeric-looking text hashes as the number it parses to, so a re-export that reorders rows or restyles a typeless column does not register as a change.</li>
+    </ul>
+    <div class="callout note">
+      <span class="co-label">The flip side</span>
+      <p>That same canonicalization is why a thousands-grouped string column cannot be summed or flagged in place. If you need a column watched, normalize it to plain decimals in a signed stage first. See <a href="/docs/mounting.html#flagging">metric flagging</a>.</p>
+    </div>
+
+    <h2 id="checklist">Before you call it done</h2>
+    <ul>
+      <li>Run <code>receipts doctor</code>: it checks the Python version, that the private key exists and is untracked, that <code>.gitignore</code> covers it, and that the chain verifies. Add <code>--url</code> to confirm the chain is reachable over HTTP.</li>
+      <li><code>receipts verify receipts/chain.json --pub keys/signing.pub</code> exits <code>0</code>.</li>
+      <li>The host page pill reads <code>VERIFIED · chain intact</code>.</li>
+      <li>Negative test against <code>examples/chains/tampered/</code> shows red and names the broken link.</li>
+    </ul>
+
+    <div class="doc-next">
+      <a class="dn-l" href="/docs/mounting.html">
+        <span class="dn-label">← Back</span>
+        <span class="dn-title">Mounting the signal</span>
+      </a>
+      <a class="dn-r" href="/docs/">
+        <span class="dn-label">Next →</span>
+        <span class="dn-title">Back to docs home</span>
+      </a>
+    </div>
+  </main>
+</div>
+
+<footer>
+  <div class="wrap">
+    <span>MIT licensed</span>
+    <span>·</span>
+    <a href="https://github.com/welovejeff/tamper-evident-verification">github.com/welovejeff/tamper-evident-verification</a>
+    <span>·</span>
+    <a href="/">tampersignal.com</a>
+  </div>
+</footer>
+
+<script>
+  const menuBtn = document.querySelector(".menu-btn");
+  const siteNav = document.getElementById("site-nav");
+  if (menuBtn && siteNav) {
+    menuBtn.addEventListener("click", () => {
+      const open = siteNav.classList.toggle("open");
+      menuBtn.setAttribute("aria-expanded", String(open));
+    });
+    siteNav.addEventListener("click", (e) => {
+      if (e.target.tagName === "A") { siteNav.classList.remove("open"); menuBtn.setAttribute("aria-expanded", "false"); }
+    });
+  }
+  const sideToggle = document.querySelector(".side-toggle");
+  const docsSide = document.querySelector(".docs-side");
+  if (sideToggle && docsSide) {
+    sideToggle.addEventListener("click", () => {
+      const open = docsSide.classList.toggle("open");
+      sideToggle.setAttribute("aria-expanded", String(open));
+    });
+  }
+</script>
+
+</body>
+</html>

@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CLI reference · Tamper Signal docs</title>
+<meta name="description" content="Every Tamper Signal command and flag across both stacks: receipts (Python) and tamper-signal (Node), the green/yellow/red exit codes, and the structured JSON verdict schema." />
+<meta property="og:title" content="CLI reference · Tamper Signal docs" />
+<meta property="og:description" content="Every command and flag across both stacks, the exit codes, and the JSON verdict schema." />
+<meta property="og:image" content="https://tampersignal.com/docs/media/og-card.png" />
+<link rel="canonical" href="https://tampersignal.com/docs/cli.html" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='%2334d399'/%3E%3C/svg%3E" />
+<link rel="stylesheet" href="docs.css" />
+</head>
+<body>
+
+<div class="top">
+  <div class="wrap">
+    <a class="logo-stacked" href="/" aria-label="Tamper Signal — home">
+      <span class="ls-rail" aria-hidden="true"><i class="r"></i><i class="y"></i><i class="g"></i></span>
+      <span class="ls-words">TAMPER<br>SIGNAL</span>
+    </a>
+    <button class="menu-btn" type="button" aria-expanded="false" aria-controls="site-nav">menu <span class="mb-caret">▾</span></button>
+    <nav id="site-nav">
+      <a href="/#demo">live demo</a>
+      <a href="/#how">how it works</a>
+      <a href="/docs/" aria-current="location">docs</a>
+      <a href="/blog/">blog</a>
+      <a href="https://github.com/welovejeff/tamper-evident-verification">github</a>
+    </nav>
+  </div>
+</div>
+
+<div class="docs-shell">
+  <aside class="docs-side">
+    <button class="side-toggle" type="button" aria-expanded="false">On this site <span class="st-caret" aria-hidden="true">▾</span></button>
+    <div class="side-inner">
+      <div class="side-group">
+        <p class="side-label">Start here</p>
+        <ul>
+          <li><a href="/docs/">Overview</a></li>
+          <li><a href="/docs/concepts.html">Core concepts</a></li>
+          <li><a href="/docs/quickstart.html">Quickstart</a></li>
+        </ul>
+      </div>
+      <div class="side-group">
+        <p class="side-label">Reference</p>
+        <ul>
+          <li><a href="/docs/cli.html" aria-current="page">CLI</a></li>
+          <li><a href="/docs/api.html">Python &amp; JS API</a></li>
+          <li><a href="/docs/mounting.html">Mounting the signal</a></li>
+        </ul>
+      </div>
+      <div class="side-group">
+        <p class="side-label">Going deeper</p>
+        <ul>
+          <li><a href="/docs/advanced.html">Power user</a></li>
+        </ul>
+      </div>
+    </div>
+  </aside>
+
+  <main class="docs-main">
+    <a class="doc-back" href="/docs/">← Docs home</a>
+    <p class="doc-kicker">Reference</p>
+    <h1>CLI</h1>
+    <p class="lede">Two command-line tools, one set of ideas. <code>receipts</code> ships with the Python package; <code>tamper-signal</code> ships with the npm package. The chains they produce are interchangeable, and they share the same exit codes.</p>
+
+    <h2 id="exit-codes">The exit code is the light</h2>
+    <p>Every verifying command returns the traffic light as its process exit code, so a shell or CI job can branch on it without parsing anything.</p>
+    <div class="tbl-scroll">
+      <table class="ref">
+        <thead><tr><th>Exit</th><th>Light</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td><code>0</code></td><td><span class="verdict" style="display:inline-flex;margin:0;"><span class="lt g"></span></span> green</td><td>Every link verifies, every signature checks.</td></tr>
+          <tr><td><code>2</code></td><td><span class="verdict" style="display:inline-flex;margin:0;"><span class="lt y"></span></span> yellow</td><td>Verifies, with caveats a human should look at.</td></tr>
+          <tr><td><code>1</code></td><td><span class="verdict" style="display:inline-flex;margin:0;"><span class="lt r"></span></span> red</td><td>Chain broken at a specific link.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 id="receipts">Python: <code>receipts</code></h2>
+    <div class="tbl-scroll">
+      <table class="ref">
+        <thead><tr><th>Command</th><th>What it does</th></tr></thead>
+        <tbody>
+          <tr><td><code>receipts init</code></td><td>Scaffold keys, a <code>receipts/</code> directory, and <code>.gitignore</code> safety. Idempotent.</td></tr>
+          <tr><td><code>receipts ingest &lt;file&gt;</code></td><td>Pin a source file: record evidence and semantic hashes plus control totals, sign the source receipt. Writes <code>000_source.json</code> and <code>chain.json</code>.</td></tr>
+          <tr><td><code>receipts verify &lt;chain&gt;</code></td><td>Walk the chain and emit the light. Add <code>--data</code> to also check a current file against the final receipt.</td></tr>
+          <tr><td><code>receipts doctor</code></td><td>Integration self-check with actionable fixes: Python version, key present and untracked, <code>.gitignore</code> coverage, chain verifies. Exit 0 = healthy.</td></tr>
+          <tr><td><code>receipts export</code></td><td>Write <code>receipts/table.json</code>, the canonical attested table for the data tab. Refuses if the data does not match the final receipt.</td></tr>
+          <tr><td><code>receipts serve</code></td><td>Serve <code>receipts/</code> on localhost with CORS, for development.</td></tr>
+          <tr><td><code>receipts anchor</code></td><td>Record the chain in a Sigstore transparency log under your identity. Optional, see <a href="/docs/advanced.html#anchoring">Power user</a>.</td></tr>
+          <tr><td><code>receipts demo</code></td><td>Run the whole story end to end on sample data, then serve a badge showing green, yellow, and red.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Common flags</h3>
+    <div class="tbl-scroll">
+      <table class="ref">
+        <thead><tr><th>Flag</th><th>On</th><th>Effect</th></tr></thead>
+        <tbody>
+          <tr><td><code>--origin "&lt;text&gt;"</code></td><td>ingest</td><td>Free-text label for the source, shown to humans in the signal UI.</td></tr>
+          <tr><td><code>--key &lt;path&gt;</code></td><td>ingest</td><td>Private signing key. Overridden by the <code>TAMPER_SIGNAL_KEY</code> environment variable when set.</td></tr>
+          <tr><td><code>--out &lt;dir&gt;</code></td><td>ingest</td><td>Receipts directory to write into.</td></tr>
+          <tr><td><code>--pub &lt;path&gt;</code></td><td>verify</td><td>Public key to trust. Repeats: any listed key verifies, which is how key rotation works.</td></tr>
+          <tr><td><code>--data &lt;file&gt;</code></td><td>verify</td><td>Check the file the dashboard reads against the final receipt.</td></tr>
+          <tr><td><code>--warn-drift</code></td><td>verify</td><td>Flag any control-total movement across links as a yellow caveat. Off by default, because filters and aggregations legitimately move totals.</td></tr>
+          <tr><td><code>--json</code></td><td>verify</td><td>Emit the structured verdict (schema below) instead of prose.</td></tr>
+          <tr><td><code>--anchor</code></td><td>verify</td><td>Require and check a transparency-log anchor in addition to signatures.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 id="tamper-signal">JavaScript: <code>tamper-signal</code></h2>
+    <p>The Node CLI mirrors the Python one with the same exit codes.</p>
+    <pre><code><span class="k">tamper-signal</span> keygen --out keys/
+<span class="k">tamper-signal</span> ingest export.csv --origin <span class="s">"TikTok export, May 2026"</span> --out receipts/
+<span class="k">tamper-signal</span> verify receipts/chain.json --pub keys/signing.pub --data current.csv
+<span class="k">tamper-signal</span> export receipts/chain.json --data current.csv   <span class="c"># writes receipts/table.json</span></code></pre>
+    <div class="callout note">
+      <span class="co-label">Formats: one difference</span>
+      <p>The Python CLI reads <code>.xlsx</code> and <code>.xlsm</code> as well as <code>.csv</code>, <code>.tsv</code>, <code>.json</code>, and <code>.ndjson</code>. The Node CLI reads everything <em>except</em> the Excel formats. Because the semantic hash is identical across formats, a common pattern is to ingest an xlsx once with Python and then verify against a CSV in Node; the chain interoperates.</p>
+    </div>
+
+    <h3>What lives in which stack</h3>
+    <div class="tbl-scroll">
+      <table class="ref">
+        <thead><tr><th>Python <span class="pill py">receipts</span></th><th>JavaScript <span class="pill js">tamper-signal</span></th></tr></thead>
+        <tbody>
+          <tr><td><code>receipts init</code></td><td><code>tamper-signal keygen</code> (the <code>receipts/</code> dir is created on first ingest)</td></tr>
+          <tr><td><code>receipts ingest</code></td><td><code>tamper-signal ingest</code></td></tr>
+          <tr><td><code>receipts verify</code></td><td><code>tamper-signal verify</code></td></tr>
+          <tr><td><code>receipts export</code></td><td><code>tamper-signal export</code></td></tr>
+          <tr><td><code>receipts serve</code></td><td>your bundler's static server, or <code>tamper-signal/express</code></td></tr>
+          <tr><td><code>receipts doctor</code></td><td><code>tamper-signal verify</code> (exit 0 = healthy)</td></tr>
+          <tr><td><code>receipts anchor</code></td><td><span class="pill py">Python only</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 id="json">The JSON verdict</h2>
+    <p>Both CLIs emit the same structured verdict with <code>--json</code>. This is what CI jobs and coding agents parse.</p>
+    <pre><code>{
+  <span class="s">"verdict"</span>: <span class="s">"green"</span>,            <span class="c">// green | yellow | red</span>
+  <span class="s">"exit_code"</span>: 0,
+  <span class="s">"spec_version"</span>: <span class="s">"1.1"</span>,
+  <span class="s">"receipts"</span>: 3,
+  <span class="s">"transforms"</span>: 2,
+  <span class="s">"stages"</span>: [<span class="s">"source"</span>, <span class="s">"clean"</span>, <span class="s">"aggregate"</span>],
+  <span class="s">"final_row_count"</span>: 304,
+  <span class="s">"caveats"</span>: [],
+  <span class="s">"broken_link"</span>: {           <span class="c">// null when green</span>
+    <span class="s">"link"</span>: [1, 2],
+    <span class="s">"stage"</span>: <span class="s">"aggregate"</span>,
+    <span class="s">"expected_input_hash"</span>: <span class="s">"a3f1…9c"</span>,
+    <span class="s">"found_input_hash"</span>: <span class="s">"77b2…d4"</span>,
+    <span class="s">"totals_delta"</span>: [<span class="s">"row_count 4987 -&gt; 304 (-4683)"</span>]
+  },
+  <span class="s">"data_mismatch"</span>: null,
+  <span class="s">"receipt_mismatch"</span>: null,
+  <span class="s">"report"</span>: [<span class="s">"human-legible lines"</span>],
+  <span class="s">"anchor"</span>: []               <span class="c">// only when --anchor passed</span>
+}</code></pre>
+
+    <div class="doc-next">
+      <a class="dn-l" href="/docs/quickstart.html">
+        <span class="dn-label">← Back</span>
+        <span class="dn-title">Quickstart</span>
+      </a>
+      <a class="dn-r" href="/docs/api.html">
+        <span class="dn-label">Next →</span>
+        <span class="dn-title">Python &amp; JS API</span>
+      </a>
+    </div>
+  </main>
+</div>
+
+<footer>
+  <div class="wrap">
+    <span>MIT licensed</span>
+    <span>·</span>
+    <a href="https://github.com/welovejeff/tamper-evident-verification">github.com/welovejeff/tamper-evident-verification</a>
+    <span>·</span>
+    <a href="/">tampersignal.com</a>
+  </div>
+</footer>
+
+<script>
+  const menuBtn = document.querySelector(".menu-btn");
+  const siteNav = document.getElementById("site-nav");
+  if (menuBtn && siteNav) {
+    menuBtn.addEventListener("click", () => {
+      const open = siteNav.classList.toggle("open");
+      menuBtn.setAttribute("aria-expanded", String(open));
+    });
+    siteNav.addEventListener("click", (e) => {
+      if (e.target.tagName === "A") { siteNav.classList.remove("open"); menuBtn.setAttribute("aria-expanded", "false"); }
+    });
+  }
+  const sideToggle = document.querySelector(".side-toggle");
+  const docsSide = document.querySelector(".docs-side");
+  if (sideToggle && docsSide) {
+    sideToggle.addEventListener("click", () => {
+      const open = docsSide.classList.toggle("open");
+      sideToggle.setAttribute("aria-expanded", String(open));
+    });
+  }
+</script>
+
+</body>
+</html>

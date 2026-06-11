@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Python &amp; JS API · Tamper Signal docs</title>
+<meta name="description" content="Drive Tamper Signal from code: the receipt_step and receiptStep wrappers, ingest, rebuild, canonical document, and verify, in both Python and JavaScript." />
+<meta property="og:title" content="Python &amp; JS API · Tamper Signal docs" />
+<meta property="og:description" content="Wrap transforms, ingest, rebuild, and verify entirely from code, in both stacks." />
+<meta property="og:image" content="https://tampersignal.com/docs/media/og-card.png" />
+<link rel="canonical" href="https://tampersignal.com/docs/api.html" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='%2334d399'/%3E%3C/svg%3E" />
+<link rel="stylesheet" href="docs.css" />
+</head>
+<body>
+
+<div class="top">
+  <div class="wrap">
+    <a class="logo-stacked" href="/" aria-label="Tamper Signal — home">
+      <span class="ls-rail" aria-hidden="true"><i class="r"></i><i class="y"></i><i class="g"></i></span>
+      <span class="ls-words">TAMPER<br>SIGNAL</span>
+    </a>
+    <button class="menu-btn" type="button" aria-expanded="false" aria-controls="site-nav">menu <span class="mb-caret">▾</span></button>
+    <nav id="site-nav">
+      <a href="/#demo">live demo</a>
+      <a href="/#how">how it works</a>
+      <a href="/docs/" aria-current="location">docs</a>
+      <a href="/blog/">blog</a>
+      <a href="https://github.com/welovejeff/tamper-evident-verification">github</a>
+    </nav>
+  </div>
+</div>
+
+<div class="docs-shell">
+  <aside class="docs-side">
+    <button class="side-toggle" type="button" aria-expanded="false">On this site <span class="st-caret" aria-hidden="true">▾</span></button>
+    <div class="side-inner">
+      <div class="side-group">
+        <p class="side-label">Start here</p>
+        <ul>
+          <li><a href="/docs/">Overview</a></li>
+          <li><a href="/docs/concepts.html">Core concepts</a></li>
+          <li><a href="/docs/quickstart.html">Quickstart</a></li>
+        </ul>
+      </div>
+      <div class="side-group">
+        <p class="side-label">Reference</p>
+        <ul>
+          <li><a href="/docs/cli.html">CLI</a></li>
+          <li><a href="/docs/api.html" aria-current="page">Python &amp; JS API</a></li>
+          <li><a href="/docs/mounting.html">Mounting the signal</a></li>
+        </ul>
+      </div>
+      <div class="side-group">
+        <p class="side-label">Going deeper</p>
+        <ul>
+          <li><a href="/docs/advanced.html">Power user</a></li>
+        </ul>
+      </div>
+    </div>
+  </aside>
+
+  <main class="docs-main">
+    <a class="doc-back" href="/docs/">← Docs home</a>
+    <p class="doc-kicker">Reference</p>
+    <h1>Python &amp; JS API</h1>
+    <p class="lede">Everything the CLI does, you can do in code. The shape is the same in both languages: ingest a source, wrap each transform so it signs a receipt, and verify the chain. The contract for a transform is always records in, records out.</p>
+
+    <h2 id="py-step">Python: <code>receipt_step</code></h2>
+    <p>A decorator that turns any record-to-record function into a signed pipeline stage. It verifies the chain tail before running, refuses foreign input, runs your function, then signs and appends a receipt.</p>
+    <pre><code><span class="k">from</span> tamper_signal <span class="k">import</span> receipt_step
+
+<span class="o">@receipt_step</span>(chain_dir=<span class="s">"receipts/"</span>, key_path=<span class="s">"keys/signing.key"</span>)
+<span class="k">def</span> transform_clean(records):
+    <span class="k">return</span> [r <span class="k">for</span> r <span class="k">in</span> records <span class="k">if</span> r.get(<span class="s">"campaign_name"</span>)]</code></pre>
+    <p>The wrapped function takes and returns either a list of dicts or a pandas DataFrame. Frames are hashed as records (with <code>NaN</code> canonicalized to null) and pass through untouched, so you can keep working in pandas and still sign every step.</p>
+    <div class="callout warn">
+      <span class="co-label">ChainTailMismatch</span>
+      <p>If the data handed to a wrapped stage does not match the previous stage's output, the wrapper raises <code>ChainTailMismatch</code> <em>before</em> running your code. That is the guard working as intended: it means something fed the stage data that did not come from the chain. Re-run the pipeline from ingest.</p>
+    </div>
+
+    <h2 id="js-step">JavaScript: <code>receiptStep</code></h2>
+    <p>The same idea, async, returning a function you await.</p>
+    <pre><code><span class="k">import</span> { receiptStep, loadCsv } <span class="k">from</span> <span class="s">"tamper-signal"</span>;
+
+<span class="k">const</span> clean = receiptStep(
+  (records) => records.filter((r) => r.campaign_name !== null),
+  { chainDir: <span class="s">"receipts/"</span>, keyPath: <span class="s">"keys/signing.key"</span>, codeFile: <span class="s">"pipeline.js"</span> }
+);
+
+<span class="k">const</span> output = <span class="k">await</span> clean(loadCsv(<span class="s">"export.csv"</span>));</code></pre>
+
+    <h2 id="js-helpers">JavaScript building blocks</h2>
+    <p>The npm package exposes the pieces directly so you can compose a pipeline without the CLI. TypeScript declarations ship for every entry point.</p>
+    <div class="tbl-scroll">
+      <table class="ref">
+        <thead><tr><th>Function</th><th>What it does</th></tr></thead>
+        <tbody>
+          <tr><td><code>loadCsv(path)</code></td><td>Read a <code>.csv</code> / <code>.tsv</code> / <code>.json</code> / <code>.ndjson</code> file into records. (No xlsx; convert first or ingest once with Python.)</td></tr>
+          <tr><td><code>ingestFile({ file, origin, chainDir, keyPath })</code></td><td>Reset the chain and write the source receipt. The JS counterpart to <code>receipts ingest</code>.</td></tr>
+          <tr><td><code>receiptStep(fn, opts)</code></td><td>Wrap a transform so it signs and appends a receipt.</td></tr>
+          <tr><td><code>rebuildChain({ file, stages, chainDir, keyPath })</code></td><td>Re-ingest the source and replay every stage from a clean tail. The idempotent way to rebuild when data changes.</td></tr>
+          <tr><td><code>canonicalDocument(records)</code></td><td>Produce the canonical attested table. Write it to <code>table.json</code> for the data tab.</td></tr>
+          <tr><td><code>verifyChain({ chainDir, pub, data })</code></td><td>Verify in process; returns the same structured verdict as the CLI.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 id="rebuild">Rebuilding idempotently</h3>
+    <p>Pipelines re-run whenever the source changes. Appending to an existing chain would stack stale receipts, so reset first. Two equivalent patterns:</p>
+    <pre><code><span class="c">// Option 1: one call rebuilds the whole chain</span>
+<span class="k">await</span> rebuildChain({
+  file: <span class="s">"export.csv"</span>,
+  stages: [clean, aggregate],
+  chainDir: <span class="s">"receipts/"</span>,
+  keyPath: <span class="s">"keys/signing.key"</span>,
+});
+
+<span class="c">// Option 2: compose by hand</span>
+<span class="k">await</span> ingestFile({ file: <span class="s">"export.csv"</span>, origin: <span class="s">"export"</span>, chainDir: <span class="s">"receipts/"</span>, keyPath: <span class="s">"keys/signing.key"</span> });
+<span class="k">let</span> records = loadCsv(<span class="s">"export.csv"</span>);
+records = <span class="k">await</span> clean(records);
+records = <span class="k">await</span> aggregate(records);</code></pre>
+
+    <h3 id="table">Emit the data tab table</h3>
+    <pre><code><span class="k">import</span> { writeFileSync } <span class="k">from</span> <span class="s">"node:fs"</span>;
+<span class="k">import</span> { canonicalDocument } <span class="k">from</span> <span class="s">"tamper-signal"</span>;
+
+writeFileSync(
+  <span class="s">"public/receipts/table.json"</span>,
+  JSON.stringify(canonicalDocument(finalRecords), null, 2) + <span class="s">"\n"</span>
+);</code></pre>
+
+    <h2 id="receipt-shape">What a receipt holds</h2>
+    <p>You will rarely open one by hand, but it helps to know the shape. A transform receipt records the link to the previous stage, the code that ran, and the totals.</p>
+    <pre><code>{
+  <span class="s">"kind"</span>: <span class="s">"transform_receipt"</span>,
+  <span class="s">"spec_version"</span>: <span class="s">"1.1"</span>,
+  <span class="s">"transform"</span>: {
+    <span class="s">"name"</span>: <span class="s">"transform_clean"</span>,
+    <span class="s">"code_hash"</span>: <span class="s">"&lt;sha256 of the function source&gt;"</span>,
+    <span class="s">"code_file"</span>: <span class="s">"pipeline.py"</span>
+  },
+  <span class="s">"input_semantic_hash"</span>: <span class="s">"&lt;must equal prior output hash&gt;"</span>,
+  <span class="s">"output_semantic_hash"</span>: <span class="s">"…"</span>,
+  <span class="s">"output_control_totals"</span>: {
+    <span class="s">"row_count"</span>: 48190,
+    <span class="s">"numeric_sums"</span>: { <span class="s">"spend_(usd)"</span>: <span class="s">"98342.62"</span> },
+    <span class="s">"null_counts"</span>: { <span class="s">"campaign_name"</span>: 0 }
+  },
+  <span class="s">"signature"</span>: { <span class="s">"alg"</span>: <span class="s">"ed25519"</span>, <span class="s">"key_fingerprint"</span>: <span class="s">"…"</span>, <span class="s">"value"</span>: <span class="s">"…"</span> }
+}</code></pre>
+    <div class="callout note">
+      <span class="co-label">Column names for metric flagging</span>
+      <p>The keys under <code>numeric_sums</code> and <code>null_counts</code> are the normalized column names (lowercased, spaces to underscores). Those exact strings are what you pass to <code>data-receipt-column</code> when you want the signal to flag a broken metric in place. See <a href="/docs/mounting.html#flagging">Mounting the signal</a>.</p>
+    </div>
+
+    <div class="doc-next">
+      <a class="dn-l" href="/docs/cli.html">
+        <span class="dn-label">← Back</span>
+        <span class="dn-title">CLI</span>
+      </a>
+      <a class="dn-r" href="/docs/mounting.html">
+        <span class="dn-label">Next →</span>
+        <span class="dn-title">Mounting the signal</span>
+      </a>
+    </div>
+  </main>
+</div>
+
+<footer>
+  <div class="wrap">
+    <span>MIT licensed</span>
+    <span>·</span>
+    <a href="https://github.com/welovejeff/tamper-evident-verification">github.com/welovejeff/tamper-evident-verification</a>
+    <span>·</span>
+    <a href="/">tampersignal.com</a>
+  </div>
+</footer>
+
+<script>
+  const menuBtn = document.querySelector(".menu-btn");
+  const siteNav = document.getElementById("site-nav");
+  if (menuBtn && siteNav) {
+    menuBtn.addEventListener("click", () => {
+      const open = siteNav.classList.toggle("open");
+      menuBtn.setAttribute("aria-expanded", String(open));
+    });
+    siteNav.addEventListener("click", (e) => {
+      if (e.target.tagName === "A") { siteNav.classList.remove("open"); menuBtn.setAttribute("aria-expanded", "false"); }
+    });
+  }
+  const sideToggle = document.querySelector(".side-toggle");
+  const docsSide = document.querySelector(".docs-side");
+  if (sideToggle && docsSide) {
+    sideToggle.addEventListener("click", () => {
+      const open = docsSide.classList.toggle("open");
+      sideToggle.setAttribute("aria-expanded", String(open));
+    });
+  }
+</script>
+
+</body>
+</html>

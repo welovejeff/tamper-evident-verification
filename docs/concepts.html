@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Core concepts · Tamper Signal docs</title>
+<meta name="description" content="The mental model behind Tamper Signal: receipts, the chain, evidence and semantic hashes, control totals, the traffic light, and anchors. Explained with seals, notaries, and chains of custody." />
+<meta property="og:title" content="Core concepts · Tamper Signal docs" />
+<meta property="og:description" content="The mental model behind Tamper Signal, explained with seals, notaries, and chains of custody." />
+<meta property="og:image" content="https://tampersignal.com/docs/media/og-card.png" />
+<link rel="canonical" href="https://tampersignal.com/docs/concepts.html" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='%2334d399'/%3E%3C/svg%3E" />
+<link rel="stylesheet" href="docs.css" />
+</head>
+<body>
+
+<div class="top">
+  <div class="wrap">
+    <a class="logo-stacked" href="/" aria-label="Tamper Signal — home">
+      <span class="ls-rail" aria-hidden="true"><i class="r"></i><i class="y"></i><i class="g"></i></span>
+      <span class="ls-words">TAMPER<br>SIGNAL</span>
+    </a>
+    <button class="menu-btn" type="button" aria-expanded="false" aria-controls="site-nav">menu <span class="mb-caret">▾</span></button>
+    <nav id="site-nav">
+      <a href="/#demo">live demo</a>
+      <a href="/#how">how it works</a>
+      <a href="/docs/" aria-current="location">docs</a>
+      <a href="/blog/">blog</a>
+      <a href="https://github.com/welovejeff/tamper-evident-verification">github</a>
+    </nav>
+  </div>
+</div>
+
+<div class="docs-shell">
+  <aside class="docs-side">
+    <button class="side-toggle" type="button" aria-expanded="false">On this site <span class="st-caret" aria-hidden="true">▾</span></button>
+    <div class="side-inner">
+      <div class="side-group">
+        <p class="side-label">Start here</p>
+        <ul>
+          <li><a href="/docs/">Overview</a></li>
+          <li><a href="/docs/concepts.html" aria-current="page">Core concepts</a></li>
+          <li><a href="/docs/quickstart.html">Quickstart</a></li>
+        </ul>
+      </div>
+      <div class="side-group">
+        <p class="side-label">Reference</p>
+        <ul>
+          <li><a href="/docs/cli.html">CLI</a></li>
+          <li><a href="/docs/api.html">Python &amp; JS API</a></li>
+          <li><a href="/docs/mounting.html">Mounting the signal</a></li>
+        </ul>
+      </div>
+      <div class="side-group">
+        <p class="side-label">Going deeper</p>
+        <ul>
+          <li><a href="/docs/advanced.html">Power user</a></li>
+        </ul>
+      </div>
+    </div>
+  </aside>
+
+  <main class="docs-main">
+    <a class="doc-back" href="/docs/">← Docs home</a>
+    <p class="doc-kicker">Core concepts</p>
+    <h1>The mental model</h1>
+    <p class="lede">Before any command, the idea. Tamper Signal borrows three things you already trust in the physical world: a receipt, a tamper-evident seal, and a chain of custody. Hold those pictures in your head and the rest of the tool reads like common sense.</p>
+
+    <div class="honesty">
+      <span class="co-label">The one boundary that matters</span>
+      <p>Tamper Signal proves <strong>continuity, not correctness</strong>. It can prove nobody changed your data between the source and the dashboard. It cannot tell you the source was right to begin with. Keep that line bright and everything else falls into place.</p>
+    </div>
+
+    <h2 id="receipt">The receipt</h2>
+    <p>Every time a stage of your pipeline runs, it hands you a <strong>receipt</strong>: a small signed record that says "here is the data I received, here is the code I ran on it, and here is exactly what I produced." It is a plain file on disk. No database, no server, no account.</p>
+
+    <div class="analogy">
+      <p class="an-head">Think of it like</p>
+      <div class="an-body">
+        <p>A receipt from a shop. It does not promise the milk was fresh. It promises that on this date, this register, run by this cashier, rang up these exact items for this exact total. Months later you can hold it up and check the arithmetic.</p>
+      </div>
+      <p class="an-map"><strong>data received</strong> = the items rung in &nbsp;·&nbsp; <strong>code that ran</strong> = the cashier &nbsp;·&nbsp; <strong>data produced</strong> = the printed total &nbsp;·&nbsp; <strong>signature</strong> = the register's stamp that says this slip is genuine</p>
+    </div>
+
+    <p>A receipt captures four things: a fingerprint of the data going in, a fingerprint of the code, a fingerprint of the data coming out, and a set of human-legible totals. Then it signs the whole record so it cannot be quietly edited later.</p>
+
+    <h2 id="chain">The chain</h2>
+    <p>One receipt is interesting. A <strong>chain</strong> of them is the whole point. The receipts link because each stage's input fingerprint must equal the previous stage's output fingerprint. Stage two received exactly what stage one produced, stage three received exactly what stage two produced, all the way to the dashboard.</p>
+
+    <div class="analogy">
+      <p class="an-head">Think of it like</p>
+      <div class="an-body">
+        <p>A chain of custody for evidence. Every person who touches the bag signs and dates the label, and each signature has to match the handoff before it. If one link is missing or the seal was broken between two signatures, the custody is compromised, and you know the exact handoff where it happened.</p>
+      </div>
+      <p class="an-map"><strong>each handoff</strong> = a pipeline stage &nbsp;·&nbsp; <strong>matching signatures</strong> = input hash equals prior output hash &nbsp;·&nbsp; <strong>a broken seal</strong> = a hash that does not match &nbsp;·&nbsp; the chain has exactly two honest endings: <strong>intact</strong> or <strong>broken at a named link</strong></p>
+    </div>
+
+    <p>To verify, the tool walks the chain link by link, checking every signature and every join. The chain file (<code>chain.json</code>) is just the ordered list of receipts plus the public key they were signed with. The first receipt is special: it is the source.</p>
+
+    <h2 id="hashes">Two fingerprints: evidence and semantic</h2>
+    <p>A "fingerprint" here is a hash: a short string that changes completely if the thing it describes changes by even one byte. Tamper Signal takes <strong>two</strong> fingerprints of your data, because there are two different questions worth answering.</p>
+
+    <h3>Evidence hash: is this the same file?</h3>
+    <p>The <strong>evidence hash</strong> is taken once, at ingest, over the raw bytes of the original export, exactly as it left the source system. It is never recomputed downstream. It pins the original artifact in place.</p>
+
+    <h3>Semantic hash: is this the same data?</h3>
+    <p>The <strong>semantic hash</strong> is taken over the <em>meaning</em> of the data after a careful canonicalization, so it stays stable even if you re-save the file or convert formats. An xlsx export and a CSV copy of the same rows produce the same semantic hash. Row order is deliberately not part of it (rows are sorted before hashing), and numeric-looking text hashes as the number it parses to, so a typeless format like CSV cannot move the hash on its own.</p>
+
+    <div class="analogy">
+      <p class="an-head">Think of it like</p>
+      <div class="an-body">
+        <p>Two ways to recognize a person. The <strong>evidence hash</strong> is a photograph of them in the exact coat they wore that day: change the coat and the photo no longer matches. The <strong>semantic hash</strong> is their actual fingerprint: the same person in any coat, any lighting, still matches. You want both. One proves you have the original file; the other proves you have the same data even after it has been re-wrapped.</p>
+      </div>
+      <p class="an-map"><strong>evidence hash</strong> answers "is this the same file" &nbsp;·&nbsp; <strong>semantic hash</strong> answers "is this the same data"</p>
+    </div>
+
+    <h2 id="totals">Control totals</h2>
+    <p>A hash is binary. It says the data changed; it will not say how. That is what <strong>control totals</strong> are for: a handful of human-legible aggregates recorded in every receipt. Row counts, sums of numeric columns, date ranges, null counts.</p>
+
+    <div class="analogy">
+      <p class="an-head">Think of it like</p>
+      <div class="an-body">
+        <p>The subtotal line at the bottom of the receipt. The register stamp tells you the slip is genuine. The subtotal tells you the order came to forty-eight dollars, not fifty. When a chain breaks, the hashes say <em>broken</em>, and the totals say <em>by how much</em>: <code>row_count 48212 -&gt; 48190 (-22)</code>. Twenty-two rows went missing at this exact stage.</p>
+      </div>
+      <p class="an-map"><strong>hashes</strong> say the chain is broken &nbsp;·&nbsp; <strong>control totals</strong> say how broken, in numbers a human can read</p>
+    </div>
+
+    <h2 id="the-light">The light</h2>
+    <p>All of that machinery collapses into one glanceable verdict: <strong>the light</strong>. It is the user-facing answer, expressed as a traffic light, and it is the only thing most people will ever look at.</p>
+
+    <div class="verdict"><span class="lt g"></span><p><strong>Green.</strong> Every link verifies and every signature checks. The data made it from the source to the dashboard unchanged. <em>The light is green, the data is clean.</em></p></div>
+    <div class="verdict"><span class="lt y"></span><p><strong>Yellow.</strong> Verifiable, but with caveats worth a human glance: a gap in receipt coverage, a signing key you did not pre-trust, or control-total drift you asked to be warned about. <em>The light is yellow, a human should look.</em></p></div>
+    <div class="verdict"><span class="lt r"></span><p><strong>Red.</strong> The chain is broken at a specific link, and you get the stage, the expected and found fingerprints, and the totals delta. <em>The light is red, the chain is broken.</em></p></div>
+
+    <p>Yellow never blames; it asks. Red does not panic; it points. The same three states show up everywhere: as CLI exit codes (<code>0</code> green, <code>2</code> yellow, <code>1</code> red), as the badge on a dashboard, and as the inline status light.</p>
+
+    <h2 id="signing-key">The signing key</h2>
+    <p>A receipt is only trustworthy because it is signed. Signing uses an Ed25519 keypair: a <strong>private key</strong> that only you hold and that produces signatures, and a <strong>public key</strong> that anyone can use to recognize them. The private key never leaves your control and never belongs in the repository; the public key is safe to publish.</p>
+
+    <div class="analogy">
+      <p class="an-head">Think of it like</p>
+      <div class="an-body">
+        <p>A wax seal and the signet ring that makes it. Only the ring's owner can press a genuine seal, but anyone who has seen it can recognize one at a glance. The ring stays on your hand (the private key); a picture of the seal goes to everyone who needs to check your letters (the public key).</p>
+      </div>
+      <p class="an-map"><strong>private key</strong> = the signet ring, kept on your hand &nbsp;·&nbsp; <strong>public key</strong> = the picture of the seal you hand out &nbsp;·&nbsp; rotating keys just means handing out a new picture while old letters still verify</p>
+    </div>
+
+    <h2 id="anchor">The anchor</h2>
+    <p>The local key is the day-to-day root of trust, but it has one gap: whoever holds the private key could re-sign a whole new chain and call it the original. An <strong>anchor</strong> closes that gap for the moments that matter. It records your chain in an external, append-only public log (a Sigstore transparency log) under your identity, witnessed independently of your key.</p>
+
+    <div class="analogy">
+      <p class="an-head">Think of it like</p>
+      <div class="an-body">
+        <p>Getting a document notarized and time-stamped at the courthouse. The notary does not vouch that the contract is wise. They vouch that this exact document existed, in this exact form, on this date, witnessed by someone who is not you. Later, even you cannot quietly swap in a different version and pretend it was always there.</p>
+      </div>
+      <p class="an-map"><strong>anchor</strong> = a public, independent witness that this exact chain existed at this time &nbsp;·&nbsp; it proves existence-at-a-time, never correctness, and says nothing about the moments before it</p>
+    </div>
+
+    <h2 id="canon">Spec version and golden vectors</h2>
+    <p>Two supporting ideas keep the fingerprints honest across time and across languages.</p>
+    <p>The <strong>spec version</strong> is the edition of the canonicalization rulebook, recorded in every receipt. If the rules for turning data into bytes ever change, the version bumps and receipts regenerate. Old chains still verify internally, and the recorded version explains any before-and-after difference.</p>
+    <p><strong>Golden vectors</strong> are the reference standard: known inputs paired with the exact canonical bytes and hash they must produce. Every implementation, the Python core, the Node port, the in-browser verifier, has to reproduce them byte for byte. If a port ever drifts, a test fails loudly instead of a user seeing a false tamper verdict.</p>
+
+    <div class="analogy">
+      <p class="an-head">Think of it like</p>
+      <div class="an-body">
+        <p>The reference kilogram once kept in Paris. Every scale in the world had to agree with that one bar. Golden vectors are the reference bar for canonicalization: Python, JavaScript, and the browser all weigh against the same standard, so a chain signed in one stack verifies in another.</p>
+      </div>
+      <p class="an-map"><strong>spec version</strong> = which edition of the rulebook was used &nbsp;·&nbsp; <strong>golden vectors</strong> = the shared reference standard every implementation must match</p>
+    </div>
+
+    <hr />
+
+    <h2 id="recap">Putting it together</h2>
+    <p>A source file is ingested and gets its evidence and semantic fingerprints plus a source receipt. Each transform is wrapped so it signs a receipt linking its input to the previous output. The receipts form a chain. Verification walks the chain and reduces it to a light: green if every link holds, yellow if something deserves a glance, red at the exact link that broke, with the totals delta to show what moved. Optionally, an anchor witnesses the whole chain in public. Through all of it, the claim never changes: it cannot tell you the data is right, but it can prove nobody changed it.</p>
+
+    <div class="callout key">
+      <span class="co-label">Vocabulary, in one place</span>
+      <p><strong>Receipt</strong> a signed record of one stage. <strong>Chain</strong> the linked sequence. <strong>Evidence hash</strong> the original file's fingerprint. <strong>Semantic hash</strong> the data's fingerprint, stable across formats. <strong>Control totals</strong> the human-legible aggregates. <strong>The light</strong> the traffic-light verdict. <strong>Anchor</strong> the public witness. <strong>Spec version</strong> the rulebook edition. <strong>Golden vectors</strong> the cross-language reference standard.</p>
+    </div>
+
+    <div class="doc-next">
+      <a class="dn-l" href="/docs/">
+        <span class="dn-label">← Back</span>
+        <span class="dn-title">Docs home</span>
+      </a>
+      <a class="dn-r" href="/docs/quickstart.html">
+        <span class="dn-label">Next →</span>
+        <span class="dn-title">Quickstart: your first verified chain</span>
+      </a>
+    </div>
+  </main>
+</div>
+
+<footer>
+  <div class="wrap">
+    <span>MIT licensed</span>
+    <span>·</span>
+    <a href="https://github.com/welovejeff/tamper-evident-verification">github.com/welovejeff/tamper-evident-verification</a>
+    <span>·</span>
+    <a href="/">tampersignal.com</a>
+  </div>
+</footer>
+
+<script>
+  const menuBtn = document.querySelector(".menu-btn");
+  const siteNav = document.getElementById("site-nav");
+  if (menuBtn && siteNav) {
+    menuBtn.addEventListener("click", () => {
+      const open = siteNav.classList.toggle("open");
+      menuBtn.setAttribute("aria-expanded", String(open));
+    });
+    siteNav.addEventListener("click", (e) => {
+      if (e.target.tagName === "A") { siteNav.classList.remove("open"); menuBtn.setAttribute("aria-expanded", "false"); }
+    });
+  }
+  const sideToggle = document.querySelector(".side-toggle");
+  const docsSide = document.querySelector(".docs-side");
+  if (sideToggle && docsSide) {
+    sideToggle.addEventListener("click", () => {
+      const open = docsSide.classList.toggle("open");
+      sideToggle.setAttribute("aria-expanded", String(open));
+    });
+  }
+</script>
+
+</body>
+</html>
