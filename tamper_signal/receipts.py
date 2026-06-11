@@ -11,6 +11,7 @@ receipt object minus its `signature` block.
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 import inspect
 import json
 from pathlib import Path
@@ -212,12 +213,27 @@ def read_chain(chain_path: str) -> dict[str, Any]:
     return json.loads(Path(chain_path).read_text(encoding="utf-8"))
 
 
+def receipt_file_hashes(chain_dir: str, receipt_files: list[str]) -> dict[str, str]:
+    """sha256 of each receipt file's raw bytes, keyed by filename."""
+    return {
+        name: hashlib.sha256((Path(chain_dir) / name).read_bytes()).hexdigest()
+        for name in receipt_files
+    }
+
+
 def write_chain(chain_dir: str, receipt_files: list[str], public_hex: str) -> Path:
-    """Write/overwrite chain.json listing receipt files plus the public key."""
+    """Write/overwrite chain.json listing receipt files plus the public key.
+
+    chain.json records the sha256 of each receipt file so it commits to the
+    receipt contents, not just their names: anchoring chain.json then
+    transitively witnesses every receipt. The receipt files must already be
+    on disk (every caller writes receipts before the chain).
+    """
     chain = {
         "spec_version": SPEC_VERSION,
         "public_key": public_hex,
         "receipts": receipt_files,
+        "receipt_hashes": receipt_file_hashes(chain_dir, receipt_files),
     }
     path = Path(chain_dir) / CHAIN_FILENAME
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -264,6 +280,7 @@ class ChainResult:
         # Structured failure details for machine consumers (verify --json).
         self.broken_link_detail: dict[str, Any] | None = None
         self.data_mismatch: dict[str, Any] | None = None
+        self.receipt_mismatch: list[str] | None = None  # files vs chain.json hashes
 
     @property
     def verdict(self) -> str:
@@ -342,6 +359,8 @@ def verify_chain(
     chain_public_hex: str | None = None,
     receipt_names: list[str] | None = None,
     warn_drift: bool = False,
+    recorded_hashes: dict[str, str] | None = None,
+    actual_hashes: dict[str, str] | None = None,
 ) -> ChainResult:
     """Verify signatures, links, and (optionally) a current-data hash.
 
@@ -367,12 +386,33 @@ def verify_chain(
     - warn_drift: flag any control-totals movement across intact links as a
       caveat. Off by default because filters and aggregations legitimately
       move totals; turn it on for pipelines expected to preserve them.
+    - recorded_hashes / actual_hashes: the receipt-file sha256 map chain.json
+      records and the one computed from the files on disk. A mismatch means a
+      receipt was rewritten after chain.json was: red, at the exact file.
+      Chains written before hashes were recorded pass None and skip the check.
     """
     result = ChainResult()
 
     if not receipts:
         result.fail("✗ CHAIN EMPTY: no receipts to verify")
         return result
+
+    # 0) Receipt files against the hashes chain.json records. This is what
+    # lets an anchored chain.json transitively witness receipt contents.
+    if recorded_hashes is not None and actual_hashes is not None:
+        mismatched = [
+            name
+            for name in (receipt_names or [])
+            if actual_hashes.get(name) != recorded_hashes.get(name)
+        ]
+        if mismatched:
+            result.receipt_mismatch = mismatched
+            for name in mismatched:
+                result.fail(
+                    f"✗ RECEIPT FILE MISMATCH: {name} does not match the hash "
+                    "recorded in chain.json; the receipt was rewritten after the chain was"
+                )
+            return result
 
     # 1) Signatures, against the trusted keys first, the chain key as fallback.
     trusted = _as_trusted_keys(public_hex)

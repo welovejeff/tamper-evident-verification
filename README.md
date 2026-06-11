@@ -162,7 +162,7 @@ The light answers "is it fine?"; the console answers "where, exactly, and by how
 
 ## Anchoring (optional)
 
-`pip install "tamper-signal[anchor]"`, then `receipts anchor` signs the exact bytes of chain.json into the public Sigstore transparency log under your OIDC identity (browser login locally, automatic in GitHub Actions). `receipts verify --anchor` then proves this exact chain existed at the logged time, independent of the signing key, closing the "whoever holds the key can quietly re-sign everything" gap for the moments that matter. A missing anchor is a yellow caveat; a chain that changed after anchoring is red.
+`pip install "tamper-signal[anchor]"`, then `receipts anchor` signs the exact bytes of chain.json into the public Sigstore transparency log under your OIDC identity (browser login locally, automatic in GitHub Actions). Because chain.json records the sha256 of every receipt file, the anchor covers the receipts themselves, not just their names. `receipts verify --anchor` then proves this exact chain, receipts included, existed at the logged time, independent of the signing key, closing the "whoever holds the key can quietly re-sign everything" gap for the moments that matter. A missing anchor is a yellow caveat; a chain that changed after anchoring is red.
 
 ## What this proves, and what it doesn't
 

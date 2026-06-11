@@ -108,6 +108,7 @@ def verify_anchor(
     *,
     identity: str | None = None,
     issuer: str | None = None,
+    allow_staging: bool = False,
 ) -> dict[str, Any]:
     """Verify the anchor next to chain.json against the current bytes.
 
@@ -135,6 +136,15 @@ def verify_anchor(
     if not isinstance(record, dict):
         return {**failed, "error": "anchor record is not a JSON object"}
     instance = "staging" if record.get("instance") == "staging" else "production"
+    # The record is untrusted, so it must not get to pick a weaker trust root:
+    # staging anchors verify only when the caller opts in.
+    if instance == "staging" and not allow_staging:
+        return {
+            **failed,
+            "instance": instance,
+            "error": "anchor was made against the Sigstore staging instance; "
+            "pass --anchor-staging to accept it",
+        }
     expected_identity = identity or record.get("identity")
     expected_issuer = issuer or record.get("issuer")
     if not expected_identity:

@@ -134,18 +134,34 @@ export async function verifySignature(receipt, pubKeyHex) {
 // could make the viewer's browser fetch arbitrary / cross-origin resources.
 const SAFE_RECEIPT_NAME = /^[A-Za-z0-9._-]+$/;
 
+async function sha256Hex(buf) {
+  const digest = await crypto.subtle.digest("SHA-256", buf);
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 export async function loadChain(chainUrl) {
   const base = new URL(chainUrl, window.location.href);
   const chain = await (await fetch(base)).json();
+  // Newer chains record each receipt file's sha256; enforcing it here mirrors
+  // the CLI verifiers, so an anchored chain.json transitively witnesses the
+  // receipt contents. Older chains (no receipt_hashes) skip the check.
+  const recorded =
+    chain.receipt_hashes && typeof chain.receipt_hashes === "object" ? chain.receipt_hashes : null;
+  const canHash = Boolean(recorded && globalThis.crypto && crypto.subtle);
   const receipts = [];
+  const receiptMismatches = [];
   for (const name of chain.receipts || []) {
     if (typeof name !== "string" || !SAFE_RECEIPT_NAME.test(name)) {
       throw new Error("unsafe receipt name in chain: " + name);
     }
     const url = new URL(name, base);
-    receipts.push(await (await fetch(url)).json());
+    // Fetch raw bytes so the receipt hashes exactly as it sits on disk, then
+    // parse the same bytes.
+    const buf = await (await fetch(url)).arrayBuffer();
+    if (canHash && (await sha256Hex(buf)) !== recorded[name]) receiptMismatches.push(name);
+    receipts.push(JSON.parse(new TextDecoder().decode(buf)));
   }
-  return { chain, receipts };
+  return { chain, receipts, receiptMismatches };
 }
 
 // Gaps in the generated NNN_ receipt numbering, mirroring tamper_signal/receipts.py's
@@ -176,7 +192,9 @@ export function coverageGaps(receiptNames) {
 // embedded in chain.json means the chain is internally consistent but vouched
 // for by a key the caller does not trust (yellow), not broken (red).
 export async function checkSignatures(receipts, trustedKeyHex, chainKeyHex) {
-  // trustedKeyHex may be a single key or a list (key rotation).
+  // trustedKeyHex may be a single key or a list (key rotation). This inlines
+  // _as_trusted_keys (tamper_signal/receipts.py) / asTrustedKeys
+  // (node/receipts.js); update all three in lockstep.
   const trusted = (Array.isArray(trustedKeyHex) ? trustedKeyHex : [trustedKeyHex]).filter(Boolean);
   let valid = true;
   let unrecognized = false;
@@ -241,9 +259,9 @@ export function evaluate(receipts) {
 // legitimately move totals).
 export async function verifyReceipts(chainUrl, pubKeyHex, opts = {}) {
   const verifiedAt = new Date().toISOString();
-  let chain, receipts;
+  let chain, receipts, receiptMismatches;
   try {
-    ({ chain, receipts } = await loadChain(chainUrl));
+    ({ chain, receipts, receiptMismatches } = await loadChain(chainUrl));
   } catch (_e) {
     return { state: "unverifiable", reason: "could not load chain", caveats: [], verifiedAt };
   }
@@ -276,6 +294,14 @@ export async function verifyReceipts(chainUrl, pubKeyHex, opts = {}) {
   summary.origin = (source && source.source.declared_origin) || "source";
   summary.finalRows = totalsOf(receipts[receipts.length - 1]).row_count;
   summary.transforms = receipts.filter((r) => r.kind === "transform_receipt").length;
+
+  if (receiptMismatches && receiptMismatches.length) {
+    return {
+      ...summary,
+      state: "red",
+      reason: `receipt file mismatch at ${receiptMismatches.join(", ")}`,
+    };
+  }
 
   const trustedKey = pubKeyHex || chain.public_key;
   const sigResult = await checkSignatures(receipts, trustedKey, chain.public_key);

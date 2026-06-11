@@ -281,3 +281,123 @@ def test_env_key_empty_string_falls_back_to_file(tmp_path, monkeypatch):
     monkeypatch.setenv("TAMPER_SIGNAL_KEY", "")
     key = load_private_key(str(tmp_path / "keys" / "signing.key"))
     assert public_hex_from_private(key) == expected
+
+
+def test_env_key_override_is_announced(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    generate_keys(str(tmp_path / "keys"))
+    monkeypatch.setenv("TAMPER_SIGNAL_KEY", (tmp_path / "keys" / "signing.key").read_text())
+    (tmp_path / "e.csv").write_text("a,b\n1,2\n", encoding="utf-8")
+    assert main(["ingest", "e.csv", "--origin", "t", "--key", "ghost.key", "--out", "receipts/"]) == 0
+    assert "TAMPER_SIGNAL_KEY" in capsys.readouterr().err
+
+
+# ---------------------------------------------------------------------------
+# 14. chain.json commits to receipt contents (what makes anchoring meaningful)
+# ---------------------------------------------------------------------------
+def test_receipt_rewritten_after_chain_is_red(tmp_path, monkeypatch, capsys):
+    # The re-signing attack: regenerate a receipt under the same key with the
+    # same filename. chain.json's recorded hash no longer matches: red.
+    monkeypatch.chdir(tmp_path)
+    _seed(tmp_path)
+    receipt_path = tmp_path / "receipts" / SOURCE_RECEIPT_NAME
+    private = load_private_key(str(tmp_path / "keys" / "signing.key"))
+    records = sample_records()[:-1]  # the "tampered" data: one row dropped
+    receipt = build_source_manifest(
+        filename="s.xlsx", evidence_hash="00", byte_size=1, declared_origin="t",
+        semantic_hash=semantic_hash(records), records=records, private_key=private,
+    )  # re-signed under the same key, same filename: internally valid
+    receipt_path.write_text(json.dumps(receipt, indent=2) + "\n", encoding="utf-8")
+
+    code = main(["verify", "receipts/chain.json", "--json"])
+    payload = json.loads(capsys.readouterr().out)
+    assert code == 1
+    assert payload["verdict"] == "red"
+    assert payload["receipt_mismatch"] == [SOURCE_RECEIPT_NAME]
+    assert any("RECEIPT FILE MISMATCH" in line for line in payload["report"])
+
+
+def test_old_chain_without_receipt_hashes_still_verifies(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    _seed(tmp_path)
+    chain_path = tmp_path / "receipts" / "chain.json"
+    chain = json.loads(chain_path.read_text(encoding="utf-8"))
+    del chain["receipt_hashes"]  # chains written before 1.5.0
+    chain_path.write_text(json.dumps(chain, indent=2) + "\n", encoding="utf-8")
+    assert main(["verify", "receipts/chain.json"]) == 0
+    assert "CHAIN INTACT" in capsys.readouterr().out
+
+
+def test_anchor_on_old_chain_warns_it_covers_chain_json_only(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    _seed(tmp_path)
+    chain_path = tmp_path / "receipts" / "chain.json"
+    chain = json.loads(chain_path.read_text(encoding="utf-8"))
+    del chain["receipt_hashes"]
+    chain_path.write_text(json.dumps(chain, indent=2) + "\n", encoding="utf-8")
+    (tmp_path / "receipts" / "anchor.json").write_text("{}", encoding="utf-8")
+
+    import tamper_signal.anchor as anchor_mod
+
+    monkeypatch.setattr(anchor_mod, "verify_anchor", lambda chain_path, **kw: {
+        "ok": True, "instance": "production", "identity": "me@example.com",
+        "issuer": None, "integrated_time": "2026-06-11T00:00:00Z", "error": None,
+    })
+    code = main(["verify", "receipts/chain.json", "--anchor"])
+    out = capsys.readouterr().out
+    assert code == 2
+    assert "anchor covers chain.json only" in out
+
+
+def test_staging_anchor_rejected_without_optin(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    _seed(tmp_path)
+    (tmp_path / "receipts" / "anchor.json").write_text(
+        json.dumps({"instance": "staging", "identity": "x", "bundle": {}}), encoding="utf-8"
+    )
+
+    from tamper_signal.anchor import verify_anchor
+
+    info = verify_anchor("receipts/chain.json")
+    assert info["ok"] is False
+    assert "--anchor-staging" in info["error"]
+    assert info["instance"] == "staging"
+
+
+def test_pinned_identity_is_reported_as_pinned(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    _seed(tmp_path)
+    (tmp_path / "receipts" / "anchor.json").write_text("{}", encoding="utf-8")
+
+    import tamper_signal.anchor as anchor_mod
+
+    monkeypatch.setattr(anchor_mod, "verify_anchor", lambda chain_path, **kw: {
+        "ok": True, "instance": "production", "identity": "me@example.com",
+        "issuer": None, "integrated_time": "2026-06-11T00:00:00Z", "error": None,
+    })
+    assert main(["verify", "receipts/chain.json", "--anchor"]) == 0
+    assert "pin with --anchor-identity" in capsys.readouterr().out
+    assert main([
+        "verify", "receipts/chain.json", "--anchor", "--anchor-identity", "me@example.com",
+    ]) == 0
+    assert "identity me@example.com, pinned" in capsys.readouterr().out
+
+
+def test_anchor_command_json_output(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    _seed(tmp_path)
+
+    import tamper_signal.anchor as anchor_mod
+
+    monkeypatch.setattr(anchor_mod, "anchor_chain", lambda chain_path, staging=False: {
+        "anchored": "chain.json", "instance": "production", "identity": "me@example.com",
+        "issuer": "https://github.com/login/oauth", "integrated_time": "2026-06-11T00:00:00Z",
+        "bundle": {"big": "blob"},
+    })
+    code = main(["anchor", "--chain", "receipts/chain.json", "--json"])
+    payload = json.loads(capsys.readouterr().out)
+    assert code == 0
+    assert payload["ok"] is True
+    assert payload["identity"] == "me@example.com"
+    assert "bundle" not in payload
+    assert payload["anchor_path"].endswith("anchor.json")

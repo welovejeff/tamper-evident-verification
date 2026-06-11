@@ -21,6 +21,9 @@ import {
   buildSourceManifest,
   readChain,
   readReceipt,
+  receiptFileHashes,
+  stageNameOf,
+  totalsOf,
   verifyChain,
   writeChain,
   writeReceipt,
@@ -34,7 +37,7 @@ commands:
   ingest <file> --origin "..." [--key keys/signing.key] [--out receipts/]
                                              create a signed source manifest
                                              (.csv, .tsv, .json, .ndjson)
-  verify <chain.json> [--pub key.pub ...] [--data <file>] [--warn-drift]
+  verify <chain.json> [--pub key.pub ...] [--data <file>] [--warn-drift] [--json]
                                              verify a chain (exit 0 green, 1 red, 2 yellow)
 `;
 
@@ -63,6 +66,10 @@ function cmdIngest(args) {
   }
   const raw = readFileSync(file);
   const records = loadRecords(file);
+  if (process.env.TAMPER_SIGNAL_KEY) {
+    // The env var silently outranks --key; say so where it matters.
+    console.error("Signing with TAMPER_SIGNAL_KEY from the environment (overrides --key)");
+  }
   const privateKey = loadPrivateKey(values.key);
   const manifest = buildSourceManifest({
     filename: basename(file),
@@ -92,6 +99,7 @@ function cmdVerify(args) {
       pub: { type: "string", multiple: true },
       data: { type: "string" },
       "warn-drift": { type: "boolean", default: false },
+      json: { type: "boolean", default: false },
     },
   });
   const chainPath = positionals[0];
@@ -133,13 +141,40 @@ function cmdVerify(args) {
     dataTotals = controlTotals(records);
   }
 
+  // Chains that record receipt hashes get them enforced; older chains skip.
+  const recordedHashes =
+    chain.receipt_hashes && typeof chain.receipt_hashes === "object" ? chain.receipt_hashes : null;
+  const actualHashes = recordedHashes ? receiptFileHashes(chainDir, chain.receipts ?? []) : null;
+
   const result = verifyChain(receipts, publicHex, dataHash, dataTotals, {
     chainPublicHex: chainKey,
     receiptNames: chain.receipts ?? [],
     warnDrift: values["warn-drift"],
+    recordedHashes,
+    actualHashes,
   });
-  for (const line of result.lines) console.log(line);
-  return { green: 0, red: 1, yellow: 2 }[result.verdict];
+  const code = { green: 0, red: 1, yellow: 2 }[result.verdict];
+  if (values.json) {
+    // Same payload shape as the Python CLI's verify --json (AGENTS.md step 5).
+    const payload = {
+      verdict: result.verdict,
+      exit_code: code,
+      spec_version: chain.spec_version ?? null,
+      receipts: receipts.length,
+      transforms: receipts.filter((r) => r.kind === "transform_receipt").length,
+      stages: receipts.map(stageNameOf),
+      final_row_count: receipts.length ? (totalsOf(receipts[receipts.length - 1]).row_count ?? null) : null,
+      caveats: result.caveats,
+      broken_link: result.brokenLinkDetail,
+      data_mismatch: result.dataMismatch,
+      receipt_mismatch: result.receiptMismatch,
+      report: result.lines,
+    };
+    console.log(JSON.stringify(payload, null, 2));
+  } else {
+    for (const line of result.lines) console.log(line);
+  }
+  return code;
 }
 
 const [, , command, ...rest] = process.argv;

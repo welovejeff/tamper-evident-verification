@@ -73,6 +73,11 @@ same package: `tamper-signal/light`, `tamper-signal/badge`,
 `tamper-signal/element`, `tamper-signal/react`. JS reads .csv/.tsv/.json/
 .ndjson; only the Python side reads .xlsx.
 
+CI signing works here too: `TAMPER_SIGNAL_KEY` (PEM contents of the private
+key) wins over any key path, same semantics as the Python side (step 5).
+`tamper-signal verify --json` emits the same structured verdict as the
+Python CLI.
+
 ## 2. Scaffold the project (once)
 
 ```bash
@@ -140,9 +145,9 @@ CI signing: set `TAMPER_SIGNAL_KEY` to the PEM contents of the private key
 on disk. The env var wins over any `--key` path while set. The Node CLI
 (`tamper-signal ingest`) honors the same env var with the same precedence.
 
-Add `--json` to get a structured verdict instead of the text report
-(Python `receipts` CLI only; `tamper-signal verify` in Node emits the text
-report and the same exit codes). Parse this rather than scraping text:
+Add `--json` to get a structured verdict instead of the text report (both
+CLIs: `receipts verify --json` and `tamper-signal verify --json` emit the
+same payload). Parse this rather than scraping text:
 
 ```json
 {
@@ -162,17 +167,21 @@ report and the same exit codes). Parse this rather than scraping text:
     "totals_delta": ["row_count 4987 -> 304 (-4683)"]
   },
   "data_mismatch": null,
+  "receipt_mismatch": null,
   "report": ["human-legible lines"],
   "anchor": ["anchor report lines; present only when --anchor is passed"]
 }
 ```
 
-`broken_link` and `data_mismatch` are null unless the verdict is red, and
-both stay null when red comes from an anchor mismatch (the chain itself is
-intact; the reason is in `anchor` and `report`). With `--anchor`, the
-`anchor` array is added and the anchor outcome is folded into `verdict`,
-`exit_code`, `caveats`, and `report` (a missing anchor turns a green run
-yellow; a mismatch turns it red), so the payload never contradicts itself.
+`broken_link`, `data_mismatch`, and `receipt_mismatch` are null unless the
+verdict is red, and all three stay null when red comes from an anchor
+mismatch (the chain itself is intact; the reason is in `anchor` and
+`report`). `receipt_mismatch` lists receipt files that no longer match the
+sha256 chain.json records for them: a receipt was rewritten after the chain
+was. With `--anchor`, the `anchor` array is added and the anchor outcome is
+folded into `verdict`, `exit_code`, `caveats`, and `report` (a missing
+anchor turns a green run yellow; a mismatch turns it red), so the payload
+never contradicts itself.
 
 ### CI: verify the chain on every push
 
@@ -221,12 +230,23 @@ an ambient OIDC credential makes it non-interactive. Outside CI it opens a
 browser login and blocks until a human completes it; do not invoke it from
 an unattended session.
 
+The anchor covers receipt contents, not just names: chain.json records the
+sha256 of every receipt file, and `verify` enforces those hashes, so a
+receipt re-signed after anchoring is red even though chain.json itself did
+not change. Chains written before 1.5.0 carry no receipt hashes; anchoring
+them yields a yellow "anchor covers chain.json only" caveat until the
+pipeline re-runs.
+
 `anchor.json` (next to chain.json) records the Sigstore bundle plus the
 identity and issuer used; `verify --anchor` enforces that identity, reports
 the logged time on success, exits 2 when no anchor exists, and exits 1 when
-the chain changed after anchoring. To pin whose anchor is acceptable instead
-of trusting the recorded one, pass `--anchor-identity` (and optionally
-`--anchor-issuer`); in CI that looks like:
+the chain changed after anchoring. `receipts anchor --json` emits the anchor
+record (identity, issuer, integrated time) as JSON for CI logs. An anchor
+made with `--staging` is rejected at verify time unless you pass
+`--anchor-staging`, so the anchor file cannot pick a weaker trust root. To
+pin whose anchor is acceptable instead of trusting the recorded one, pass
+`--anchor-identity` (and optionally `--anchor-issuer`); in CI that looks
+like:
 
 ```bash
 receipts verify receipts/chain.json --anchor \
