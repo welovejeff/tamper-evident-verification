@@ -380,7 +380,8 @@ and badge.js beside it) and write one tag:
 ```
 
 Attributes mirror the options: `pub-key`, `watch`, `warn-drift`,
-`receipts-href`, `theme`.
+`receipts-href`, `surface` (`"light"` default or `"dark"` for a dark host;
+`theme` is the deprecated alias).
 
 Prefer the one-call attach helpers; each serves the receipts directory AND
 the bundled browser assets, and returns a `snippet` to render once in the
@@ -427,9 +428,10 @@ the directory on localhost with CORS open and caching off.
 
 Placement: the right end of the host header, after the host's own controls.
 The pill is intentionally dark and mono; do not restyle it to match the host
-theme (on a dark host, pass `{ theme: "light" }` instead). Options on the
-fourth argument: `watch` (re-verify every N ms), `warnDrift`, `receiptsHref`,
-`theme`.
+(on a dark host, pass `{ surface: "dark" }` so it inverts to a light pill).
+Options on the fourth argument: `watch` (re-verify every N ms), `warnDrift`,
+`receiptsHref`, `surface` (`"light"` default / `"dark"`; the old `theme:
+"light"` still works as the `surface: "dark"` alias).
 
 The expandable badge (`renderReceiptBadge(el, "/receipts/chain.json")`) is the
 alternative for pages with room for a full-width strip.

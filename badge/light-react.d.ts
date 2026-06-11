@@ -15,8 +15,15 @@ export interface TamperSignalProps {
   /** href for the popover's "view receipts" link. */
   receiptsHref?: string;
   /**
-   * "light" renders a light pill, intended for a DARK host page. On a light
-   * host, omit it -- the default dark pill is correct there.
+   * The HOST page's surface ("light" default, or "dark"). On a dark host the
+   * pill inverts to a light pill. Pick this to match what you see.
+   */
+  surface?: "light" | "dark";
+  /** Boolean shortcut for `surface="dark"`. */
+  invert?: boolean;
+  /**
+   * @deprecated Use `surface`. `theme="light"` == `surface="dark"` (a light
+   * pill, for a dark host). Kept working for back-compat.
    */
   theme?: "light" | "dark";
 }

@@ -4,13 +4,14 @@
 //   <TamperSignal chain="/receipts/chain.json" />
 //
 // Props mirror mountTamperSignal: chain (required), pubKey, watch, warnDrift,
-// receiptsHref, theme. This file assumes a bundler that resolves "react";
-// light.js itself has no dependencies and works from a plain script tag.
+// receiptsHref, surface, invert (theme is the deprecated alias of surface).
+// This file assumes a bundler that resolves "react"; light.js itself has no
+// dependencies and works from a plain script tag.
 
 import { createElement, useEffect, useRef } from "react";
 import { mountTamperSignal } from "./light.js";
 
-export function TamperSignal({ chain, pubKey, watch, warnDrift, receiptsHref, theme }) {
+export function TamperSignal({ chain, pubKey, watch, warnDrift, receiptsHref, surface, invert, theme }) {
   const ref = useRef(null);
   useEffect(() => {
     if (!ref.current) return undefined;
@@ -18,9 +19,11 @@ export function TamperSignal({ chain, pubKey, watch, warnDrift, receiptsHref, th
       watch,
       warnDrift,
       receiptsHref,
+      surface,
+      invert,
       theme,
     });
     return () => handle.destroy();
-  }, [chain, pubKey, watch, warnDrift, receiptsHref, theme]);
+  }, [chain, pubKey, watch, warnDrift, receiptsHref, surface, invert, theme]);
   return createElement("span", { ref });
 }

@@ -17,8 +17,14 @@
 //     watch        re-verify every N ms and pulse on state transitions
 //     warnDrift    flag any control-totals movement across links as a caveat
 //     receiptsHref href for the popover's "view receipts" link (default: chainUrl)
-//     theme        "dark" (default) or "light"; the pill should be the one
-//                  foreign object on the page, so invert it on dark hosts
+//     surface      the HOST page's surface: "light" (default) or "dark". The
+//                  pill should be the one foreign object on the page, so on a
+//                  "dark" host it inverts to a light pill. Pick this to match
+//                  what you see -- "dark" on a dark dashboard.
+//     invert       boolean shortcut for surface: "dark".
+//     theme        DEPRECATED pill-colour prop. theme: "light" == surface:
+//                  "dark" (a light pill, for a dark host). Prefer `surface`;
+//                  the name invited the opposite of what you want.
 //
 // States: checking (boot), green, yellow, red, and unverifiable (fetch failed
 // or no Web Crypto Ed25519). Unverifiable is a capability fallback, not a
@@ -30,6 +36,17 @@
 // Mapping DOM nodes to chain columns is the host author's one manual step.
 
 import { verifyReceipts, SHORT, totalsOf, stageNameOf, outputHashOf } from "./badge.js";
+
+// Whether to render the inverted (light) pill, for a dark host page. `surface`
+// describes the host ("light" | "dark"); `invert` is its boolean shortcut;
+// `theme: "light"` is the deprecated pill-colour prop kept working for
+// back-compat. Exported so it can be unit-tested without a DOM.
+export function shouldInvertPill({ surface, invert, theme } = {}) {
+  if (surface === "dark") return true;
+  if (surface === "light") return false;
+  if (invert === true) return true;
+  return theme === "light"; // legacy alias
+}
 
 let uid = 0;
 
@@ -240,7 +257,7 @@ export function mountTamperSignal(hostEl, chainUrl, pubKeyHex, opts) {
 
   const root = el("span", { className: "lr-light", id }, [pill, pop]);
   root.dataset.state = "checking";
-  if (opts.theme === "light") root.dataset.theme = "light";
+  if (shouldInvertPill(opts)) root.dataset.theme = "light";
   hostEl.appendChild(root);
 
   // --- popover open/close ---
