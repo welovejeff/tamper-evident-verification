@@ -794,7 +794,9 @@
     const REPO = "welovejeff/tamper-evident-verification";
     const CACHE_KEY = "ts-gh-stars";
     const show = (n) => {
-      out.textContent = Number(n).toLocaleString();
+      const value = Number(n);
+      if (!Number.isFinite(value)) return; // ignore corrupt cache / bad input
+      out.textContent = value.toLocaleString();
       wrap.hidden = false;
     };
     try {
