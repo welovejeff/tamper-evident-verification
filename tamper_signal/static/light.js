@@ -103,6 +103,13 @@ function injectLightStyles() {
     color:var(--lr-text);font:12px/1.55 inherit;font-family:inherit;text-align:left;
     box-shadow:0 16px 48px rgba(4,8,14,0.45);z-index:2147483000;display:none}
   .lr-light .lr-pop.lr-open{display:block}
+  /* On narrow screens the pill can sit anywhere in a wrapped header, so an
+     anchored popover clips at the viewport edge; pin it as a bottom sheet. */
+  @media (max-width: 600px){
+    .lr-light .lr-pop{position:fixed;left:10px;right:10px;top:auto;bottom:14px;
+      width:auto;max-width:none}
+    .lr-light .lr-pop::before{display:none}
+  }
   .lr-light .lr-pop-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px;background:var(--lr-chrome);
     border-bottom:1px solid var(--lr-border);border-radius:10px 10px 0 0;padding:9px 14px;font-size:11px}
   .lr-light .lr-wordmark{color:var(--lr-dim);letter-spacing:1px}
