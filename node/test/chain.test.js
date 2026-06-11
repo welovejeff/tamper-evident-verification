@@ -108,6 +108,19 @@ test("rotated trusted-key sets verify chains signed under the old key", async ()
   assert.equal(verifyChain(receipts, [newHex]).verdict, "red");
 });
 
+test("unrecognized signing key with a trusted set is yellow and names the keyset", () => {
+  const { chainDir, publicHex } = setup();
+  const otherDir = mkdtempSync(join(tmpdir(), "tamper-signal-rot-"));
+  generateKeys(otherDir);
+  const newHex = publicHexFromPrivate(loadPrivateKey(join(otherDir, "signing.key")));
+
+  const receipts = loadReceipts(chainDir);
+  // Verifies under the chain-embedded key but not the trusted set: yellow.
+  const result = verifyChain(receipts, [newHex], null, null, { chainPublicHex: publicHex });
+  assert.equal(result.verdict, "yellow");
+  assert.match(result.caveats[0], /1 trusted key/);
+});
+
 test("TAMPER_SIGNAL_KEY env supplies the signing key", () => {
   const dir = mkdtempSync(join(tmpdir(), "tamper-signal-env-"));
   generateKeys(dir);

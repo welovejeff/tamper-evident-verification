@@ -3,6 +3,9 @@
 # legacy console encoding.
 name: test
 
+permissions:
+  contents: read
+
 on:
   push:
     branches: ["main"]

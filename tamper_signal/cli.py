@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 from .canonical import (
@@ -92,6 +93,12 @@ def cmd_verify(args: argparse.Namespace) -> int:
     public_hex: str | list[str] | None
     if args.pub:
         public_hex = [load_public_key_hex(path) for path in args.pub]
+        # An empty key file must not silently shrink the trusted set: the
+        # filtered-out key would fall back to the chain-embedded key instead.
+        empty = [path for path, key in zip(args.pub, public_hex) if not key]
+        if empty:
+            print(f"Empty public key file passed to --pub: {', '.join(empty)}", file=sys.stderr)
+            return 1
     else:
         public_hex = chain_key
     if not public_hex:
@@ -146,7 +153,7 @@ def cmd_verify(args: argparse.Namespace) -> int:
             payload["verdict"] = {0: "green", 1: "red", 2: "yellow"}[code]
             payload["report"] = payload["report"] + anchor_lines
             payload["caveats"] = payload["caveats"] + [
-                line.lstrip("⚠ ") for line in anchor_lines if line.startswith("⚠")
+                line.removeprefix("⚠ ") for line in anchor_lines if line.startswith("⚠")
             ]
         print(_json.dumps(payload, indent=2))
     else:
@@ -392,6 +399,9 @@ def cmd_anchor(args: argparse.Namespace) -> int:
     except AnchorUnavailable as exc:
         print(str(exc), file=sys.stderr)
         return 1
+    except Exception as exc:  # noqa: BLE001 - OIDC/network failures get a clean line, not a traceback
+        print(f"Anchor failed: {exc}", file=sys.stderr)
+        return 1
     print(f"⚓ Anchored {record['anchored']} in the Sigstore {record['instance']} log")
     print(f"  identity {record['identity']} (issuer {record['issuer']})")
     print(f"  integrated at {record['integrated_time'] or '(pending)'}")
@@ -400,7 +410,7 @@ def cmd_anchor(args: argparse.Namespace) -> int:
     return 0
 
 
-def _check_anchor(args: argparse.Namespace, code: int, emit) -> int:
+def _check_anchor(args: argparse.Namespace, code: int, emit: Callable[[str], None]) -> int:
     """Fold anchor verification into the verify verdict and exit code."""
     from .anchor import AnchorUnavailable, anchor_path_for, verify_anchor
 
@@ -413,10 +423,16 @@ def _check_anchor(args: argparse.Namespace, code: int, emit) -> int:
     except AnchorUnavailable as exc:
         emit(f"⚠ anchor present but not checkable: {exc}")
         return max(code, 2) if code != 1 else code
+    except Exception as exc:  # noqa: BLE001
+        # Transport/TUF failures mean "could not check", not "tampered":
+        # an offline machine or a Sigstore outage must never read as red.
+        emit(f"⚠ anchor present but not checkable: {exc}")
+        return max(code, 2) if code != 1 else code
     if info["ok"]:
+        log_name = "Sigstore staging log" if info.get("instance") == "staging" else "Sigstore log"
         emit(
             f"⚓ anchored: this exact chain existed at {info['integrated_time']} "
-            f"(Sigstore log, identity {info['identity']})"
+            f"({log_name}, identity {info['identity']})"
         )
         return code
     emit(

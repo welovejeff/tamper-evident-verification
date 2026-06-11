@@ -137,10 +137,12 @@ a list the same way (the `<tamper-signal>` element takes a space-separated
 
 CI signing: set `TAMPER_SIGNAL_KEY` to the PEM contents of the private key
 (a repo secret) and the wrapper, ingest, and export sign without a key file
-on disk. The env var wins over any `--key` path while set.
+on disk. The env var wins over any `--key` path while set. The Node CLI
+(`tamper-signal ingest`) honors the same env var with the same precedence.
 
-Add `--json` to get a structured verdict instead of the text report. Parse
-this rather than scraping text:
+Add `--json` to get a structured verdict instead of the text report
+(Python `receipts` CLI only; `tamper-signal verify` in Node emits the text
+report and the same exit codes). Parse this rather than scraping text:
 
 ```json
 {
@@ -160,15 +162,17 @@ this rather than scraping text:
     "totals_delta": ["row_count 4987 -> 304 (-4683)"]
   },
   "data_mismatch": null,
-  "report": ["human-legible lines"]
+  "report": ["human-legible lines"],
+  "anchor": ["anchor report lines; present only when --anchor is passed"]
 }
 ```
 
-`broken_link` and `data_mismatch` are null unless the verdict is red. With
-`--anchor`, an `anchor` array of report lines is added and the anchor outcome
-is folded into `verdict`, `exit_code`, `caveats`, and `report` (a missing
-anchor turns a green run yellow; a mismatch turns it red), so the payload
-never contradicts itself.
+`broken_link` and `data_mismatch` are null unless the verdict is red, and
+both stay null when red comes from an anchor mismatch (the chain itself is
+intact; the reason is in `anchor` and `report`). With `--anchor`, the
+`anchor` array is added and the anchor outcome is folded into `verdict`,
+`exit_code`, `caveats`, and `report` (a missing anchor turns a green run
+yellow; a mismatch turns it red), so the payload never contradicts itself.
 
 ### CI: verify the chain on every push
 
@@ -212,12 +216,27 @@ receipts anchor                       # browser login locally; automatic in GitH
 receipts verify receipts/chain.json --anchor
 ```
 
+Agent note: run `receipts anchor` in CI (GitHub Actions and similar), where
+an ambient OIDC credential makes it non-interactive. Outside CI it opens a
+browser login and blocks until a human completes it; do not invoke it from
+an unattended session.
+
 `anchor.json` (next to chain.json) records the Sigstore bundle plus the
 identity and issuer used; `verify --anchor` enforces that identity, reports
 the logged time on success, exits 2 when no anchor exists, and exits 1 when
-the chain changed after anchoring. Re-anchor after every pipeline run that
-changes the chain. Honest scope: an anchor proves this exact chain existed
-at the logged time under the recorded identity, nothing more.
+the chain changed after anchoring. To pin whose anchor is acceptable instead
+of trusting the recorded one, pass `--anchor-identity` (and optionally
+`--anchor-issuer`); in CI that looks like:
+
+```bash
+receipts verify receipts/chain.json --anchor \
+  --anchor-identity "https://github.com/OWNER/REPO/.github/workflows/anchor.yml@refs/heads/main" \
+  --anchor-issuer "https://token.actions.githubusercontent.com"
+```
+
+Re-anchor after every pipeline run that changes the chain. Honest scope: an
+anchor proves this exact chain existed at the logged time under the recorded
+identity, nothing more.
 
 ## 6. Add the signal to the host UI
 

@@ -171,8 +171,9 @@ def test_verify_anchor_json_payload_stays_consistent(tmp_path, monkeypatch, caps
     assert any("no anchor" in line for line in payload["report"])
 
 
-def test_malformed_anchor_fails_closed(tmp_path, monkeypatch, capsys):
-    pytest.importorskip("sigstore", reason="anchor parsing path needs sigstore")
+def test_malformed_anchor_fails_closed_without_sigstore(tmp_path, monkeypatch, capsys):
+    # The parse and identity checks run before the sigstore import, so a
+    # corrupt anchor is red even on a plain `pip install tamper-signal`.
     monkeypatch.chdir(tmp_path)
     _seed(tmp_path)
     (tmp_path / "receipts" / "anchor.json").write_text("not json", encoding="utf-8")
@@ -181,7 +182,102 @@ def test_malformed_anchor_fails_closed(tmp_path, monkeypatch, capsys):
 
     from tamper_signal.anchor import verify_anchor
 
+    (tmp_path / "receipts" / "anchor.json").write_text("[1, 2, 3]", encoding="utf-8")
+    info = verify_anchor("receipts/chain.json")
+    assert info["ok"] is False and "not a JSON object" in info["error"]
+
+    (tmp_path / "receipts" / "anchor.json").write_text('{"bundle": {}}', encoding="utf-8")
+    info = verify_anchor("receipts/chain.json")
+    assert info["ok"] is False and "no identity" in info["error"]
+
+
+def test_malformed_anchor_bundle_fails_closed(tmp_path, monkeypatch):
+    pytest.importorskip("sigstore", reason="bundle parsing needs sigstore")
+    monkeypatch.chdir(tmp_path)
+    _seed(tmp_path)
+
+    from tamper_signal.anchor import verify_anchor
+
     (tmp_path / "receipts" / "anchor.json").write_text('{"identity": "x", "bundle": 42}', encoding="utf-8")
     info = verify_anchor("receipts/chain.json")
     assert info["ok"] is False and "malformed" in info["error"]
-    assert set(info) == {"ok", "identity", "issuer", "integrated_time", "error"}
+    assert set(info) == {"ok", "instance", "identity", "issuer", "integrated_time", "error"}
+
+
+def test_anchor_unavailable_with_anchor_present_is_yellow(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    _seed(tmp_path)
+    (tmp_path / "receipts" / "anchor.json").write_text("{}", encoding="utf-8")
+
+    import tamper_signal.anchor as anchor_mod
+
+    def _raise(chain_path, **kw):
+        raise anchor_mod.AnchorUnavailable("library unavailable")
+
+    monkeypatch.setattr(anchor_mod, "verify_anchor", _raise)
+    assert main(["verify", "receipts/chain.json", "--anchor"]) == 2
+    assert "not checkable" in capsys.readouterr().out
+
+
+def test_anchor_network_failure_is_yellow_not_red(tmp_path, monkeypatch, capsys):
+    # A Sigstore outage or offline machine means "could not check", never red.
+    monkeypatch.chdir(tmp_path)
+    _seed(tmp_path)
+    (tmp_path / "receipts" / "anchor.json").write_text("{}", encoding="utf-8")
+
+    import tamper_signal.anchor as anchor_mod
+
+    def _raise(chain_path, **kw):
+        raise RuntimeError("TUF metadata download failed")
+
+    monkeypatch.setattr(anchor_mod, "verify_anchor", _raise)
+    assert main(["verify", "receipts/chain.json", "--anchor"]) == 2
+    assert "not checkable" in capsys.readouterr().out
+
+
+def test_red_chain_with_anchor_stays_red(tmp_path, monkeypatch, capsys):
+    # Anchor folding must never soften a broken chain from red to yellow.
+    monkeypatch.chdir(tmp_path)
+    _seed(tmp_path)
+    receipt_path = tmp_path / "receipts" / SOURCE_RECEIPT_NAME
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    receipt["semantic_hash"] = "0" * 64  # breaks the signature
+    receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+    assert main(["verify", "receipts/chain.json", "--anchor"]) == 1
+
+
+def test_verify_anchor_ok_json_payload_is_green(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    _seed(tmp_path)
+    (tmp_path / "receipts" / "anchor.json").write_text("{}", encoding="utf-8")
+
+    import tamper_signal.anchor as anchor_mod
+
+    monkeypatch.setattr(anchor_mod, "verify_anchor", lambda chain_path, **kw: {
+        "ok": True, "instance": "production", "identity": "me@example.com",
+        "issuer": "https://github.com/login/oauth",
+        "integrated_time": "2026-06-11T00:00:00Z", "error": None,
+    })
+    code = main(["verify", "receipts/chain.json", "--anchor", "--json"])
+    payload = json.loads(capsys.readouterr().out)
+    assert code == 0
+    assert payload["verdict"] == "green" and payload["exit_code"] == 0
+    assert any("⚓ anchored" in line for line in payload["anchor"])
+    assert not any("anchor" in c for c in payload["caveats"])
+
+
+def test_empty_pub_file_is_an_error(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    _seed(tmp_path)
+    empty = tmp_path / "empty.pub"
+    empty.write_text("", encoding="utf-8")
+    assert main(["verify", "receipts/chain.json", "--pub", str(empty)]) == 1
+    assert "Empty public key" in capsys.readouterr().err
+
+
+def test_env_key_empty_string_falls_back_to_file(tmp_path, monkeypatch):
+    generate_keys(str(tmp_path / "keys"))
+    expected = public_hex_from_private(load_private_key(str(tmp_path / "keys" / "signing.key")))
+    monkeypatch.setenv("TAMPER_SIGNAL_KEY", "")
+    key = load_private_key(str(tmp_path / "keys" / "signing.key"))
+    assert public_hex_from_private(key) == expected

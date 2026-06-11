@@ -34,7 +34,7 @@ commands:
   ingest <file> --origin "..." [--key keys/signing.key] [--out receipts/]
                                              create a signed source manifest
                                              (.csv, .tsv, .json, .ndjson)
-  verify <chain.json> [--pub key.pub] [--data <file>] [--warn-drift]
+  verify <chain.json> [--pub key.pub ...] [--data <file>] [--warn-drift]
                                              verify a chain (exit 0 green, 1 red, 2 yellow)
 `;
 
@@ -111,6 +111,15 @@ function cmdVerify(args) {
 
   const chainKey = chain.public_key;
   const publicHex = values.pub?.length ? values.pub.map(loadPublicKeyHex) : chainKey;
+  if (Array.isArray(publicHex)) {
+    // An empty key file must not silently shrink the trusted set: the
+    // filtered-out key would fall back to the chain-embedded key instead.
+    const empty = values.pub.filter((path, i) => !publicHex[i]);
+    if (empty.length) {
+      console.error(`Empty public key file passed to --pub: ${empty.join(", ")}`);
+      return 1;
+    }
+  }
   if (!publicHex || (Array.isArray(publicHex) && !publicHex.length)) {
     console.error("No public key: pass --pub or embed one in chain.json");
     return 1;
