@@ -10,26 +10,57 @@
     "url": "git+https://github.com/welovejeff/tamper-evident-verification.git"
   },
   "exports": {
-    ".": "./node/index.js",
-    "./light": "./badge/light.js",
-    "./badge": "./badge/badge.js",
-    "./element": "./badge/element.js",
-    "./table": "./badge/table.js",
-    "./console": "./badge/console.js",
-    "./express": "./node/express.js",
-    "./react": "./badge/light-react.js"
+    ".": {
+      "types": "./node/index.d.ts",
+      "default": "./node/index.js"
+    },
+    "./light": {
+      "types": "./badge/light.d.ts",
+      "default": "./badge/light.js"
+    },
+    "./badge": {
+      "types": "./badge/badge.d.ts",
+      "default": "./badge/badge.js"
+    },
+    "./element": {
+      "types": "./badge/element.d.ts",
+      "default": "./badge/element.js"
+    },
+    "./table": {
+      "types": "./badge/table.d.ts",
+      "default": "./badge/table.js"
+    },
+    "./console": {
+      "types": "./badge/console.d.ts",
+      "default": "./badge/console.js"
+    },
+    "./express": {
+      "types": "./node/express.d.ts",
+      "default": "./node/express.js"
+    },
+    "./react": {
+      "types": "./badge/light-react.d.ts",
+      "default": "./badge/light-react.js"
+    }
   },
   "bin": {
     "tamper-signal": "node/cli.js"
   },
   "files": [
     "node/",
+    "types/",
     "badge/badge.js",
+    "badge/badge.d.ts",
     "badge/light.js",
+    "badge/light.d.ts",
     "badge/element.js",
+    "badge/element.d.ts",
     "badge/table.js",
+    "badge/table.d.ts",
     "badge/console.js",
+    "badge/console.d.ts",
     "badge/light-react.js",
+    "badge/light-react.d.ts",
     "AGENTS.md"
   ],
   "scripts": {

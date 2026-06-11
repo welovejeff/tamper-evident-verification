@@ -281,6 +281,12 @@ header:
 React hosts: `import { TamperSignal } from "tamper-signal/react"` (or vendor
 `badge/light-react.js`), then `<TamperSignal chain="/receipts/chain.json" />`.
 
+TypeScript: every subpath ships hand-written declarations (`types` conditions
+in the `exports` map), so imports like `tamper-signal/react`, `/table`, and
+`/light` resolve with no `TS7016`. The browser subpaths need only DOM types;
+the Node entries (`.`, `/express`) expect `@types/node` as a normal Node
+project already has.
+
 Any other framework, or plain HTML: the web component. Import
 `tamper-signal/element` (or vendor `badge/element.js`, which needs light.js
 and badge.js beside it) and write one tag:
