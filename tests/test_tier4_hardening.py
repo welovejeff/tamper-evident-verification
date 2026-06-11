@@ -383,6 +383,24 @@ def test_pinned_identity_is_reported_as_pinned(tmp_path, monkeypatch, capsys):
     assert "identity me@example.com, pinned" in capsys.readouterr().out
 
 
+def test_der_utf8_decodes_certificate_issuer_extension():
+    # Fulcio's V2 issuer extension is a DER UTF8String; the recorded issuer
+    # must be the certificate's (e.g. GitHub for federated browser logins),
+    # not the token's federation URL, or verification rejects good anchors.
+    from tamper_signal.anchor import _der_utf8
+
+    issuer = "https://github.com/login/oauth"
+    der = bytes([0x0C, len(issuer)]) + issuer.encode()
+    assert _der_utf8(der) == issuer
+    long_value = "x" * 200
+    der_long = bytes([0x0C, 0x81, len(long_value)]) + long_value.encode()
+    assert _der_utf8(der_long) == long_value
+    longer_value = "y" * 300  # two length bytes (0x82)
+    der_longer = bytes([0x0C, 0x82]) + len(longer_value).to_bytes(2, "big") + longer_value.encode()
+    assert _der_utf8(der_longer) == longer_value
+    assert _der_utf8(b"plain") == "plain"  # non-DER input passes through
+
+
 def test_anchor_command_json_output(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
     _seed(tmp_path)

@@ -454,7 +454,7 @@ def cmd_anchor(args: argparse.Namespace) -> int:
         return 0
     print(f"⚓ Anchored {record['anchored']} in the Sigstore {record['instance']} log")
     print(f"  identity {record['identity']} (issuer {record['issuer']})")
-    print(f"  integrated at {record['integrated_time'] or '(pending)'}")
+    print(f"  integrated at {record['integrated_time'] or '(time not recorded by this log)'}")
     print(f"  anchor record -> {anchor_path_for(args.chain)}")
     print("Re-run after every pipeline run that changes the chain; verify with: receipts verify --anchor")
     return 0
@@ -497,8 +497,9 @@ def _check_anchor(
     if info["ok"]:
         log_name = "Sigstore staging log" if info.get("instance") == "staging" else "Sigstore log"
         pin = "pinned" if identity else "recorded in anchor; pin with --anchor-identity"
+        when = info["integrated_time"] or "the logged time"
         emit(
-            f"⚓ anchored: this exact chain existed at {info['integrated_time']} "
+            f"⚓ anchored: this exact chain existed at {when} "
             f"({log_name}, identity {info['identity']}, {pin})"
         )
         if not covers_receipts:

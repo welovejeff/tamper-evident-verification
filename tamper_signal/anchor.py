@@ -48,6 +48,49 @@ def anchor_path_for(chain_path: str) -> Path:
     return Path(chain_path).parent / ANCHOR_FILENAME
 
 
+_OIDC_ISSUER_V2_OID = "1.3.6.1.4.1.57264.1.8"
+_OIDC_ISSUER_LEGACY_OID = "1.3.6.1.4.1.57264.1.1"
+
+
+def _der_utf8(raw: bytes) -> str:
+    """Decode a DER-encoded UTF8String (tag 0x0c, length, content)."""
+    if len(raw) >= 2 and raw[0] == 0x0C:
+        if raw[1] < 0x80:  # short-form length
+            return raw[2 : 2 + raw[1]].decode("utf-8")
+        num = raw[1] & 0x7F  # long form: number of length bytes follows
+        if 1 <= num <= 4 and len(raw) >= 2 + num:
+            length = int.from_bytes(raw[2 : 2 + num], "big")
+            return raw[2 + num : 2 + num + length].decode("utf-8")
+    return raw.decode("utf-8")
+
+
+def _certificate_issuer(bundle: Any) -> str | None:
+    """The OIDC issuer Fulcio embedded in the signing certificate.
+
+    This is what identity policies compare against at verify time, and for
+    browser logins federated through the Sigstore OAuth server (GitHub,
+    Google, Microsoft) it is the upstream issuer, NOT the federation URL the
+    token itself carries. Recording anything else makes verification fail
+    against a perfectly good anchor.
+    """
+    from cryptography import x509
+
+    try:
+        cert = bundle.signing_certificate
+        try:
+            ext = cert.extensions.get_extension_for_oid(
+                x509.ObjectIdentifier(_OIDC_ISSUER_V2_OID)
+            )
+            return _der_utf8(ext.value.value)
+        except x509.ExtensionNotFound:
+            ext = cert.extensions.get_extension_for_oid(
+                x509.ObjectIdentifier(_OIDC_ISSUER_LEGACY_OID)
+            )
+            return ext.value.value.decode("utf-8")  # legacy: raw bytes, no DER
+    except Exception:  # noqa: BLE001 - issuer is best-effort metadata here
+        return None
+
+
 def _integrated_time_iso(bundle: Any) -> str | None:
     entry = getattr(bundle, "log_entry", None)
     epoch = getattr(entry, "integrated_time", None)
@@ -90,7 +133,7 @@ def anchor_chain(chain_path: str, *, staging: bool = False) -> dict[str, Any]:
         "anchored": str(Path(chain_path).name),
         "instance": "staging" if staging else "production",
         "identity": token.identity,
-        "issuer": token.issuer,
+        "issuer": _certificate_issuer(bundle) or token.issuer,
         "integrated_time": _integrated_time_iso(bundle),
         "bundle": json.loads(bundle.to_json()),
     }
