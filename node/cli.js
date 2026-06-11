@@ -89,7 +89,7 @@ function cmdVerify(args) {
     args,
     allowPositionals: true,
     options: {
-      pub: { type: "string" },
+      pub: { type: "string", multiple: true },
       data: { type: "string" },
       "warn-drift": { type: "boolean", default: false },
     },
@@ -110,8 +110,8 @@ function cmdVerify(args) {
   }
 
   const chainKey = chain.public_key;
-  const publicHex = values.pub ? loadPublicKeyHex(values.pub) : chainKey;
-  if (!publicHex) {
+  const publicHex = values.pub?.length ? values.pub.map(loadPublicKeyHex) : chainKey;
+  if (!publicHex || (Array.isArray(publicHex) && !publicHex.length)) {
     console.error("No public key: pass --pub or embed one in chain.json");
     return 1;
   }

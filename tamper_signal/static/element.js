@@ -7,7 +7,8 @@
 //
 // Attributes (all but `chain` optional):
 //   chain          URL of chain.json (required; nothing mounts without it)
-//   pub-key        trusted public key hex; defaults to the chain's embedded key
+//   pub-key        trusted public key hex (space or comma separated list for
+//                  key rotation); defaults to the chain's embedded key
 //   watch          re-verify every N milliseconds
 //   warn-drift     present = flag any control-totals movement across links
 //   receipts-href  href for the popover's "view receipts" link
@@ -61,7 +62,9 @@ class TamperSignalElement extends HTMLElement {
     const chain = this.getAttribute("chain");
     if (!chain) return; // nothing to verify yet; attribute may arrive later
     const watch = Number(this.getAttribute("watch"));
-    this._handle = mountTamperSignal(this, chain, this.getAttribute("pub-key") || undefined, {
+    const pubAttr = (this.getAttribute("pub-key") || "").trim();
+    const pubKeys = pubAttr ? pubAttr.split(/[\s,]+/) : undefined;
+    this._handle = mountTamperSignal(this, chain, pubKeys && pubKeys.length === 1 ? pubKeys[0] : pubKeys, {
       watch: Number.isFinite(watch) && watch > 0 ? watch : undefined,
       warnDrift: this.hasAttribute("warn-drift"),
       receiptsHref: this.getAttribute("receipts-href") || undefined,

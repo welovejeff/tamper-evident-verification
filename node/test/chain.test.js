@@ -2,7 +2,7 @@
 // verify green; tamper -> red; foreign input -> ChainTailMismatch.
 
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -94,4 +94,29 @@ test("foreign input is refused before the transform runs", async () => {
   );
   await assert.rejects(step([{ not: "the chain tail" }]), ChainTailMismatch);
   assert.equal(ran, false);
+});
+
+test("rotated trusted-key sets verify chains signed under the old key", async () => {
+  const { chainDir, publicHex } = setup();
+  const otherDir = mkdtempSync(join(tmpdir(), "tamper-signal-rot-"));
+  generateKeys(otherDir);
+  const newHex = publicHexFromPrivate(loadPrivateKey(join(otherDir, "signing.key")));
+
+  const receipts = loadReceipts(chainDir);
+  // New + old trusted: green. New only (no fallback): red.
+  assert.equal(verifyChain(receipts, [newHex, publicHex]).verdict, "green");
+  assert.equal(verifyChain(receipts, [newHex]).verdict, "red");
+});
+
+test("TAMPER_SIGNAL_KEY env supplies the signing key", () => {
+  const dir = mkdtempSync(join(tmpdir(), "tamper-signal-env-"));
+  generateKeys(dir);
+  const pem = readFileSync(join(dir, "signing.key"), "utf-8");
+  process.env.TAMPER_SIGNAL_KEY = pem;
+  try {
+    const key = loadPrivateKey(join(dir, "missing.key"));
+    assert.equal(publicHexFromPrivate(key), publicHexFromPrivate(loadPrivateKey(join(dir, "signing.key"))));
+  } finally {
+    delete process.env.TAMPER_SIGNAL_KEY;
+  }
 });

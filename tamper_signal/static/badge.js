@@ -176,15 +176,17 @@ export function coverageGaps(receiptNames) {
 // embedded in chain.json means the chain is internally consistent but vouched
 // for by a key the caller does not trust (yellow), not broken (red).
 export async function checkSignatures(receipts, trustedKeyHex, chainKeyHex) {
+  // trustedKeyHex may be a single key or a list (key rotation).
+  const trusted = (Array.isArray(trustedKeyHex) ? trustedKeyHex : [trustedKeyHex]).filter(Boolean);
   let valid = true;
   let unrecognized = false;
-  const useFallback = chainKeyHex && chainKeyHex !== trustedKeyHex;
+  const useFallback = chainKeyHex && !trusted.includes(chainKeyHex);
   for (const r of receipts) {
     let ok = false;
-    try {
-      ok = await verifySignature(r, trustedKeyHex);
-    } catch (_e) {
-      ok = false;
+    for (const key of trusted) {
+      try {
+        if (await verifySignature(r, key)) { ok = true; break; }
+      } catch (_e) { /* malformed key or signature: try the next */ }
     }
     if (ok) continue;
     if (useFallback) {

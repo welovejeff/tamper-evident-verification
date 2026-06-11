@@ -86,9 +86,14 @@ def cmd_verify(args: argparse.Namespace) -> int:
         print(f"Cannot load chain: {exc}", file=sys.stderr)
         return 1
 
-    # Public key precedence: explicit --pub, else the key embedded in chain.json.
+    # Public key precedence: explicit --pub (repeatable, for key rotation),
+    # else the key embedded in chain.json.
     chain_key = chain.get("public_key")
-    public_hex = load_public_key_hex(args.pub) if args.pub else chain_key
+    public_hex: str | list[str] | None
+    if args.pub:
+        public_hex = [load_public_key_hex(path) for path in args.pub]
+    else:
+        public_hex = chain_key
     if not public_hex:
         print("No public key: pass --pub or embed one in chain.json", file=sys.stderr)
         return 1
@@ -131,10 +136,17 @@ def cmd_verify(args: argparse.Namespace) -> int:
             "data_mismatch": result.data_mismatch,
             "report": result.lines,
         }
+        if args.anchor:
+            anchor_lines: list[str] = []
+            code = _check_anchor(args, code, anchor_lines.append)
+            payload["anchor"] = anchor_lines
+            payload["exit_code"] = code
         print(_json.dumps(payload, indent=2))
     else:
         for line in result.lines:
             print(line)
+        if args.anchor:
+            code = _check_anchor(args, code, print)
     return code
 
 
@@ -364,6 +376,51 @@ def cmd_export(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_anchor(args: argparse.Namespace) -> int:
+    """Anchor chain.json in the Sigstore transparency log."""
+    from .anchor import AnchorUnavailable, anchor_chain, anchor_path_for
+
+    try:
+        record = anchor_chain(args.chain, staging=args.staging)
+    except AnchorUnavailable as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    print(f"⚓ Anchored {record['anchored']} in the Sigstore {record['instance']} log")
+    print(f"  identity {record['identity']} (issuer {record['issuer']})")
+    print(f"  integrated at {record['integrated_time'] or '(pending)'}")
+    print(f"  anchor record -> {anchor_path_for(args.chain)}")
+    print("Re-run after every pipeline run that changes the chain; verify with: receipts verify --anchor")
+    return 0
+
+
+def _check_anchor(args: argparse.Namespace, code: int, emit) -> int:
+    """Fold anchor verification into the verify verdict and exit code."""
+    from .anchor import AnchorUnavailable, anchor_path_for, verify_anchor
+
+    anchor_file = anchor_path_for(args.chain)
+    if not anchor_file.exists():
+        emit("⚠ no anchor found; run `receipts anchor` to prove existence at a point in time")
+        return max(code, 2) if code != 1 else code
+    try:
+        info = verify_anchor(args.chain, identity=args.anchor_identity, issuer=args.anchor_issuer)
+    except AnchorUnavailable as exc:
+        emit(f"⚠ anchor present but not checkable: {exc}")
+        return max(code, 2) if code != 1 else code
+    if info["ok"]:
+        emit(
+            f"⚓ anchored: this exact chain existed at {info['integrated_time']} "
+            f"(Sigstore log, identity {info['identity']})"
+        )
+        return code
+    emit(
+        "✗ ANCHOR MISMATCH: chain.json does not verify against its anchor "
+        f"({info['error']}). The chain changed after it was anchored"
+        + (f" at {info['integrated_time']}" if info.get("integrated_time") else "")
+        + ", or the anchor was replaced."
+    )
+    return 1
+
+
 def cmd_demo(args: argparse.Namespace) -> int:
     from .demo import run_demo
 
@@ -394,7 +451,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Verify a receipt chain (exit 0 green, 1 red, 2 yellow)",
     )
     p_verify.add_argument("chain", help="Path to chain.json")
-    p_verify.add_argument("--pub", default=None, help="Public key (.pub) path")
+    p_verify.add_argument(
+        "--pub",
+        action="append",
+        default=None,
+        help="Trusted public key (.pub) path; repeat for key rotation",
+    )
     p_verify.add_argument("--data", default=None, help="Current data file to check (.xlsx, .csv, .tsv, .json, .ndjson)")
     p_verify.add_argument("--sheet", default=None, help="Worksheet name (xlsx only, optional)")
     p_verify.add_argument(
@@ -408,6 +470,14 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Emit a structured JSON verdict instead of the text report",
     )
+    p_verify.add_argument(
+        "--anchor",
+        action="store_true",
+        help="Also verify the Sigstore anchor next to chain.json "
+        "(missing anchor is a yellow caveat; mismatch is red)",
+    )
+    p_verify.add_argument("--anchor-identity", default=None, help="Expected anchor identity (overrides the recorded one)")
+    p_verify.add_argument("--anchor-issuer", default=None, help="Expected anchor OIDC issuer (overrides the recorded one)")
     p_verify.set_defaults(func=cmd_verify)
 
     p_init = sub.add_parser(
@@ -434,6 +504,14 @@ def build_parser() -> argparse.ArgumentParser:
     p_export.add_argument("--out", default=None, help="Output path (default: <chain dir>/table.json)")
     p_export.add_argument("--sheet", default=None, help="Worksheet name (xlsx only, optional)")
     p_export.set_defaults(func=cmd_export)
+
+    p_anchor = sub.add_parser(
+        "anchor",
+        help="Anchor chain.json in the Sigstore transparency log (needs tamper-signal[anchor])",
+    )
+    p_anchor.add_argument("--chain", default="receipts/chain.json", help="Path to chain.json")
+    p_anchor.add_argument("--staging", action="store_true", help="Use the Sigstore staging instance")
+    p_anchor.set_defaults(func=cmd_anchor)
 
     p_serve = sub.add_parser(
         "serve", help="Serve the receipts directory on localhost with CORS (dev only)"

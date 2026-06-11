@@ -224,6 +224,8 @@ const short = (value) =>
 // verdict. Returns { ok, verdict, caveats, lines, brokenLink }.
 export function verifyChain(receipts, publicHex, dataSemanticHash = null, dataTotals = null, options = {}) {
   const { chainPublicHex = null, receiptNames = null, warnDrift = false } = options;
+  // publicHex may be a single trusted key or a list (key rotation).
+  const trusted = (Array.isArray(publicHex) ? publicHex : [publicHex]).filter(Boolean);
   const result = { ok: true, verdict: "green", caveats: [], lines: [], brokenLink: null };
   const fail = (...lines) => {
     result.ok = false;
@@ -236,11 +238,11 @@ export function verifyChain(receipts, publicHex, dataSemanticHash = null, dataTo
     return result;
   }
 
-  // 1) Signatures, trusted key first, chain key as fallback.
+  // 1) Signatures, trusted keys first, chain key as fallback.
   const unrecognized = [];
-  const useFallback = Boolean(chainPublicHex) && chainPublicHex !== publicHex;
+  const useFallback = Boolean(chainPublicHex) && !trusted.includes(chainPublicHex);
   receipts.forEach((receipt, index) => {
-    if (verifySignature(receipt, publicHex)) return;
+    if (trusted.some((key) => verifySignature(receipt, key))) return;
     if (useFallback && verifySignature(receipt, chainPublicHex)) {
       unrecognized.push(index);
       return;
@@ -257,9 +259,10 @@ export function verifyChain(receipts, publicHex, dataSemanticHash = null, dataTo
         return "<malformed key>";
       }
     };
+    const fingerprints = trusted.map(fp).join(", ") || "(none)";
     result.caveats.push(
       `unrecognized signing key: ${unrecognized.length} receipt(s) (${stages}) verify under ` +
-        `the chain's embedded key ${fp(chainPublicHex)}, not the trusted key ${fp(publicHex)}`
+        `the chain's embedded key ${fp(chainPublicHex)}, not any of the ${trusted.length} trusted key(s) (${fingerprints})`
     );
   }
 

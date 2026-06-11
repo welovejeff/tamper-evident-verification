@@ -26,10 +26,9 @@ def key_fingerprint(public_key_bytes: bytes) -> str:
     return hashlib.sha256(public_key_bytes).hexdigest()[:16]
 
 
-# FUTURE: this local Ed25519 keypair is the only root of trust today. External
-# anchoring (Sigstore keyless signing via OIDC identity, or an RFC 3161 trusted
-# timestamp authority) would attach here so verification does not depend solely
-# on possession of signing.pub.
+# The local Ed25519 keypair is the day-to-day root of trust. For proof that a
+# chain existed at a point in time independent of this key, see
+# tamper_signal/anchor.py (Sigstore-based anchoring, `receipts anchor`).
 def generate_keys(out_dir: str) -> tuple[Path, Path]:
     """Generate an Ed25519 keypair and write it to `out_dir`.
 
@@ -68,11 +67,23 @@ def generate_keys(out_dir: str) -> tuple[Path, Path]:
 
 
 def load_private_key(path: str) -> Ed25519PrivateKey:
-    """Load a PKCS8 PEM Ed25519 private key."""
-    pem = Path(path).read_bytes()
+    """Load a PKCS8 PEM Ed25519 private key.
+
+    When the TAMPER_SIGNAL_KEY environment variable is set, its contents (the
+    PEM text) are used instead of the file, so CI pipelines can sign without
+    a key file on disk. The env var wins over the path by design; unset it to
+    use files again.
+    """
+    env = os.environ.get("TAMPER_SIGNAL_KEY")
+    if env:
+        pem = env.encode("utf-8")
+        source = "TAMPER_SIGNAL_KEY"
+    else:
+        pem = Path(path).read_bytes()
+        source = path
     key = serialization.load_pem_private_key(pem, password=None)
     if not isinstance(key, Ed25519PrivateKey):
-        raise ValueError(f"{path} is not an Ed25519 private key")
+        raise ValueError(f"{source} is not an Ed25519 private key")
     return key
 
 

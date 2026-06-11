@@ -129,6 +129,16 @@ optional and checks the file the dashboard actually reads against the final
 receipt. `--warn-drift` additionally flags any control-totals movement across
 links (only for pipelines expected to preserve totals).
 
+Key rotation: `--pub` repeats. Old chains stay green while new receipts sign
+under a new key: `receipts verify chain.json --pub new.pub --pub old.pub`. A
+signature valid under any trusted key is trusted; the browser surfaces accept
+a list the same way (the `<tamper-signal>` element takes a space-separated
+`pub-key` list).
+
+CI signing: set `TAMPER_SIGNAL_KEY` to the PEM contents of the private key
+(a repo secret) and the wrapper, ingest, and export sign without a key file
+on disk. The env var wins over any `--key` path while set.
+
 Add `--json` to get a structured verdict instead of the text report. Parse
 this rather than scraping text:
 
@@ -184,6 +194,26 @@ jobs:
 
 Exit 1 (red) fails the build; exit 2 (yellow) surfaces a warning annotation
 without failing.
+
+## 5b. Anchoring (optional, for disputes and audits)
+
+The local keypair is the day-to-day root of trust; its known gap is that
+whoever holds the key can re-sign a fresh chain. When existence-at-a-time
+matters (client disputes, audits), anchor the chain in the public Sigstore
+transparency log:
+
+```bash
+pip install "tamper-signal[anchor]"
+receipts anchor                       # browser login locally; automatic in GitHub Actions
+receipts verify receipts/chain.json --anchor
+```
+
+`anchor.json` (next to chain.json) records the Sigstore bundle plus the
+identity and issuer used; `verify --anchor` enforces that identity, reports
+the logged time on success, exits 2 when no anchor exists, and exits 1 when
+the chain changed after anchoring. Re-anchor after every pipeline run that
+changes the chain. Honest scope: an anchor proves this exact chain existed
+at the logged time under the recorded identity, nothing more.
 
 ## 6. Add the signal to the host UI
 

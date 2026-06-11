@@ -56,9 +56,10 @@ def _sign_body(body: dict[str, Any], private_key: Ed25519PrivateKey) -> dict[str
         "alg": "ed25519",
         "key_fingerprint": key_fingerprint(bytes.fromhex(public_hex)),
         "value": sign(private_key, message),
-        # FUTURE: attach external anchoring here (Sigstore transparency-log
-        # entry or an RFC 3161 timestamp over `message`) so a receipt can be
-        # proven to have existed at a point in time, independent of this key.
+        # External anchoring lives at the chain level: `receipts anchor`
+        # (tamper_signal/anchor.py) signs chain.json into the Sigstore
+        # transparency log, proving the chain existed at a point in time
+        # independent of this key.
     }
     return {**body, "signature": signature}
 
@@ -323,9 +324,18 @@ def _coverage_gaps(receipt_names: list[str]) -> list[str]:
     return gaps
 
 
+def _as_trusted_keys(public_hex: str | list[str] | None) -> list[str]:
+    """Normalize the trusted-key argument to a list (rotation support)."""
+    if public_hex is None:
+        return []
+    if isinstance(public_hex, str):
+        return [public_hex]
+    return [key for key in public_hex if key]
+
+
 def verify_chain(
     receipts: list[dict[str, Any]],
-    public_hex: str,
+    public_hex: str | list[str],
     data_semantic_hash: str | None = None,
     data_totals: dict[str, Any] | None = None,
     *,
@@ -342,8 +352,13 @@ def verify_chain(
 
     The keyword-only arguments feed the yellow verdict (verifies, with caveats):
 
+    `public_hex` may be a single trusted key or a list of them (key
+    rotation: new receipts sign under the new key while old receipts still
+    verify under the old one; a signature valid under ANY trusted key is
+    trusted).
+
     - chain_public_hex: the key embedded in chain.json. A receipt whose
-      signature fails under the trusted `public_hex` but verifies under this
+      signature fails under every trusted key but verifies under this
       key makes the chain internally consistent yet vouched for by a key the
       caller does not trust: the "unrecognized signing key" caveat, not a
       broken chain. Signatures invalid under both keys are still red.
@@ -359,11 +374,12 @@ def verify_chain(
         result.fail("✗ CHAIN EMPTY: no receipts to verify")
         return result
 
-    # 1) Signatures, against the trusted key first, the chain key as fallback.
+    # 1) Signatures, against the trusted keys first, the chain key as fallback.
+    trusted = _as_trusted_keys(public_hex)
     unrecognized: list[int] = []
-    use_fallback = bool(chain_public_hex) and chain_public_hex != public_hex
+    use_fallback = bool(chain_public_hex) and chain_public_hex not in trusted
     for index, receipt in enumerate(receipts):
-        if verify_signature(receipt, public_hex):
+        if any(verify_signature(receipt, key) for key in trusted):
             continue
         if use_fallback and verify_signature(receipt, chain_public_hex):
             unrecognized.append(index)
@@ -375,10 +391,11 @@ def verify_chain(
         return result
     if unrecognized:
         stages = ", ".join(stage_name_of(receipts[i]) for i in unrecognized)
+        fingerprints = ", ".join(_fingerprint_or(key) for key in trusted) or "(none)"
         result.caveat(
             f"unrecognized signing key: {len(unrecognized)} receipt(s) ({stages}) "
             f"verify under the chain's embedded key {_fingerprint_or(chain_public_hex)}, "
-            f"not the trusted key {_fingerprint_or(public_hex)}"
+            f"not any of the {len(trusted)} trusted key(s) ({fingerprints})"
         )
 
     # 2) Links.
