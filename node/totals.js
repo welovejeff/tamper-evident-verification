@@ -12,28 +12,29 @@ import {
 
 const TYPE_THRESHOLD = 0.9;
 
-function columnsOf(records) {
+// Normalize record keys once and capture first-seen column order. Shared by
+// controlTotals and groupedNumericColumns so the two can never disagree on what
+// a "column" is or how its cells are addressed.
+function normalizedRecords(records) {
   const columns = [];
   const seen = new Set();
-  for (const record of records) {
-    for (const key of Object.keys(record)) {
+  const normRecords = records.map((record) => {
+    const out = {};
+    for (const [key, value] of Object.entries(record)) {
       const name = normalizeHeader(key);
+      out[name] = value;
       if (!seen.has(name)) {
         seen.add(name);
         columns.push(name);
       }
     }
-  }
-  return columns;
+    return out;
+  });
+  return { columns, normRecords };
 }
 
 export function controlTotals(records) {
-  const columns = columnsOf(records);
-  const normRecords = records.map((record) => {
-    const out = {};
-    for (const [k, v] of Object.entries(record)) out[normalizeHeader(k)] = v;
-    return out;
-  });
+  const { columns, normRecords } = normalizedRecords(records);
 
   const nullCounts = {};
   const numericSums = {};
@@ -97,12 +98,7 @@ const GROUPED_NUMERIC_RE = /^[+-]?\d{1,3}([,\u0020\u00a0\u202f]\d{3})+(\.\d+)?$/
 // "strip the separators and this column joins numeric_sums." Returns
 // [{ column, example }] (example: a representative grouped value, for messages).
 export function groupedNumericColumns(records) {
-  const columns = columnsOf(records);
-  const normRecords = records.map((record) => {
-    const out = {};
-    for (const [k, v] of Object.entries(record)) out[normalizeHeader(k)] = v;
-    return out;
-  });
+  const { columns, normRecords } = normalizedRecords(records);
 
   const flagged = [];
   for (const column of columns) {

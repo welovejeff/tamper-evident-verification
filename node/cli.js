@@ -96,11 +96,11 @@ function cmdIngest(args) {
   if (grouped.length) {
     console.error("");
     for (const { column, example } of grouped) {
-      console.error(`  warning: column "${column}" looks numeric (e.g. "${example}") but was excluded from control totals.`);
+      console.error(`  warning: column "${column}" looks numeric (e.g. "${example}") but is missing from numeric_sums.`);
     }
-    console.error("  Grouped numbers don't parse as plain decimals, so these columns won't appear in numeric_sums and a");
-    console.error("  data-receipt-column on them can never flag a change. Add a normalize step that strips the separators");
-    console.error("  before ingest. Only plain decimals (no thousands grouping) are summed.");
+    console.error("  Grouped numbers don't parse as plain decimals, so these columns are left out of the control totals'");
+    console.error("  numeric_sums -- a data-receipt-column on them can never flag a change. Add a normalize step that");
+    console.error("  strips the separators before ingest. Only plain decimals (no thousands grouping) are summed.");
   }
   return 0;
 }
