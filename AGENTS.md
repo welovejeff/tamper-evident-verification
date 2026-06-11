@@ -53,8 +53,18 @@ Requires Node 18.17+.
 npm install tamper-signal
 ```
 
-This provides the `tamper-signal` CLI (keygen / ingest / verify, exit codes
-0 green, 1 red, 2 yellow) and the programmatic API:
+This provides the `tamper-signal` CLI and the programmatic API. The CLI
+implements **keygen, ingest, verify, and export** (exit codes 0 green, 1 red,
+2 yellow):
+
+```bash
+tamper-signal keygen --out keys/
+tamper-signal ingest export.csv --origin "TikTok export, May 2026" --out receipts/
+tamper-signal verify receipts/chain.json --pub keys/signing.pub --data current.csv
+tamper-signal export receipts/chain.json --data current.csv   # writes receipts/table.json
+```
+
+Programmatic API:
 
 ```js
 import { receiptStep, loadCsv } from "tamper-signal";
@@ -66,17 +76,91 @@ const clean = receiptStep(
 const output = await clean(loadCsv("export.csv"));
 ```
 
-`receiptStep` wraps a sync or async records -> records function with the
-same contract as Python's `receipt_step`: verify the chain tail first,
-refuse foreign input, sign and append a receipt. The browser files are the
-same package: `tamper-signal/light`, `tamper-signal/badge`,
-`tamper-signal/element`, `tamper-signal/react`. JS reads .csv/.tsv/.json/
-.ndjson; only the Python side reads .xlsx.
+`receiptStep` wraps a sync or async records -> records function with the same
+contract as Python's `receipt_step`: verify the chain tail first, refuse
+foreign input, sign and append a receipt. TypeScript declarations ship for
+every entry point, so imports like `tamper-signal/react` resolve with no
+`TS7016`.
+
+### Rebuild on data change (idempotent)
+
+`receiptStep` appends; re-running the same build throws `ChainTailMismatch`,
+because the chain tail is now the transform's output, not the source it expects
+as input. To rebuild cleanly when the source data changes, reset the chain to
+its source first. Two supported ways:
+
+```js
+import { ingestFile, receiptStep, rebuildChain } from "tamper-signal";
+
+// One call: re-ingest the source (resetting the chain), then run the stages.
+await rebuildChain({
+  file: "export.csv",
+  stages: [normalize, dropBlankCampaign],
+  chainDir: "receipts/",
+  keyPath: "keys/signing.key",
+});
+
+// Or compose it: ingestFile() resets the chain to the source, then your
+// receiptStep stages append fresh from a known tail.
+const { records } = ingestFile({ file: "export.csv", chainDir: "receipts/", keyPath: "keys/signing.key" });
+const clean = receiptStep(dropBlankCampaign, { chainDir: "receipts/", keyPath: "keys/signing.key" });
+await clean(records);
+```
+
+`ingestFile` is the programmatic `tamper-signal ingest`: it rewrites
+`chain.json` to list only the source, so each rebuild starts from a known tail.
+
+### Emit table.json for the Data tab
+
+`tamper-signal export <chain.json> --data <file>` writes the canonical table
+document and refuses unless the data hashes to the final receipt. The same
+document is available programmatically:
+
+```js
+import { canonicalDocument } from "tamper-signal";
+import { writeFileSync } from "node:fs";
+writeFileSync(
+  "public/receipts/table.json",
+  JSON.stringify(canonicalDocument(finalRecords), null, 2) + "\n"
+);
+```
+
+### Serving the browser surfaces
+
+The browser files are the same package: `tamper-signal/light`,
+`tamper-signal/badge`, `tamper-signal/element`, `tamper-signal/table`,
+`tamper-signal/console`, `tamper-signal/react`. For any static bundler (Vite,
+CRA, SvelteKit, Astro, or plain HTML), serve the `receipts/` directory at
+`/receipts/` — e.g. copy it into `public/receipts/` as part of the build. The
+chain embeds its `public_key`, so the badge is zero-config. Express/Connect
+apps can serve receipts and assets in one call with `tamper-signal/express`.
+
+### Input formats and xlsx
+
+JS reads **.csv / .tsv / .json / .ndjson / .jsonl**. It does **not** read
+`.xlsx` — and the canonical "social export → dashboard" file usually arrives as
+`.xlsx`. The semantic hash is identical across formats, so either convert the
+`.xlsx` to CSV first, or ingest it once with the Python CLI (`pip install
+tamper-signal`); the resulting chain verifies interchangeably on the JS side.
+
+### What is Python-only
+
+`tamper-signal` does not implement these `receipts` subcommands. On a JS-only
+project, use the equivalent and skip the rest of this runbook's Python commands:
+
+| `receipts` (Python) | JavaScript |
+| --- | --- |
+| `receipts init` | `tamper-signal keygen`; `receipts/` is created on first `ingest` (no scaffold command) |
+| `receipts ingest` | `tamper-signal ingest` / `ingestFile()` |
+| `receipts verify` | `tamper-signal verify` / `verifyChain()` |
+| `receipts export` | `tamper-signal export` / `canonicalDocument()` |
+| `receipts serve` | your bundler's static server, or `tamper-signal/express` |
+| `receipts doctor` | `tamper-signal verify` (exit 0 = healthy); confirm the key is gitignored yourself |
+| `receipts anchor` | Python-only today (transparency-log anchoring) |
 
 CI signing works here too: `TAMPER_SIGNAL_KEY` (PEM contents of the private
 key) wins over any key path, same semantics as the Python side (step 5).
-`tamper-signal verify --json` emits the same structured verdict as the
-Python CLI.
+`tamper-signal verify --json` emits the same structured verdict as the Python CLI.
 
 ## 2. Scaffold the project (once)
 
@@ -380,12 +464,17 @@ verified table, not just charts. Two steps:
 1. After the pipeline runs, export the canonical table document:
 
    ```bash
+   # Python
    receipts export --chain receipts/chain.json --data path/to/dashboard_data.xlsx
+   # JavaScript
+   tamper-signal export receipts/chain.json --data path/to/dashboard_data.csv
    ```
 
    This writes `receipts/table.json` and refuses if the data does not match
    the final receipt (the Data tab only ever shows attested data). Re-run it
    whenever the pipeline runs, or the tab will honestly report a stale table.
+   In a JS build you can write it programmatically instead with
+   `canonicalDocument(finalRecords)` (see step 1b).
 
 2. Mount the table (vendor `badge/table.js` beside badge.js, or import
    `tamper-signal/table`):
@@ -406,12 +495,14 @@ attested data" when table.json is stale or edited. Design reference:
 
 ## 9. Verify your work before reporting done
 
-Run `receipts doctor` first: it checks the Python version, that the private
-key exists and is not tracked by git, that .gitignore covers it, and that the
-chain verifies; pass `--url http://localhost:PORT/chain.json` to also confirm
-the receipts directory is reachable over HTTP. Every failure prints its fix.
-Exit 0 means the integration is healthy. Then confirm the user-visible
-surfaces:
+On a Python project, run `receipts doctor` first: it checks the Python version,
+that the private key exists and is not tracked by git, that .gitignore covers
+it, and that the chain verifies; pass `--url http://localhost:PORT/chain.json`
+to also confirm the receipts directory is reachable over HTTP. Every failure
+prints its fix. Exit 0 means the integration is healthy. (`doctor` is
+Python-only; on a JS project, `tamper-signal verify receipts/chain.json` exits
+0 when the chain is healthy, and you should confirm the private key is
+gitignored yourself.) Then confirm the user-visible surfaces:
 
 1. `receipts verify receipts/chain.json --pub keys/signing.pub` exits 0.
 2. Load the host page: the pill reads `VERIFIED · chain intact` (click it for

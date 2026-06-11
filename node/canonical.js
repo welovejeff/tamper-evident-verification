@@ -186,7 +186,11 @@ function sortToken(cell) {
   return "2:" + cell;
 }
 
-export function canonicalize(records) {
+// The canonical table document: { headers, rows } with normalized headers,
+// canonical cell forms, and headers/rows sorted deterministically. Its
+// canonical JSON bytes are what semanticHash hashes, so this is exactly the
+// document the Data tab (table.json) must contain to read as VERIFIED.
+export function canonicalDocument(records) {
   // Union of keys across records, first-seen order, then normalized.
   const rawHeaders = [];
   const seen = new Set();
@@ -218,7 +222,11 @@ export function canonicalize(records) {
     return 0;
   });
 
-  return canonicalJsonBytes({ headers: sortedHeaders, rows });
+  return { headers: sortedHeaders, rows };
+}
+
+export function canonicalize(records) {
+  return canonicalJsonBytes(canonicalDocument(records));
 }
 
 export function semanticHash(records) {

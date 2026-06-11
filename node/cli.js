@@ -5,30 +5,30 @@
 //   tamper-signal keygen --out keys/
 //   tamper-signal ingest export.csv --origin "..." --key keys/signing.key --out receipts/
 //   tamper-signal verify receipts/chain.json [--pub keys/signing.pub] [--data current.csv] [--warn-drift]
+//   tamper-signal export receipts/chain.json --data current.csv [--out receipts/table.json]
 //
 // Exit codes are the traffic light: 0 green, 1 red, 2 yellow.
 
-import { readFileSync } from "node:fs";
-import { basename, dirname } from "node:path";
+import { writeFileSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
 import { parseArgs } from "node:util";
 import process from "node:process";
 
-import { evidenceHash, semanticHash } from "./canonical.js";
-import { generateKeys, loadPrivateKey, loadPublicKeyHex, publicHexFromPrivate } from "./keys.js";
+import { canonicalDocument, semanticHash } from "./canonical.js";
+import { generateKeys, loadPublicKeyHex } from "./keys.js";
 import { loadRecords } from "./load.js";
 import {
   SOURCE_RECEIPT_NAME,
-  buildSourceManifest,
+  outputHashOf,
   readChain,
   readReceipt,
   receiptFileHashes,
   stageNameOf,
   totalsOf,
   verifyChain,
-  writeChain,
-  writeReceipt,
 } from "./receipts.js";
 import { controlTotals, groupedNumericColumns } from "./totals.js";
+import { ingestFile } from "./wrapper.js";
 
 const USAGE = `usage: tamper-signal <command>
 
@@ -39,6 +39,10 @@ commands:
                                              (.csv, .tsv, .json, .ndjson)
   verify <chain.json> [--pub key.pub ...] [--data <file>] [--warn-drift] [--json]
                                              verify a chain (exit 0 green, 1 red, 2 yellow)
+  export <chain.json> --data <file> [--out receipts/table.json]
+                                             write the canonical table document
+                                             (refuses unless --data matches the
+                                             final receipt)
 `;
 
 function cmdKeygen(args) {
@@ -64,24 +68,18 @@ function cmdIngest(args) {
     console.error("ingest: missing source file");
     return 1;
   }
-  const raw = readFileSync(file);
-  const records = loadRecords(file);
   if (process.env.TAMPER_SIGNAL_KEY) {
     // The env var silently outranks --key; say so where it matters.
     console.error("Signing with TAMPER_SIGNAL_KEY from the environment (overrides --key)");
   }
-  const privateKey = loadPrivateKey(values.key);
-  const manifest = buildSourceManifest({
-    filename: basename(file),
-    evidenceHash: evidenceHash(raw),
-    byteSize: raw.length,
+  // ingestFile resets the chain to a fresh source manifest; the same call is
+  // the programmatic entry point and the foundation of rebuildChain.
+  const { manifest, records } = ingestFile({
+    file,
     declaredOrigin: values.origin,
-    semanticHash: semanticHash(records),
-    records,
-    privateKey,
+    chainDir: values.out,
+    keyPath: values.key,
   });
-  writeReceipt(values.out, SOURCE_RECEIPT_NAME, manifest);
-  writeChain(values.out, [SOURCE_RECEIPT_NAME], publicHexFromPrivate(privateKey));
   const totals = manifest.control_totals;
   console.log(`Ingested ${basename(file)}`);
   console.log(`  evidence_hash ${manifest.source.evidence_hash}`);
@@ -191,8 +189,63 @@ function cmdVerify(args) {
   return code;
 }
 
+function cmdExport(args) {
+  const { values, positionals } = parseArgs({
+    args,
+    allowPositionals: true,
+    options: {
+      data: { type: "string" },
+      out: { type: "string" },
+    },
+  });
+  const chainPath = positionals[0];
+  if (!chainPath) {
+    console.error("export: missing path to chain.json");
+    return 1;
+  }
+  if (!values.data) {
+    console.error("export: missing --data <file> (the verified records to write as table.json)");
+    return 1;
+  }
+  const chain = readChain(chainPath);
+  const chainDir = dirname(chainPath);
+  let receipts;
+  try {
+    receipts = (chain.receipts ?? []).map((name) => readReceipt(chainDir, name));
+  } catch (err) {
+    console.error(`Cannot load chain: ${err.message}`);
+    return 1;
+  }
+  if (!receipts.length) {
+    console.error("Chain is empty; nothing to export against.");
+    return 1;
+  }
+
+  // Refuse to export data that does not descend from the chain: the Data tab
+  // only ever shows attested data, so a mismatched export is a lie waiting to
+  // render. Mirrors the Python `receipts export`.
+  const records = loadRecords(values.data);
+  const document = canonicalDocument(records);
+  const dataHash = semanticHash(records);
+  const expected = outputHashOf(receipts[receipts.length - 1]);
+  if (dataHash !== expected) {
+    console.error("✗ Refusing to export: the data does not match the final receipt.");
+    console.error(`  expected output hash ${expected}`);
+    console.error(`  found    data hash   ${dataHash}`);
+    console.error("  The Data tab only shows attested data. Re-run the pipeline or fix --data.");
+    return 1;
+  }
+
+  const outPath = values.out || join(chainDir, "table.json");
+  writeFileSync(outPath, JSON.stringify(document, null, 2) + "\n");
+  console.log(`Exported verified table: ${outPath}`);
+  console.log(`  rows ${document.rows.length}, columns ${document.headers.length}`);
+  console.log(`  semantic_hash ${dataHash} (matches final receipt)`);
+  return 0;
+}
+
 const [, , command, ...rest] = process.argv;
-const commands = { keygen: cmdKeygen, ingest: cmdIngest, verify: cmdVerify };
+const commands = { keygen: cmdKeygen, ingest: cmdIngest, verify: cmdVerify, export: cmdExport };
 if (!command || !(command in commands)) {
   console.error(USAGE);
   process.exit(command ? 1 : 0);

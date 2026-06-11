@@ -56,6 +56,16 @@ export interface TransformReceipt {
 
 export type Receipt = SourceManifest | TransformReceipt;
 
+/**
+ * The canonical table document (table.json): normalized headers and canonical
+ * cell rows, sorted deterministically. Its canonical JSON bytes are what the
+ * semantic hash hashes, so this is exactly what the Data tab must contain.
+ */
+export interface TableDocument {
+  headers: string[];
+  rows: Array<Array<string | null>>;
+}
+
 /** Parsed chain.json: an ordered list of receipt files plus the public key. */
 export interface Chain {
   receipts: string[];

@@ -9,9 +9,15 @@
 //   );
 //   const output = await clean(records);
 
-import { semanticHash } from "./canonical.js";
+import { readFileSync } from "node:fs";
+import { basename } from "node:path";
+
+import { evidenceHash, semanticHash } from "./canonical.js";
 import { loadPrivateKey, publicHexFromPrivate } from "./keys.js";
+import { loadRecords } from "./load.js";
 import {
+  SOURCE_RECEIPT_NAME,
+  buildSourceManifest,
   buildTransformReceipt,
   codeHashOf,
   loadReceipts,
@@ -81,4 +87,60 @@ export function receiptStep(fn, { chainDir = "receipts/", keyPath = "keys/signin
     writeChain(chainDir, [...existing, filename], publicHex);
     return output;
   };
+}
+
+// Ingest a source file: build a signed source manifest and (re)write chain.json
+// so it lists only that source. This is the programmatic equivalent of
+// `tamper-signal ingest`, and it RESETS the chain to its source -- which is the
+// idempotent foundation for "rebuild on data change": call it again and the
+// chain starts fresh from the source, so re-running your stages no longer
+// throws ChainTailMismatch. Returns the manifest, the loaded records, and the
+// source's semantic hash (the new chain tail).
+export function ingestFile({
+  file,
+  declaredOrigin = "",
+  chainDir = "receipts/",
+  keyPath = "keys/signing.key",
+} = {}) {
+  if (!file) throw new TypeError("ingestFile requires a `file` path.");
+  const raw = readFileSync(file);
+  const records = loadRecords(file);
+  const privateKey = loadPrivateKey(keyPath);
+  const manifest = buildSourceManifest({
+    filename: basename(file),
+    evidenceHash: evidenceHash(raw),
+    byteSize: raw.length,
+    declaredOrigin,
+    semanticHash: semanticHash(records),
+    records,
+    privateKey,
+  });
+  writeReceipt(chainDir, SOURCE_RECEIPT_NAME, manifest);
+  writeChain(chainDir, [SOURCE_RECEIPT_NAME], publicHexFromPrivate(privateKey));
+  return { manifest, records, sourceHash: manifest.semantic_hash, chainDir };
+}
+
+// Rebuild a chain from scratch on every call: re-ingest `file` as the source
+// (resetting the chain), then run each stage transform in order, appending a
+// signed receipt per stage. `stages` are plain records -> records transforms
+// (sync or async), wrapped here with receiptStep. Returns the final output
+// records. This is the clean, idempotent "rebuild on data change" pipeline the
+// raw receiptStep chain can't express (re-running it throws ChainTailMismatch).
+export async function rebuildChain({
+  file,
+  stages = [],
+  declaredOrigin = "",
+  chainDir = "receipts/",
+  keyPath = "keys/signing.key",
+} = {}) {
+  const { records } = ingestFile({ file, declaredOrigin, chainDir, keyPath });
+  let current = records;
+  for (const stage of stages) {
+    if (typeof stage !== "function") {
+      throw new TypeError("rebuildChain `stages` must be records -> records functions.");
+    }
+    const step = receiptStep(stage, { chainDir, keyPath });
+    current = await step(current);
+  }
+  return current;
 }
