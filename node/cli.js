@@ -9,12 +9,13 @@
 //
 // Exit codes are the traffic light: 0 green, 1 red, 2 yellow.
 
+import { createHash } from "node:crypto";
 import { writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { parseArgs } from "node:util";
 import process from "node:process";
 
-import { canonicalDocument, semanticHash } from "./canonical.js";
+import { canonicalDocument, canonicalJsonBytes, semanticHash } from "./canonical.js";
 import { generateKeys, loadPublicKeyHex } from "./keys.js";
 import { loadRecords } from "./load.js";
 import {
@@ -226,7 +227,9 @@ function cmdExport(args) {
   // render. Mirrors the Python `receipts export`.
   const records = loadRecords(values.data);
   const document = canonicalDocument(records);
-  const dataHash = semanticHash(records);
+  // Hash the document we already built rather than re-canonicalizing the
+  // records (semanticHash would repeat the sort); the bytes are identical.
+  const dataHash = createHash("sha256").update(canonicalJsonBytes(document)).digest("hex");
   const expected = outputHashOf(receipts[receipts.length - 1]);
   if (dataHash !== expected) {
     console.error("✗ Refusing to export: the data does not match the final receipt.");
