@@ -7,7 +7,11 @@
 <meta name="description" content="Signed receipts for vibe-coded data pipelines. Proves nobody changed your data, and shows the exact link if they did." />
 <meta property="og:title" content="The light is green, the data is clean." />
 <meta property="og:description" content="Signed receipts for vibe-coded data pipelines. Proves nobody changed your data, and shows the exact link if they did." />
-<meta property="og:image" content="https://tampersignal.com/docs/media/light.gif" />
+<meta property="og:image" content="https://tampersignal.com/docs/media/og-card.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:image" content="https://tampersignal.com/docs/media/og-card.png" />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='%2334d399'/%3E%3C/svg%3E" />
 <style>
   :root {
@@ -52,11 +56,14 @@
     padding-top: 12px; padding-bottom: 12px;
     font: 12px var(--mono);
   }
-  .wordmark { display: flex; align-items: center; gap: 8px; color: var(--dim); letter-spacing: 1.5px; }
-  .wordmark i {
-    width: 9px; height: 9px; border-radius: 50%; display: block;
-    background: var(--green); box-shadow: 0 0 6px 0 rgba(52, 211, 153, 0.7);
-  }
+  .logo-stacked { display: inline-flex; align-items: stretch; gap: 8px; text-decoration: none; }
+  .logo-stacked:hover { text-decoration: none; }
+  .ls-rail { display: flex; flex-direction: column; justify-content: space-between; padding: 3px 0; }
+  .ls-rail i { width: 5px; height: 5px; border-radius: 50%; display: block; box-sizing: border-box; }
+  .ls-rail .r { background: rgba(248, 113, 113, 0.22); border: 1px solid rgba(248, 113, 113, 0.25); }
+  .ls-rail .y { background: rgba(251, 191, 36, 0.22); border: 1px solid rgba(251, 191, 36, 0.25); }
+  .ls-rail .g { background: var(--green); box-shadow: 0 0 6px 0 rgba(52, 211, 153, 0.7); }
+  .ls-words { font: 13px/1.25 var(--mono); letter-spacing: 3px; color: var(--text); white-space: nowrap; }
   .top nav { margin-left: auto; display: flex; gap: 16px; }
   .top nav a { color: var(--dim); }
   .top nav a:hover { color: var(--text); text-decoration: none; }
@@ -368,15 +375,28 @@
     font: 12px var(--mono);
     color: var(--faint);
   }
-  footer .wrap { display: flex; flex-wrap: wrap; gap: 18px; align-items: baseline; }
-  footer .sticker { color: var(--green); margin-left: auto; }
+  .footer-stack { display: flex; flex-direction: column; align-items: center; gap: 22px; }
+  .footer-sticker { display: flex; flex-direction: column; align-items: center; gap: 12px;
+    background: #07090d; border: 1px solid var(--border); border-radius: 12px; padding: 28px 44px; }
+  .fst-mark { display: inline-flex; align-items: center; gap: 14px;
+    font: 22px var(--mono); letter-spacing: 5px; color: var(--text); white-space: nowrap; }
+  .fst-mark i { width: 13px; height: 13px; border-radius: 50%; display: block; flex: none;
+    background: var(--green); box-shadow: 0 0 10px 0 rgba(52, 211, 153, 0.8); }
+  .fst-tag { font: 11px var(--mono); color: var(--green); letter-spacing: 0.5px; }
+  .footer-meta { display: flex; flex-wrap: wrap; gap: 18px; align-items: baseline; justify-content: center; }
+  @media (max-width: 480px) {
+    .fst-mark { font-size: 16px; letter-spacing: 3.7px; }
+  }
 </style>
 </head>
 <body>
 
 <div class="top">
   <div class="wrap">
-    <span class="wordmark"><i></i>TAMPER SIGNAL</span>
+    <a class="logo-stacked" href="/" aria-label="Tamper Signal — home">
+      <span class="ls-rail" aria-hidden="true"><i class="r"></i><i class="y"></i><i class="g"></i></span>
+      <span class="ls-words">TAMPER<br>SIGNAL</span>
+    </a>
     <button class="menu-btn" type="button" aria-expanded="false" aria-controls="site-nav">menu <span class="mb-caret">▾</span></button>
     <nav id="site-nav">
       <a href="#demo">live demo</a>
@@ -640,11 +660,16 @@
 </section>
 
 <footer>
-  <div class="wrap">
-    <span>MIT licensed</span>
-    <span>·</span>
-    <a href="https://github.com/welovejeff/tamper-evident-verification">github.com/welovejeff/tamper-evident-verification</a>
-    <span class="sticker">Trust receipts, not vibes.</span>
+  <div class="wrap footer-stack">
+    <div class="footer-sticker">
+      <span class="fst-mark"><i aria-hidden="true"></i>TAMPER SIGNAL</span>
+      <span class="fst-tag">Trust receipts, not vibes.</span>
+    </div>
+    <div class="footer-meta">
+      <span>MIT licensed</span>
+      <span>·</span>
+      <a href="https://github.com/welovejeff/tamper-evident-verification">github.com/welovejeff/tamper-evident-verification</a>
+    </div>
   </div>
 </footer>
 
