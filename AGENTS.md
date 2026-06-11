@@ -164,7 +164,11 @@ this rather than scraping text:
 }
 ```
 
-`broken_link` and `data_mismatch` are null unless the verdict is red.
+`broken_link` and `data_mismatch` are null unless the verdict is red. With
+`--anchor`, an `anchor` array of report lines is added and the anchor outcome
+is folded into `verdict`, `exit_code`, `caveats`, and `report` (a missing
+anchor turns a green run yellow; a mismatch turns it red), so the payload
+never contradicts itself.
 
 ### CI: verify the chain on every push
 

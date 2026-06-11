@@ -139,8 +139,15 @@ def cmd_verify(args: argparse.Namespace) -> int:
         if args.anchor:
             anchor_lines: list[str] = []
             code = _check_anchor(args, code, anchor_lines.append)
+            # Keep the payload self-consistent: the anchor outcome is part of
+            # the verdict, not a side channel next to it.
             payload["anchor"] = anchor_lines
             payload["exit_code"] = code
+            payload["verdict"] = {0: "green", 1: "red", 2: "yellow"}[code]
+            payload["report"] = payload["report"] + anchor_lines
+            payload["caveats"] = payload["caveats"] + [
+                line.lstrip("⚠ ") for line in anchor_lines if line.startswith("⚠")
+            ]
         print(_json.dumps(payload, indent=2))
     else:
         for line in result.lines:

@@ -64,7 +64,7 @@ class TamperSignalElement extends HTMLElement {
     const watch = Number(this.getAttribute("watch"));
     const pubAttr = (this.getAttribute("pub-key") || "").trim();
     const pubKeys = pubAttr ? pubAttr.split(/[\s,]+/) : undefined;
-    this._handle = mountTamperSignal(this, chain, pubKeys && pubKeys.length === 1 ? pubKeys[0] : pubKeys, {
+    this._handle = mountTamperSignal(this, chain, pubKeys, {
       watch: Number.isFinite(watch) && watch > 0 ? watch : undefined,
       warnDrift: this.hasAttribute("warn-drift"),
       receiptsHref: this.getAttribute("receipts-href") || undefined,

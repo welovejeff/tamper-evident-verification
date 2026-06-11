@@ -116,14 +116,36 @@ def verify_anchor(
     from sigstore.models import Bundle
     from sigstore.verify import Verifier, policy
 
+    failed = {
+        "ok": False,
+        "identity": None,
+        "issuer": None,
+        "integrated_time": None,
+        "error": None,
+    }
+    # anchor.json is local, attacker-modifiable input in this threat model:
+    # malformed records fail closed with a structured result, never raise.
     anchor_file = anchor_path_for(chain_path)
-    record = json.loads(anchor_file.read_text(encoding="utf-8"))
+    try:
+        record = json.loads(anchor_file.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return {**failed, "error": f"anchor record is unreadable or malformed: {exc}"}
+    if not isinstance(record, dict):
+        return {**failed, "error": "anchor record is not a JSON object"}
     expected_identity = identity or record.get("identity")
     expected_issuer = issuer or record.get("issuer")
     if not expected_identity:
-        return {"ok": False, "error": "anchor record carries no identity to enforce"}
+        return {**failed, "error": "anchor record carries no identity to enforce"}
 
-    bundle = Bundle.from_json(json.dumps(record["bundle"]))
+    try:
+        bundle = Bundle.from_json(json.dumps(record["bundle"]))
+    except Exception as exc:  # noqa: BLE001 - any malformed bundle fails closed
+        return {
+            **failed,
+            "identity": expected_identity,
+            "issuer": expected_issuer,
+            "error": f"anchor bundle is malformed: {exc}",
+        }
     verifier = (
         Verifier.staging() if record.get("instance") == "staging" else Verifier.production()
     )

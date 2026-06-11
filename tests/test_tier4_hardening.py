@@ -77,11 +77,12 @@ def test_cli_accepts_repeated_pub_flags(tmp_path, monkeypatch, capsys):
 def test_env_key_wins_over_missing_file(tmp_path, monkeypatch):
     generate_keys(str(tmp_path / "keys"))
     pem = (tmp_path / "keys" / "signing.key").read_text()
+    # Expected value comes from the FILE path, before the env override exists,
+    # so the assertion really compares env-loading against file-loading.
+    expected = public_hex_from_private(load_private_key(str(tmp_path / "keys" / "signing.key")))
     monkeypatch.setenv("TAMPER_SIGNAL_KEY", pem)
     key = load_private_key(str(tmp_path / "does-not-exist.key"))
-    assert public_hex_from_private(key) == public_hex_from_private(
-        load_private_key(str(tmp_path / "keys" / "signing.key"))
-    )
+    assert public_hex_from_private(key) == expected
 
 
 def test_env_key_signs_a_verifiable_receipt(tmp_path, monkeypatch, capsys):
@@ -156,3 +157,31 @@ def test_anchor_record_roundtrip_shape(tmp_path):
     chain.write_text("{}", encoding="utf-8")
     assert anchor_path_for(str(chain)).name == "anchor.json"
     assert anchor_path_for(str(chain)).parent == chain.parent
+
+
+def test_verify_anchor_json_payload_stays_consistent(tmp_path, monkeypatch, capsys):
+    # Missing anchor must surface in verdict/caveats/report, not only exit_code.
+    monkeypatch.chdir(tmp_path)
+    _seed(tmp_path)
+    code = main(["verify", "receipts/chain.json", "--anchor", "--json"])
+    payload = json.loads(capsys.readouterr().out)
+    assert code == 2
+    assert payload["verdict"] == "yellow"
+    assert any("no anchor" in c for c in payload["caveats"])
+    assert any("no anchor" in line for line in payload["report"])
+
+
+def test_malformed_anchor_fails_closed(tmp_path, monkeypatch, capsys):
+    pytest.importorskip("sigstore", reason="anchor parsing path needs sigstore")
+    monkeypatch.chdir(tmp_path)
+    _seed(tmp_path)
+    (tmp_path / "receipts" / "anchor.json").write_text("not json", encoding="utf-8")
+    assert main(["verify", "receipts/chain.json", "--anchor"]) == 1
+    assert "ANCHOR MISMATCH" in capsys.readouterr().out
+
+    from tamper_signal.anchor import verify_anchor
+
+    (tmp_path / "receipts" / "anchor.json").write_text('{"identity": "x", "bundle": 42}', encoding="utf-8")
+    info = verify_anchor("receipts/chain.json")
+    assert info["ok"] is False and "malformed" in info["error"]
+    assert set(info) == {"ok", "identity", "issuer", "integrated_time", "error"}

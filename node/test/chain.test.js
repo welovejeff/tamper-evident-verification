@@ -112,10 +112,13 @@ test("TAMPER_SIGNAL_KEY env supplies the signing key", () => {
   const dir = mkdtempSync(join(tmpdir(), "tamper-signal-env-"));
   generateKeys(dir);
   const pem = readFileSync(join(dir, "signing.key"), "utf-8");
+  // Expected value comes from the FILE before the env override exists, so the
+  // assertion really compares env-loading against file-loading.
+  const expected = publicHexFromPrivate(loadPrivateKey(join(dir, "signing.key")));
   process.env.TAMPER_SIGNAL_KEY = pem;
   try {
     const key = loadPrivateKey(join(dir, "missing.key"));
-    assert.equal(publicHexFromPrivate(key), publicHexFromPrivate(loadPrivateKey(join(dir, "signing.key"))));
+    assert.equal(publicHexFromPrivate(key), expected);
   } finally {
     delete process.env.TAMPER_SIGNAL_KEY;
   }
