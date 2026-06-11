@@ -163,8 +163,36 @@
     .stoplight svg { width: 88px; height: auto; }
     .hero .kicker { margin-right: 104px; } /* clear the stoplight */
   }
+  /* Mobile menu: one compact sticky row, links in a tap-to-open panel. */
+  .menu-btn {
+    display: none;
+    margin-left: auto;
+    font: 12px var(--mono);
+    color: var(--dim);
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 7px 12px;
+    cursor: pointer;
+    align-items: center;
+    gap: 6px;
+  }
+  .menu-btn .mb-caret { color: var(--faint); font-size: 9px; transition: transform 0.15s; }
+  .menu-btn[aria-expanded="true"] .mb-caret { transform: rotate(180deg); }
+  .menu-btn:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
   @media (max-width: 700px) {
-    .top { position: static; } /* two wrapped rows must not stay sticky */
+    .menu-btn { display: inline-flex; }
+    .top nav {
+      display: none;
+      flex-basis: 100%;
+      flex-direction: column;
+      gap: 0;
+      border-top: 1px solid var(--border);
+      padding: 6px 0 4px;
+    }
+    .top nav.open { display: flex; }
+    .top nav a { padding: 11px 2px; border-bottom: 1px solid rgba(31, 41, 55, 0.5); }
+    .top nav a:last-child { border-bottom: 0; }
   }
 
   /* ---------- section scaffolding ---------- */
@@ -396,7 +424,8 @@
 <div class="top">
   <div class="wrap">
     <span class="wordmark"><i></i>TAMPER SIGNAL</span>
-    <nav>
+    <button class="menu-btn" type="button" aria-expanded="false" aria-controls="site-nav">menu <span class="mb-caret">▾</span></button>
+    <nav id="site-nav">
       <a href="#demo">live demo</a>
       <a href="#how">how it works</a>
       <a href="#explore">explore</a>
@@ -533,8 +562,8 @@
       the pill is <a href="https://github.com/welovejeff/tamper-evident-verification/blob/main/badge/light.js">badge/light.js</a>
       doing the same Web Crypto walk the CLI does. Click the pill for the popover. On the
       tampered chain, the light reaches into the page and flags the one metric whose
-      column moved at the broken link. The popover opens for you after each switch;
-      click away to close it, click the pill to reopen.
+      column moved at the broken link. The popover opens for you after each switch
+      (on phones, tap the pill); click away to close it.
     </p>
   </div>
 </section>
@@ -827,7 +856,10 @@
       if (handle !== lightHandle) return; // a newer switch took over
       // Guard: CDN caches can briefly serve this page with an older light.js
       // that lacks setOpen; degrade to click-to-open rather than erroring.
-      if (typeof handle.setOpen === "function") handle.setOpen(true);
+      // On small screens, never auto-open: the sheet would cover the hero
+      // uninvited. The attention ring still points at the pill.
+      const compact = window.matchMedia("(max-width: 600px)").matches;
+      if (!compact && typeof handle.setOpen === "function") handle.setOpen(true);
       const pill = handle.el.querySelector(".lr-pill");
       if (pill) pill.classList.add("lr-attn");
     });
@@ -840,6 +872,20 @@
   }
 
   buttons.forEach((b) => b.addEventListener("click", () => setState(b.dataset.set)));
+
+  // Mobile menu toggle; closes on link tap.
+  const menuBtn = document.querySelector(".menu-btn");
+  const siteNav = document.getElementById("site-nav");
+  menuBtn.addEventListener("click", () => {
+    const open = siteNav.classList.toggle("open");
+    menuBtn.setAttribute("aria-expanded", String(open));
+  });
+  siteNav.addEventListener("click", (e) => {
+    if (e.target.tagName === "A") {
+      siteNav.classList.remove("open");
+      menuBtn.setAttribute("aria-expanded", "false");
+    }
+  });
 
   // Click-to-copy install chips in the hero.
   for (const chip of document.querySelectorAll(".cmd-chip")) {
