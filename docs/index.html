@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Docs · Tamper Signal</title>
+<meta name="description" content="Learn Tamper Signal: the mental model behind signed receipts for data pipelines, a hands-on quickstart, and full CLI, API, and UI reference for humans and AI agents." />
+<meta property="og:title" content="Tamper Signal · Docs" />
+<meta property="og:description" content="Learn Tamper Signal: the mental model behind signed receipts for data pipelines, plus a hands-on quickstart and full reference." />
+<meta property="og:image" content="https://tampersignal.com/docs/media/og-card.png" />
+<link rel="canonical" href="https://tampersignal.com/docs/" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='%2334d399'/%3E%3C/svg%3E" />
+<link rel="stylesheet" href="docs.css" />
+</head>
+<body>
+
+<div class="top">
+  <div class="wrap">
+    <a class="logo-stacked" href="/" aria-label="Tamper Signal — home">
+      <span class="ls-rail" aria-hidden="true"><i class="r"></i><i class="y"></i><i class="g"></i></span>
+      <span class="ls-words">TAMPER<br>SIGNAL</span>
+    </a>
+    <button class="menu-btn" type="button" aria-expanded="false" aria-controls="site-nav">menu <span class="mb-caret">▾</span></button>
+    <nav id="site-nav">
+      <a href="/#demo">live demo</a>
+      <a href="/#how">how it works</a>
+      <a href="/docs/" aria-current="page">docs</a>
+      <a href="/blog/">blog</a>
+      <a href="https://github.com/welovejeff/tamper-evident-verification">github</a>
+    </nav>
+  </div>
+</div>
+
+<header class="docs-main" style="max-width:1180px;margin:0 auto;padding:56px 22px 8px;">
+  <p class="doc-kicker">Documentation</p>
+  <h1>Learn Tamper Signal.</h1>
+  <p class="lede">A signed receipt at every step of your data pipeline, and one light that tells you whether the numbers on the dashboard still descend from the source. This is the deep version: the mental model first, then a hands-on quickstart, then full reference.</p>
+</header>
+
+<main class="wrap" style="padding-bottom:8px;">
+  <section style="padding:30px 0 8px;">
+    <p class="doc-kicker">Start here</p>
+    <h2 style="font-size:22px;margin:0 0 4px;">A three-step path</h2>
+    <p style="color:var(--dim);max-width:600px;margin:0;">New to receipts and chains? Read these in order. Twenty minutes end to end, and you will understand both what the tool proves and how to wire it up.</p>
+    <ol class="path-list">
+      <li>
+        <h3><a href="/docs/concepts.html">Core concepts</a></h3>
+        <p>The receipt, the chain, the two fingerprints, the traffic light. Explained with seals, notaries, and chains of custody before any code.</p>
+      </li>
+      <li>
+        <h3><a href="/docs/quickstart.html">Quickstart: your first verified chain</a></h3>
+        <p>Install, scaffold keys, ingest a source file, wrap a transform, and watch the light go green, then red when you tamper.</p>
+      </li>
+      <li>
+        <h3><a href="/docs/mounting.html">Put the signal in your dashboard</a></h3>
+        <p>Mount the inline status light, the data tab, or the badge so anyone looking at the page can see the chain is intact.</p>
+      </li>
+    </ol>
+  </section>
+
+  <section style="padding:36px 0 8px;">
+    <p class="doc-kicker">Reference</p>
+    <h2 style="font-size:22px;margin:0 0 18px;">Look something up</h2>
+    <div class="card-grid">
+      <a class="card" href="/docs/concepts.html">
+        <p class="card-eyebrow">Concepts</p>
+        <h3>The mental model</h3>
+        <p>Receipt, chain, evidence vs semantic hash, control totals, the light, anchors, and the one claim it will never make.</p>
+      </a>
+      <a class="card" href="/docs/cli.html">
+        <p class="card-eyebrow">Reference</p>
+        <h3>CLI</h3>
+        <p>Every <code>receipts</code> and <code>tamper-signal</code> command and flag, the exit codes, and the JSON verdict schema.</p>
+      </a>
+      <a class="card" href="/docs/api.html">
+        <p class="card-eyebrow">Reference</p>
+        <h3>Python &amp; JS API</h3>
+        <p>Wrap transforms with <code>receipt_step</code> / <code>receiptStep</code>, ingest, rebuild, and verify in code.</p>
+      </a>
+      <a class="card" href="/docs/mounting.html">
+        <p class="card-eyebrow">Reference</p>
+        <h3>Mounting the signal</h3>
+        <p>Badge, status light, data tab, console, framework attach helpers, and flagging a broken metric in place.</p>
+      </a>
+      <a class="card" href="/docs/advanced.html">
+        <p class="card-eyebrow">Going deeper</p>
+        <h3>Power user</h3>
+        <p>Key rotation, CI signing, anchoring to a public log, cross-stack chains, drift, and format-agnostic hashing.</p>
+      </a>
+      <a class="card" href="/docs/quickstart.html">
+        <p class="card-eyebrow">Hands-on</p>
+        <h3>Quickstart</h3>
+        <p>From <code>pip install</code> to a green light in about five minutes, then a deliberate tamper to see red.</p>
+      </a>
+    </div>
+  </section>
+
+  <section style="padding:36px 0 12px;">
+    <div class="callout note">
+      <span class="co-label">For coding agents</span>
+      <p>Pointing an AI assistant at this project? These pages are written to be read by agents too, but the canonical integration runbook is <a href="https://github.com/welovejeff/tamper-evident-verification/blob/main/AGENTS.md"><code>AGENTS.md</code></a> in the repo, with a compact map in <a href="https://github.com/welovejeff/tamper-evident-verification/blob/main/llms.txt"><code>llms.txt</code></a>. Tell your agent "add tamper signal" and it will find them.</p>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>MIT licensed</span>
+    <span>·</span>
+    <a href="https://github.com/welovejeff/tamper-evident-verification">github.com/welovejeff/tamper-evident-verification</a>
+    <span>·</span>
+    <a href="/">tampersignal.com</a>
+  </div>
+</footer>
+
+<script>
+  const menuBtn = document.querySelector(".menu-btn");
+  const siteNav = document.getElementById("site-nav");
+  if (menuBtn && siteNav) {
+    menuBtn.addEventListener("click", () => {
+      const open = siteNav.classList.toggle("open");
+      menuBtn.setAttribute("aria-expanded", String(open));
+    });
+    siteNav.addEventListener("click", (e) => {
+      if (e.target.tagName === "A") { siteNav.classList.remove("open"); menuBtn.setAttribute("aria-expanded", "false"); }
+    });
+  }
+</script>
+
+</body>
+</html>

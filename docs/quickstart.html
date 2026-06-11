@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Quickstart · Tamper Signal docs</title>
+<meta name="description" content="From pip install to a green light in about five minutes: scaffold keys, ingest a source file, wrap a transform, verify the chain, then tamper with it and watch the light turn red." />
+<meta property="og:title" content="Quickstart · Tamper Signal docs" />
+<meta property="og:description" content="From install to a green light in about five minutes, then a deliberate tamper to see red." />
+<meta property="og:image" content="https://tampersignal.com/docs/media/og-card.png" />
+<link rel="canonical" href="https://tampersignal.com/docs/quickstart.html" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='%2334d399'/%3E%3C/svg%3E" />
+<link rel="stylesheet" href="docs.css" />
+</head>
+<body>
+
+<div class="top">
+  <div class="wrap">
+    <a class="logo-stacked" href="/" aria-label="Tamper Signal — home">
+      <span class="ls-rail" aria-hidden="true"><i class="r"></i><i class="y"></i><i class="g"></i></span>
+      <span class="ls-words">TAMPER<br>SIGNAL</span>
+    </a>
+    <button class="menu-btn" type="button" aria-expanded="false" aria-controls="site-nav">menu <span class="mb-caret">▾</span></button>
+    <nav id="site-nav">
+      <a href="/#demo">live demo</a>
+      <a href="/#how">how it works</a>
+      <a href="/docs/" aria-current="page">docs</a>
+      <a href="/blog/">blog</a>
+      <a href="https://github.com/welovejeff/tamper-evident-verification">github</a>
+    </nav>
+  </div>
+</div>
+
+<div class="docs-shell">
+  <aside class="docs-side">
+    <button class="side-toggle" type="button" aria-expanded="false">On this site <span class="st-caret" aria-hidden="true">▾</span></button>
+    <div class="side-inner">
+      <div class="side-group">
+        <p class="side-label">Start here</p>
+        <ul>
+          <li><a href="/docs/">Overview</a></li>
+          <li><a href="/docs/concepts.html">Core concepts</a></li>
+          <li><a href="/docs/quickstart.html" aria-current="page">Quickstart</a></li>
+        </ul>
+      </div>
+      <div class="side-group">
+        <p class="side-label">Reference</p>
+        <ul>
+          <li><a href="/docs/cli.html">CLI</a></li>
+          <li><a href="/docs/api.html">Python &amp; JS API</a></li>
+          <li><a href="/docs/mounting.html">Mounting the signal</a></li>
+        </ul>
+      </div>
+      <div class="side-group">
+        <p class="side-label">Going deeper</p>
+        <ul>
+          <li><a href="/docs/advanced.html">Power user</a></li>
+        </ul>
+      </div>
+    </div>
+  </aside>
+
+  <main class="docs-main">
+    <a class="doc-back" href="/docs/">← Docs home</a>
+    <p class="doc-kicker">Quickstart</p>
+    <h1>Your first verified chain</h1>
+    <p class="lede">We will take a source file from raw export to a green light, then deliberately tamper with it and watch the light turn red and name the broken link. About five minutes. Python 3.11 or newer.</p>
+
+    <div class="callout note">
+      <span class="co-label">The one-command tour</span>
+      <p>In a hurry? <code>pip install tamper-signal</code> then <code>receipts demo</code> runs this entire story end to end on sample data: ingest, two transforms, verify (pass), tamper, verify (fail), and serves a badge so you can see green, yellow, and red side by side. The walkthrough below is the same thing, by hand, so you understand each step.</p>
+    </div>
+
+    <h2 id="install">1. Install</h2>
+    <p>Tamper Signal ships for both stacks, and the chains are interchangeable. Pick whichever your pipeline already speaks.</p>
+    <pre><code><span class="c"># Python 3.11+ : gives you the `receipts` CLI and the tamper_signal package</span>
+<span class="k">pip install</span> tamper-signal
+
+<span class="c"># or Node 18.17+ : gives you the `tamper-signal` CLI and a programmatic API</span>
+<span class="k">npm install</span> tamper-signal</code></pre>
+    <p>Confirm it is on your path:</p>
+    <pre><code><span class="k">receipts</span> --help        <span class="c"># exits 0 when healthy</span></code></pre>
+
+    <h2 id="scaffold">2. Scaffold keys and folders</h2>
+    <p>One idempotent command generates your signing keypair, writes a receipts directory, and adds the private key to <code>.gitignore</code> so it can never be committed by accident.</p>
+    <pre><code><span class="k">receipts</span> init</code></pre>
+    <p>You now have <code>keys/signing.key</code> (private, PEM, never commit) and <code>keys/signing.pub</code> (public, hex, safe to commit), plus an empty <code>receipts/</code>.</p>
+    <div class="callout warn">
+      <span class="co-label">Guard the private key</span>
+      <p><code>keys/signing.key</code> is the signet ring from the concepts page. Anyone holding it can sign receipts as you. <code>init</code> adds <code>keys/</code> and <code>*.key</code> to <code>.gitignore</code>; leave that in place. In CI, pass the key through the <code>TAMPER_SIGNAL_KEY</code> environment variable instead so no file ever touches disk.</p>
+    </div>
+
+    <h2 id="ingest">3. Ingest the source</h2>
+    <p>Ingest pins the original export in place: it records the evidence hash of the raw bytes, the semantic hash of the data, and the control totals, then signs a source receipt. The <code>--origin</code> text is free-form, for humans, and shows up later in the signal.</p>
+    <pre><code><span class="k">receipts</span> ingest sample_export.xlsx \
+  --origin <span class="s">"TikTok export, May 2026"</span> \
+  --key keys/signing.key \
+  --out receipts/</code></pre>
+    <p>This writes <code>receipts/000_source.json</code> and <code>receipts/chain.json</code>. Accepted formats: <code>.xlsx</code>, <code>.csv</code>, <code>.tsv</code>, <code>.json</code> (array of objects), and <code>.ndjson</code>. The semantic hash is identical across all of them, so an xlsx ingest will later verify against a CSV copy of the same rows.</p>
+
+    <h2 id="wrap">4. Wrap a transform</h2>
+    <p>Any function that takes a list of records and returns a list of records (or a pandas DataFrame) becomes a signed stage by adding one decorator. The wrapper verifies the chain tail first, refuses to run if its input does not match, runs your code, then signs and appends a receipt.</p>
+    <pre><code><span class="k">from</span> tamper_signal <span class="k">import</span> receipt_step
+
+<span class="o">@receipt_step</span>(chain_dir=<span class="s">"receipts/"</span>, key_path=<span class="s">"keys/signing.key"</span>)
+<span class="k">def</span> transform_clean(records):
+    <span class="c"># drop rows with no campaign name</span>
+    <span class="k">return</span> [r <span class="k">for</span> r <span class="k">in</span> records <span class="k">if</span> r.get(<span class="s">"campaign_name"</span>)]</code></pre>
+    <p>The JavaScript equivalent is <code>receiptStep</code>, an async wrapper with the same contract. Both are covered in the <a href="/docs/api.html">API reference</a>.</p>
+
+    <h2 id="verify">5. Verify: the green light</h2>
+    <p>Walk the chain, check every signature and every link, and reduce it to a light. Add <code>--data</code> to also check that the file your dashboard actually reads still matches the final receipt.</p>
+    <pre><code><span class="k">receipts</span> verify receipts/chain.json \
+  --pub keys/signing.pub \
+  --data dashboard.xlsx</code></pre>
+    <pre><code><span class="s">✓ The light is green, the data is clean.</span>
+  3 receipts · 2 transforms · source → clean → aggregate
+  final row_count 304</code></pre>
+    <p>The exit code <em>is</em> the light: <code>0</code> green, <code>2</code> yellow (verifies, with caveats), <code>1</code> red. That makes it trivial to gate CI, covered in <a href="/docs/advanced.html">Power user</a>.</p>
+
+    <h2 id="tamper">6. Tamper, and watch it turn red</h2>
+    <p>Now break it on purpose. Edit a single value in the data the dashboard reads, drop a few rows, anything, then verify again.</p>
+    <pre><code><span class="k">receipts</span> verify receipts/chain.json --pub keys/signing.pub --data dashboard_edited.xlsx</code></pre>
+    <pre><code><span class="o">✗ CHAIN BROKEN at link 1 → 2 (transform_aggregate)</span>
+  expected input hash  a3f1…9c   (output of transform_clean)
+  found    input hash  77b2…d4
+  totals delta vs upstream: row_count 48212 → 48190 (-22), spend_(usd) -98.40</code></pre>
+    <p>This is the whole promise in one screen. The light is red, it names the exact stage where continuity broke, and the control totals tell you twenty-two rows and $98.40 went missing right there.</p>
+
+    <div class="callout key">
+      <span class="co-label">What you just proved</span>
+      <p>While the chain was green, every number on the dashboard descended from that original May export through known code, unchanged. The moment one value moved, the light found the exact link and quantified the drift. You did not re-check 48,000 rows by hand; the receipts did it for you.</p>
+    </div>
+
+    <h2 id="next">Where to go next</h2>
+    <ul>
+      <li><a href="/docs/mounting.html">Mount the signal</a> so the green light lives on the dashboard itself, not just in your terminal.</li>
+      <li><a href="/docs/cli.html">CLI reference</a> for every command, flag, and the JSON verdict schema.</li>
+      <li><a href="/docs/api.html">API reference</a> to drive ingest, wrap, and verify entirely from code.</li>
+      <li><a href="/docs/advanced.html">Power user</a> for key rotation, CI signing, and anchoring to a public log.</li>
+    </ul>
+
+    <div class="doc-next">
+      <a class="dn-l" href="/docs/concepts.html">
+        <span class="dn-label">← Back</span>
+        <span class="dn-title">Core concepts</span>
+      </a>
+      <a class="dn-r" href="/docs/mounting.html">
+        <span class="dn-label">Next →</span>
+        <span class="dn-title">Mounting the signal</span>
+      </a>
+    </div>
+  </main>
+</div>
+
+<footer>
+  <div class="wrap">
+    <span>MIT licensed</span>
+    <span>·</span>
+    <a href="https://github.com/welovejeff/tamper-evident-verification">github.com/welovejeff/tamper-evident-verification</a>
+    <span>·</span>
+    <a href="/">tampersignal.com</a>
+  </div>
+</footer>
+
+<script>
+  const menuBtn = document.querySelector(".menu-btn");
+  const siteNav = document.getElementById("site-nav");
+  if (menuBtn && siteNav) {
+    menuBtn.addEventListener("click", () => {
+      const open = siteNav.classList.toggle("open");
+      menuBtn.setAttribute("aria-expanded", String(open));
+    });
+    siteNav.addEventListener("click", (e) => {
+      if (e.target.tagName === "A") { siteNav.classList.remove("open"); menuBtn.setAttribute("aria-expanded", "false"); }
+    });
+  }
+  const sideToggle = document.querySelector(".side-toggle");
+  const docsSide = document.querySelector(".docs-side");
+  if (sideToggle && docsSide) {
+    sideToggle.addEventListener("click", () => {
+      const open = docsSide.classList.toggle("open");
+      sideToggle.setAttribute("aria-expanded", String(open));
+    });
+  }
+</script>
+
+</body>
+</html>
