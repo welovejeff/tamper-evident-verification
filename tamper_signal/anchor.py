@@ -55,10 +55,12 @@ _OIDC_ISSUER_LEGACY_OID = "1.3.6.1.4.1.57264.1.1"
 def _der_utf8(raw: bytes) -> str:
     """Decode a DER-encoded UTF8String (tag 0x0c, length, content)."""
     if len(raw) >= 2 and raw[0] == 0x0C:
-        if raw[1] < 0x80:
+        if raw[1] < 0x80:  # short-form length
             return raw[2 : 2 + raw[1]].decode("utf-8")
-        if raw[1] == 0x81 and len(raw) >= 3:
-            return raw[3 : 3 + raw[2]].decode("utf-8")
+        num = raw[1] & 0x7F  # long form: number of length bytes follows
+        if 1 <= num <= 4 and len(raw) >= 2 + num:
+            length = int.from_bytes(raw[2 : 2 + num], "big")
+            return raw[2 + num : 2 + num + length].decode("utf-8")
     return raw.decode("utf-8")
 
 

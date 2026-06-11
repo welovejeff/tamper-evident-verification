@@ -395,6 +395,9 @@ def test_der_utf8_decodes_certificate_issuer_extension():
     long_value = "x" * 200
     der_long = bytes([0x0C, 0x81, len(long_value)]) + long_value.encode()
     assert _der_utf8(der_long) == long_value
+    longer_value = "y" * 300  # two length bytes (0x82)
+    der_longer = bytes([0x0C, 0x82]) + len(longer_value).to_bytes(2, "big") + longer_value.encode()
+    assert _der_utf8(der_longer) == longer_value
     assert _der_utf8(b"plain") == "plain"  # non-DER input passes through
 
 
