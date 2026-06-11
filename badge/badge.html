@@ -51,7 +51,7 @@
       // Default to the demo directories one level up from /badge/. Override the
       // intact chain with ?chain=<url> for other receipt sets.
       const params = new URLSearchParams(window.location.search);
-      const intact = params.get("chain") || "../receipts/chain.json";
+      const intact = params.get("chain") || "../examples/chains/intact/chain.json";
 
       renderReceiptBadge(document.getElementById("badge-intact"), intact);
 
@@ -66,7 +66,7 @@
 
       renderReceiptBadge(
         document.getElementById("badge-tampered"),
-        "../receipts_tampered/chain.json"
+        "../examples/chains/tampered/chain.json"
       );
     </script>
   </body>

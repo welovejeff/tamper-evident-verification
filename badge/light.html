@@ -70,9 +70,8 @@
       <strong>THE INLINE STATUS LIGHT, LIVE.</strong>
       Three copies of the same fake host dashboard. Each header carries one
       mountTamperSignal() pointed at a real receipt chain served from this
-      repo; every signature and hash link re-verifies in your browser. Click a
-      pill for the popover. Run <strong>receipts demo</strong> first if the
-      receipt directories are missing.
+      repo; every signature and hash link re-verifies in your browser, against the
+      example chains committed in this repo. Click a light for the popover.
     </p>
 
     <!-- GREEN: the intact demo chain. -->
@@ -137,7 +136,7 @@
       <header>
         <span class="logo"><i></i>Clipboard Analytics</span>
         <span class="spacer"></span>
-        <tamper-signal chain="../receipts/chain.json"></tamper-signal>
+        <tamper-signal chain="../examples/chains/intact/chain.json"></tamper-signal>
       </header>
       <main>
         <h1>As a web component</h1>
@@ -149,18 +148,18 @@
       import { mountTamperSignal } from "./light.js";
       import "./element.js";
 
-      mountTamperSignal(document.getElementById("light-green"), "../receipts/chain.json");
+      mountTamperSignal(document.getElementById("light-green"), "../examples/chains/intact/chain.json");
 
       // A trusted key that is not the chain's embedded key: yellow.
       mountTamperSignal(
         document.getElementById("light-yellow"),
-        "../receipts/chain.json",
+        "../examples/chains/intact/chain.json",
         "ab".repeat(32)
       );
 
       mountTamperSignal(
         document.getElementById("light-red"),
-        "../receipts_tampered/chain.json"
+        "../examples/chains/tampered/chain.json"
       );
     </script>
   </body>
