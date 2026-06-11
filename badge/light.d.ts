@@ -12,9 +12,17 @@ export interface SignalOptions {
   /** href for the popover's "view receipts" link (defaults to chainUrl). */
   receiptsHref?: string;
   /**
-   * "light" renders a light pill, intended for a DARK host page (so the pill
-   * stays the one foreign object). Omit it on a light host -- the default dark
-   * pill is what you want there.
+   * The HOST page's surface. The pill should be the one foreign object on the
+   * page, so on a "dark" host it inverts to a light pill. Pick this to match
+   * what you see -- "dark" on a dark dashboard. Default: "light".
+   */
+  surface?: "light" | "dark";
+  /** Boolean shortcut for `surface: "dark"`. */
+  invert?: boolean;
+  /**
+   * @deprecated Use `surface` instead. `theme: "light"` is equivalent to
+   * `surface: "dark"` (a light pill, for a dark host) -- the name invited the
+   * opposite of what you want. Kept working for back-compat.
    */
   theme?: "light" | "dark";
 }
@@ -45,3 +53,11 @@ export function mountTamperSignal(
   pubKeyHex?: string | string[] | SignalOptions,
   opts?: SignalOptions,
 ): SignalHandle;
+
+/**
+ * Whether the inverted (light) pill should render, given the host options.
+ * `surface: "dark"` (or `invert`, or the deprecated `theme: "light"`) inverts.
+ */
+export function shouldInvertPill(
+  opts?: Pick<SignalOptions, "surface" | "invert" | "theme">,
+): boolean;

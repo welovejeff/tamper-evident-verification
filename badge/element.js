@@ -12,7 +12,10 @@
 //   watch          re-verify every N milliseconds
 //   warn-drift     present = flag any control-totals movement across links
 //   receipts-href  href for the popover's "view receipts" link
-//   theme          "light" to invert the pill on dark host pages
+//   surface        the HOST page's surface: "light" (default) or "dark". On a
+//                  dark host the pill inverts. Pick this to match what you see.
+//   invert         present = shortcut for surface="dark"
+//   theme          DEPRECATED: theme="light" == surface="dark"; prefer surface
 //
 // The light renders into the element's light DOM (no shadow root) on purpose:
 // the instrument's styles are aggressively namespaced already, and the red
@@ -21,7 +24,7 @@
 
 import { mountTamperSignal } from "./light.js";
 
-const ATTRS = ["chain", "pub-key", "watch", "warn-drift", "receipts-href", "theme"];
+const ATTRS = ["chain", "pub-key", "watch", "warn-drift", "receipts-href", "surface", "invert", "theme"];
 
 class TamperSignalElement extends HTMLElement {
   static get observedAttributes() {
@@ -68,6 +71,8 @@ class TamperSignalElement extends HTMLElement {
       watch: Number.isFinite(watch) && watch > 0 ? watch : undefined,
       warnDrift: this.hasAttribute("warn-drift"),
       receiptsHref: this.getAttribute("receipts-href") || undefined,
+      surface: this.getAttribute("surface") || undefined,
+      invert: this.hasAttribute("invert"),
       theme: this.getAttribute("theme") || undefined,
     });
   }
