@@ -49,7 +49,7 @@ code, pre { font-family: var(--mono); }
 .top nav { margin-left: auto; display: flex; gap: 16px; }
 .top nav a { color: var(--dim); }
 .top nav a:hover { color: var(--text); text-decoration: none; }
-.top nav a[aria-current="page"] { color: var(--text); }
+.top nav a[aria-current="page"], .top nav a[aria-current="location"] { color: var(--text); }
 .menu-btn {
   display: none; margin-left: auto; font: 12px var(--mono); color: var(--dim);
   background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
