@@ -8,6 +8,7 @@ import type {
   DataRecord,
   Receipt,
   SourceManifest,
+  TableDocument,
   TransformReceipt,
   Verdict,
 } from "../types/core.js";
@@ -18,12 +19,15 @@ export type {
   DataRecord,
   Receipt,
   SourceManifest,
+  TableDocument,
   TransformReceipt,
   Verdict,
 } from "../types/core.js";
 
 // --- canonical.js ----------------------------------------------------------
 
+/** The canonical table document for a record set (the table.json contents). */
+export function canonicalDocument(records: DataRecord[]): TableDocument;
 /** Canonical bytes whose SHA-256 is a record set's semantic hash. */
 export function canonicalize(records: DataRecord[]): Buffer;
 /** Canonical JSON bytes for an arbitrary JSON-serializable value. */
@@ -177,3 +181,44 @@ export function receiptStep<I extends DataRecord[], O>(
   fn: (records: I, ...args: any[]) => O | Promise<O>,
   options?: ReceiptStepOptions,
 ): (records: I, ...args: any[]) => Promise<O>;
+
+export interface IngestFileOptions {
+  /** Path to the source file (.csv/.tsv/.json/.ndjson/.jsonl). */
+  file: string;
+  declaredOrigin?: string;
+  chainDir?: string;
+  keyPath?: string;
+}
+
+export interface IngestFileResult {
+  manifest: SourceManifest;
+  records: DataRecord[];
+  /** The source's semantic hash (the new chain tail). */
+  sourceHash: string;
+  chainDir: string;
+}
+
+/**
+ * Programmatic equivalent of `tamper-signal ingest`: build a signed source
+ * manifest and RESET chain.json to list only that source. Re-running it is the
+ * idempotent foundation for "rebuild on data change".
+ */
+export function ingestFile(options: IngestFileOptions): IngestFileResult;
+
+export interface RebuildChainOptions {
+  /** Path to the source file. */
+  file: string;
+  /** Records -> records transforms, run in order and wrapped per stage. */
+  stages?: Array<(records: DataRecord[], ...args: any[]) => DataRecord[] | Promise<DataRecord[]>>;
+  declaredOrigin?: string;
+  chainDir?: string;
+  keyPath?: string;
+}
+
+/**
+ * Rebuild a chain from scratch: re-ingest the source (resetting the chain),
+ * then run each stage, appending a signed receipt per stage. Returns the final
+ * output records. The idempotent "rebuild on data change" pipeline the raw
+ * receiptStep chain can't express.
+ */
+export function rebuildChain(options: RebuildChainOptions): Promise<DataRecord[]>;

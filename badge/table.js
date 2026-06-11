@@ -193,7 +193,7 @@ export function mountReceiptTable(containerEl, chainUrl, tableUrl, opts) {
 
     if (result.state === "unverifiable" || !doc) {
       setStrip("unverifiable", "UNVERIFIED",
-        !doc ? "could not load table.json (run: receipts export)" : result.reason, false);
+        !doc ? "could not load table.json (run the export step)" : result.reason, false);
       scroll.textContent = "";
       foot.textContent = "";
       if (doc) renderTable(doc, new Set());
@@ -228,7 +228,7 @@ export function mountReceiptTable(containerEl, chainUrl, tableUrl, opts) {
       noteSlot.appendChild(el("div", { className: "tt-note tt-bad" },
         `✗ This table does not match the final receipt (${stageNameOf(finalReceipt)}): ` +
         `expected ${SHORT(outputHashOf(finalReceipt))}, found ${SHORT(tableHash)}. ` +
-        "The file may be stale; re-run: receipts export"));
+        "The file may be stale; re-run the export step (receipts export / tamper-signal export)"));
       renderTable(doc, new Set());
     } else if (result.state === "yellow") {
       setStrip("yellow", "VERIFIED, WITH CAVEATS", rowsText, true);

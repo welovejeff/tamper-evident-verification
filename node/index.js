@@ -7,6 +7,7 @@
 // right, but it can prove nobody changed it.
 
 export {
+  canonicalDocument,
   canonicalize,
   canonicalJsonBytes,
   evidenceHash,
@@ -45,4 +46,4 @@ export {
   writeReceipt,
 } from "./receipts.js";
 export { controlTotals, groupedNumericColumns, totalsDelta } from "./totals.js";
-export { ChainTailMismatch, receiptStep } from "./wrapper.js";
+export { ChainTailMismatch, ingestFile, rebuildChain, receiptStep } from "./wrapper.js";
