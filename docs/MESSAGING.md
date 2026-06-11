@@ -35,8 +35,10 @@ The project speaks in two registers, bound by the same rules:
   vibe coder sees first): no code, no jargon nouns (hash, chain, key,
   pipeline as architecture), pain-first, "your AI assistant does the
   technical part." Receipts may carry their colloquial weight ("pull up the
-  receipts"). Decision 2026-06-10, from a real user test: code blocks on the
-  landing page scared away exactly the person the product serves.
+  receipts"). In this register the indicator is called the **status light**
+  ("the light" bare reads ambiguous; "pill" tested poorly). Decision
+  2026-06-10, from a real user test: code blocks on the landing page scared
+  away exactly the person the product serves.
 - **Developer register** (README, AGENTS.md, demos, docs): precise nouns,
   real commands, real output.
 
