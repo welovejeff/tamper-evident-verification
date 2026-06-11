@@ -201,6 +201,10 @@
   h2 { font-size: 26px; letter-spacing: -0.5px; margin: 0 0 10px; }
   .sec-lede { color: var(--dim); max-width: 640px; margin: 0 0 26px; }
 
+  .pain { max-width: 640px; }
+  .pain p { color: var(--dim); font-size: 16px; margin: 0 0 16px; }
+  .pain p:last-child { color: var(--text); }
+
   /* ---------- the playground ---------- */
   .switcher {
     display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
@@ -260,6 +264,7 @@
   .host-main h3 { font-size: 18px; margin: 0 0 4px; }
   .host-main .sub { font-size: 13px; color: #6b7280; margin: 0 0 18px; }
   .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  @media (max-width: 860px) { .metrics { grid-template-columns: 1fr; } }
   .metric { background: #fff; border: 1px solid #e6e8ee; border-radius: 14px; padding: 16px 18px; }
   .metric h4 {
     margin: 0 0 6px; font-size: 12px; font-weight: 600; color: #6b7280;
@@ -283,87 +288,29 @@
   #light-slot .lr-pill.lr-attn { animation: pill-attn 1s ease-out 2; }
   @media (prefers-reduced-motion: reduce) { #light-slot .lr-pill.lr-attn { animation: none; } }
 
-  /* ---------- inspector + terminal ---------- */
-  .twocol { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
-  .twocol > *, .codegrid > * { min-width: 0; }
-  @media (max-width: 860px) { .twocol { grid-template-columns: 1fr; } .metrics { grid-template-columns: 1fr; } }
-
-  .panel {
+  /* ---------- the three steps ---------- */
+  .steps { display: grid; gap: 16px; max-width: 720px; }
+  .step {
     background: var(--panel);
     border: 1px solid var(--border);
     border-radius: 12px;
-    overflow: hidden;
+    padding: 20px 22px;
+    position: relative;
   }
-  .panel-head {
-    display: flex; align-items: center; gap: 10px;
-    background: var(--chrome);
-    border-bottom: 1px solid var(--border);
-    padding: 10px 14px;
-    font: 11px var(--mono);
-    color: var(--dim);
-    letter-spacing: 1px;
+  .step .step-n {
+    position: absolute; top: 18px; right: 20px;
+    font: 13px var(--mono); color: var(--faint);
   }
-  .panel-body { padding: 14px; font: 12px/1.7 var(--mono); }
-
-  .stage-card {
-    border: 1px solid var(--border);
-    border-radius: 9px;
-    padding: 10px 12px;
-    background: var(--bg);
-  }
-  .stage-card .row1 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; }
-  .stage-card .stage-name { font-weight: 700; }
-  .stage-card .kind { color: var(--faint); font-size: 10px; }
-  .stage-card .ts { margin-left: auto; color: var(--faint); font-size: 10px; white-space: nowrap; }
-  .stage-card .row2 { display: flex; flex-wrap: wrap; gap: 14px; color: var(--dim); font-size: 11px; margin-top: 3px; }
-  .stage-card .hash { color: var(--cyan); }
-  .stage-card details { margin-top: 6px; }
-  .stage-card summary { cursor: pointer; color: var(--faint); font-size: 10px; user-select: none; }
-  .stage-card summary:hover { color: var(--dim); }
-  .stage-card pre {
-    margin: 8px 0 2px; padding: 10px;
-    background: var(--panel); border: 1px solid var(--border); border-radius: 7px;
-    font-size: 10px; line-height: 1.5; overflow-x: auto; max-height: 260px;
-  }
-  .link-row { padding: 4px 0 4px 14px; font-size: 11px; color: var(--dim); }
-  .link-row.ok::before { content: "│  "; color: var(--faint); }
-  .link-row .lnk-ok { color: var(--green); }
-  .link-row.bad { color: var(--red); }
-  .link-row.bad::before { content: "┊  "; color: var(--red); }
-  .caveat-box {
-    border: 1px dashed rgba(251, 191, 36, 0.45);
-    background: rgba(251, 191, 36, 0.07);
-    border-radius: 7px; padding: 8px 10px;
-    color: var(--amber); font-size: 11px; margin: 0 0 10px;
-  }
-
-  .term { background: #07090d; }
-  .term .panel-body { color: var(--dim); white-space: pre-wrap; word-break: break-word; }
-  .term .t-prompt { color: var(--faint); }
-  .term .t-green { color: var(--green); }
-  .term .t-amber { color: var(--amber); }
-  .term .t-red { color: var(--red); }
-
-  /* ---------- how it works ---------- */
-  .chainflow {
-    font: 12px/1.9 var(--mono); color: var(--dim);
-    background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
-    padding: 18px 20px; overflow-x: auto; white-space: pre;
-  }
-  .chainflow b { color: var(--text); font-weight: 700; }
-  .chainflow .c { color: var(--cyan); }
-  .codegrid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 18px; }
-  @media (max-width: 860px) { .codegrid { grid-template-columns: 1fr; } }
-  .codegrid h3 { font: 11px var(--mono); color: var(--dim); letter-spacing: 1px; margin: 0 0 8px; font-weight: 400; }
-  .codegrid h3 b { color: var(--cyan); }
-  .codegrid pre {
-    margin: 0; background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
-    padding: 14px 16px; font-size: 12px; line-height: 1.7; overflow-x: auto;
-  }
-  .cmt { color: var(--faint); }
-  .str { color: var(--green); }
-  .kw { color: #a78bfa; }
-  .fn { color: var(--cyan); }
+  .step h3 { margin: 0 0 8px; font-size: 17px; }
+  .step p { margin: 0; color: var(--dim); font-size: 14.5px; }
+  .step em { color: var(--cyan); font-style: normal; }
+  .lights p { display: flex; gap: 10px; align-items: baseline; margin: 0 0 10px; }
+  .lights p:last-child { margin-bottom: 0; }
+  .lights strong { color: var(--text); }
+  .lt { width: 10px; height: 10px; border-radius: 50%; flex: none; position: relative; top: 0; }
+  .lt.g { background: var(--green); box-shadow: 0 0 6px 0 rgba(52, 211, 153, 0.6); }
+  .lt.y { background: var(--amber); box-shadow: 0 0 6px 0 rgba(251, 191, 36, 0.6); }
+  .lt.r { background: var(--red); box-shadow: 0 0 6px 0 rgba(248, 113, 113, 0.6); }
 
   /* ---------- explore cards ---------- */
   .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
@@ -475,56 +422,85 @@
         <path d="M 56 340 a 44 44 0 0 1 88 0 l -9 2 a 35 35 0 0 0 -70 0 z" fill="#0b0f14" opacity="0.85" />
       </svg>
     </div>
-    <p class="kicker">SIGNED RECEIPTS FOR VIBE-CODED DATA PIPELINES</p>
+    <p class="kicker">YOUR DASHBOARD'S DATA, WITH RECEIPTS</p>
     <h1>The light is <span class="lit">green</span>, the data is clean.</h1>
     <p class="lede">
-      Every stage of your pipeline signs a receipt: a fingerprint of the data in,
-      the code that ran, and the data out. Verify the chain and know your dashboard
-      numbers descend from the original export, untouched.
+      You pulled the export. Your AI built the dashboard. Tamper Signal keeps
+      receipts for the data behind it, so when anyone asks whether the numbers
+      are still the real numbers, you don't have to guess. A small light on
+      your dashboard answers: green means nothing changed.
     </p>
     <p class="caveat">
       It can't tell you the data is right, but it can prove nobody changed it.
     </p>
     <div class="cta-commands" aria-label="Install commands, click to copy">
+      <button type="button" class="cmd-chip"
+        data-copy="Add Tamper Signal (signed data receipts) to this project. Read and follow the integration runbook: https://github.com/welovejeff/tamper-evident-verification/blob/main/AGENTS.md">
+        <span class="ps">&gt;</span> "add tamper signal" <span class="copy-hint">copy &amp; paste to your AI</span>
+      </button>
       <button type="button" class="cmd-chip" data-copy="pip install tamper-signal">
         <span class="ps">$</span> pip install tamper-signal <span class="copy-hint">copy</span>
       </button>
       <button type="button" class="cmd-chip" data-copy="npm install tamper-signal">
         <span class="ps">$</span> npm install tamper-signal <span class="copy-hint">copy</span>
       </button>
-      <button type="button" class="cmd-chip"
-        data-copy="Add Tamper Signal (signed data receipts) to this project. Read and follow the integration runbook: https://github.com/welovejeff/tamper-evident-verification/blob/main/AGENTS.md">
-        <span class="ps">&gt;</span> "add tamper signal" <span class="copy-hint">copy agent prompt</span>
-      </button>
     </div>
     <div class="cta-row">
-      <a class="btn primary" href="#demo">break a pipeline ↓</a>
-      <a class="btn" href="https://github.com/welovejeff/tamper-evident-verification">view on GitHub</a>
-      <span class="pipline">python 3.11+ or node 18+ · MIT</span>
+      <a class="btn primary" href="#demo">watch it catch a change ↓</a>
+      <a class="btn" href="https://github.com/welovejeff/tamper-evident-verification">for developers</a>
+      <span class="pipline">free · open source · MIT</span>
     </div>
   </div>
 </header>
 
+<section id="why">
+  <div class="wrap">
+    <p class="sec-kicker">the monday morning problem</p>
+    <h2>When the report doesn't match the export</h2>
+    <div class="pain">
+      <p>
+        You know the moment. The deck says reach was up 12 percent. The client
+        pulls up their own export and gets a different number. Suddenly the
+        meeting is about your spreadsheet instead of your work, and your evening
+        is three weeks of tabs, looking for where it drifted.
+      </p>
+      <p>
+        Here's the part nobody warns you about AI-built dashboards: when they
+        go wrong, they don't crash. The assistant that built yours in an
+        afternoon might quietly drop a few thousand rows or count a column
+        twice, and everything still looks finished. The chart renders. The
+        numbers feel plausible. Nothing taps you on the shoulder.
+      </p>
+      <p>
+        Tamper Signal is the tap on the shoulder. From the moment you export to
+        the moment your dashboard shows a number, your data carries receipts.
+        One glance at the light tells you the numbers are still exactly what
+        you exported. And if someone asks? Pull up the receipts.
+      </p>
+    </div>
+  </div>
+</section>
+
 <section id="demo">
   <div class="wrap">
     <p class="sec-kicker">live demo · not a mockup</p>
-    <h2>Break this pipeline. Watch the light catch it.</h2>
+    <h2>Watch the light catch a change</h2>
     <p class="sec-lede">
-      The pastel dashboard below is a stand-in for somebody's vibe-coded app. The dark
-      pill in its header is ours, and it is doing real work: re-verifying the Ed25519
-      signature and hash link of every receipt in a real committed chain, in your
-      browser, right now. Use the switcher to swap in a tampered chain or an
-      untrusted signing key.
+      This is a pretend dashboard, like the ones you build. The dark pill in its
+      header is Tamper Signal, and it is really working: checking the receipts
+      behind this page in your browser, right now. Use the buttons to see what
+      happens when everything is fine, when something deserves a second look,
+      and when a number has been changed.
     </p>
 
     <div class="switcher" role="group" aria-label="Demo chain selector">
-      <span class="sw-label">CHAIN ·</span>
-      <button type="button" data-set="green" aria-pressed="true"><i></i>INTACT</button>
-      <button type="button" data-set="yellow" aria-pressed="false"><i></i>UNTRUSTED KEY</button>
+      <span class="sw-label">TRY IT ·</span>
+      <button type="button" data-set="green" aria-pressed="true"><i></i>ALL GOOD</button>
+      <button type="button" data-set="yellow" aria-pressed="false"><i></i>NEEDS A LOOK</button>
       <button type="button" data-set="red" aria-pressed="false"><i></i>TAMPERED</button>
     </div>
 
-    <p class="pill-callout">not a screenshot: the pill verifies the chain and opens its receipt for you <span class="arrow">↘</span></p>
+    <p class="pill-callout">not a screenshot: the light below is live. click it <span class="arrow">↘</span></p>
 
     <div class="browser" aria-label="Example host application (mock)">
       <div class="browser-bar">
@@ -557,88 +533,47 @@
     </div>
 
     <p class="playground-note">
-      <strong>No mock verification anywhere on this page.</strong> The receipts live in
-      <a href="https://github.com/welovejeff/tamper-evident-verification/tree/main/examples/chains">examples/chains/</a>;
-      the pill is <a href="https://github.com/welovejeff/tamper-evident-verification/blob/main/badge/light.js">badge/light.js</a>
-      doing the same Web Crypto walk the CLI does. Click the pill for the popover. On the
-      tampered chain, the light reaches into the page and flags the one metric whose
-      column moved at the broken link. The popover opens for you after each switch
-      (on phones, tap the pill); click away to close it.
+      <strong>No tricks.</strong> Your browser is checking real receipts behind this
+      page. On the tampered version, notice the light doesn't just turn red: it
+      reaches into the dashboard and flags the exact number that changed, and says
+      by how much. That's the difference between an alarm and an answer.
     </p>
   </div>
 </section>
 
-<section>
-  <div class="wrap">
-    <p class="sec-kicker">the same verdict, two surfaces</p>
-    <h2>Read the receipts</h2>
-    <p class="sec-lede">
-      Receipts are plain JSON files on disk. The inspector below renders the actual
-      receipts your browser just verified, and the terminal shows what
-      <code>receipts verify</code> prints for the same chain. Exit codes are the traffic
-      light: 0 green, 1 red, 2 yellow.
-    </p>
-    <div class="twocol">
-      <div class="panel">
-        <div class="panel-head">RECEIPT CHAIN · <span id="insp-state">intact</span></div>
-        <div class="panel-body" id="inspector">loading receipts…</div>
-      </div>
-      <div class="panel term">
-        <div class="panel-head">TERMINAL</div>
-        <div class="panel-body" id="terminal">…</div>
-      </div>
-    </div>
-  </div>
-</section>
 
 <section id="how">
   <div class="wrap">
     <p class="sec-kicker">how it works</p>
-    <h2>Receipts link. Links verify. Breaks locate.</h2>
-    <p class="sec-lede">
-      Each receipt records the SHA-256 of its input, its code, and its output, plus
-      human-legible control totals. Receipts link because each stage's input hash must
-      equal the previous stage's output hash. Hashes say "broken"; totals say "how broken."
-    </p>
-    <div class="chainflow">
-<b>export.xlsx</b>
-    │
-    ▼
- [ingest] ─────────────▶ <span class="c">000_source.json</span>      evidence hash + semantic hash + totals, signed
-    │
-    ▼
- [transform_clean] ────▶ <span class="c">001_clean.json</span>       input hash == previous output hash
-    │
-    ▼
- [transform_agg] ──────▶ <span class="c">002_aggregate.json</span>
-    │
-    ▼
-<b>dashboard data</b>  ◀────── receipts verify: walk every link, check every signature</div>
-
-    <div class="codegrid">
-      <div>
-        <h3><b>PYTHON</b> · wrap any transform</h3>
-        <pre><code><span class="kw">from</span> tamper_signal <span class="kw">import</span> receipt_step
-
-<span class="fn">@receipt_step</span>(chain_dir=<span class="str">"receipts/"</span>, key_path=<span class="str">"keys/signing.key"</span>)
-<span class="kw">def</span> <span class="fn">transform_clean</span>(records):
-    <span class="kw">return</span> [r <span class="kw">for</span> r <span class="kw">in</span> records <span class="kw">if</span> r.get(<span class="str">"campaign_name"</span>)]
-
-<span class="cmt"># verifies the chain tail first, refuses to run on a</span>
-<span class="cmt"># mismatch, then signs and appends a receipt</span></code></pre>
+    <h2>Three things happen, and you do one of them</h2>
+    <div class="steps">
+      <div class="step">
+        <span class="step-n">1</span>
+        <h3>Copy one sentence to your AI assistant</h3>
+        <p>
+          The <em>"add tamper signal"</em> button at the top copies the
+          instructions. Your assistant reads them and does the technical part.
+          That's the whole point of having one.
+        </p>
       </div>
-      <div>
-        <h3><b>ANY FRONTEND</b> · mount the light</h3>
-        <pre><code>&lt;script type=<span class="str">"module"</span>&gt;
-  <span class="kw">import</span> { <span class="fn">mountTamperSignal</span> } <span class="kw">from</span> <span class="str">"/badge/light.js"</span>;
-  <span class="fn">mountTamperSignal</span>(
-    document.querySelector(<span class="str">"header"</span>),
-    <span class="str">"/receipts/chain.json"</span>
-  );
-&lt;/script&gt;
-
-<span class="cmt">&lt;!-- React, with a bundler --&gt;</span>
-&lt;<span class="fn">TamperSignal</span> chain=<span class="str">"/receipts/chain.json"</span> /&gt;</code></pre>
+      <div class="step">
+        <span class="step-n">2</span>
+        <h3>Your data starts carrying receipts</h3>
+        <p>
+          From then on, every step between your export and your dashboard
+          writes down proof of what the data looked like. Receipts are small
+          files that travel with your project. You never have to open one, but
+          you can always pull them up when someone asks.
+        </p>
+      </div>
+      <div class="step">
+        <span class="step-n">3</span>
+        <h3>Your dashboard gets the light</h3>
+        <div class="lights">
+          <p><span class="lt g"></span><strong>The light is green, the data is clean.</strong> Nothing changed. Present with confidence.</p>
+          <p><span class="lt y"></span><strong>The light is yellow, a human should look.</strong> Probably fine, but one thing couldn't be fully checked. It tells you which.</p>
+          <p><span class="lt r"></span><strong>The light is red, the chain is broken.</strong> Something changed your numbers after the export. It points at the exact number and says by how much.</p>
+        </div>
       </div>
     </div>
   </div>
@@ -646,32 +581,32 @@
 
 <section id="explore">
   <div class="wrap">
-    <p class="sec-kicker">explore</p>
-    <h2>Go deeper</h2>
+    <p class="sec-kicker">go deeper</p>
+    <h2>When you're ready for more</h2>
     <div class="cards">
-      <a class="card" href="badge/light.html">
-        <p class="card-k">LIVE PAGES</p>
-        <img class="card-thumb" src="docs/media/thumbs/light-pages.jpg" alt="The light.html demo page: three host dashboards with green, yellow, and red signals" loading="lazy" width="720" height="450" />
-        <h3>The light, badge, table &amp; console</h3>
-        <p>Standalone demo pages for every surface: the inline status light, the badge,
-           the verified Data tab, and the verification console, all against real chains.</p>
-        <span class="go">light · badge · table · console →</span>
-      </a>
-      <a class="card" href="designs/01-inline-light.html">
-        <p class="card-k">DESIGN DIRECTIONS</p>
-        <img class="card-thumb" src="docs/media/thumbs/designs.jpg" alt="The inline light design mockup in its red state, with the broken metric flagged" loading="lazy" width="720" height="450" />
-        <h3>The working mockups</h3>
-        <p>Three interface tiers: the inline light (shipped), the verification console,
-           and the Data tab. Live HTML, with the design notes alongside.</p>
-        <span class="go">designs/ →</span>
-      </a>
       <a class="card" href="https://github.com/welovejeff/tamper-evident-verification/blob/main/docs/blog/your-vibe-coded-dashboard-needs-receipts.md">
         <p class="card-k">THE STORY</p>
         <img class="card-thumb" src="docs/media/thumbs/stoplight.jpg" alt="A matte black stoplight with the green light lit" loading="lazy" width="720" height="450" />
         <h3>Your vibe-coded dashboard needs receipts</h3>
-        <p>The blog post: why AI-written pipelines fail silently, and what a receipt
-           chain catches that a plausible-looking chart never will.</p>
+        <p>The longer version of this page: why dashboards lie so quietly,
+           and what it feels like when yours can finally prove itself.</p>
         <span class="go">read the post →</span>
+      </a>
+      <a class="card" href="badge/light.html">
+        <p class="card-k">SEE IT LIVE</p>
+        <img class="card-thumb" src="docs/media/thumbs/light-pages.jpg" alt="Demo pages showing green, yellow, and red signals on a sample dashboard" loading="lazy" width="720" height="450" />
+        <h3>Every piece, working</h3>
+        <p>The light, the badge, the data table, and the inspector console,
+           all running on real example data you can poke at.</p>
+        <span class="go">open the demos →</span>
+      </a>
+      <a class="card" href="https://github.com/welovejeff/tamper-evident-verification#readme">
+        <p class="card-k">FOR DEVELOPERS &amp; AI AGENTS</p>
+        <img class="card-thumb" src="docs/media/thumbs/designs.jpg" alt="The technical design mockups" loading="lazy" width="720" height="450" />
+        <h3>Everything above, in engineer</h3>
+        <p>The README covers how it all works under the hood. AGENTS.md is the
+           step-by-step playbook your AI assistant follows when you paste the prompt.</p>
+        <span class="go">read the docs →</span>
       </a>
     </div>
   </div>
@@ -680,19 +615,19 @@
 <section>
   <div class="wrap">
     <div class="honesty">
-      <h2>What this proves, and what it doesn't</h2>
+      <h2>What it promises (and what it honestly can't)</h2>
       <p>
-        This proves <strong>continuity, not correctness</strong>. The chain shows your
-        dashboard numbers descend from the ingested export through a known sequence of
-        code, and it locates the exact stage where a number changed unexpectedly. If the
-        source export is itself wrong, the chain faithfully verifies wrong numbers. It is
-        not a data-quality tool.
+        <strong>It can't tell you the data is right, but it can prove nobody
+        changed it.</strong> If the export itself was wrong, Tamper Signal will
+        faithfully protect the wrong numbers; checking the source is still your
+        job.
       </p>
       <p>
-        Also worth knowing: the signing key lives on your machine, and today that local
-        keypair is the whole root of trust. External anchoring (Sigstore, RFC 3161) is on
-        the roadmap to close that gap. Tamper-evident, not tamper-proof: we detect, we
-        don't prevent.
+        It also doesn't stop anyone from changing things. It makes sure changes
+        can't hide. We think that's the honest version of trust: not a promise
+        that nothing will ever go wrong, but proof of exactly what happened
+        when something does. That's the only claim we make, and the technical
+        docs hold us to it.
       </p>
     </div>
   </div>
@@ -709,47 +644,30 @@
 
 <script type="module">
   import { mountTamperSignal } from "./badge/light.js";
-  import {
-    verifyReceipts,
-    SHORT,
-    totalsOf,
-    stageNameOf,
-    outputHashOf,
-  } from "./badge/badge.js";
 
   const STATES = {
     green: {
       chain: "examples/chains/intact/chain.json",
       pub: undefined,
       spend: "$2,020,283",
-      inspLabel: "intact",
-      cmd: "receipts verify chain.json",
     },
     yellow: {
       chain: "examples/chains/intact/chain.json",
       pub: "ab".repeat(32),
       spend: "$2,020,283",
-      inspLabel: "intact, untrusted key",
-      cmd: "receipts verify chain.json --pub someone-elses.pub",
     },
     red: {
       chain: "examples/chains/tampered/chain.json",
       pub: undefined,
       spend: "$2,020,185",
-      inspLabel: "tampered",
-      cmd: "receipts verify chain.json",
     },
   };
 
   const slot = document.getElementById("light-slot");
-  const inspector = document.getElementById("inspector");
-  const inspState = document.getElementById("insp-state");
-  const terminal = document.getElementById("terminal");
   const spend = document.getElementById("m-spend");
   const buttons = [...document.querySelectorAll(".switcher button[data-set]")];
 
   let lightHandle = null;
-  const resultCache = {};
 
   function el(tag, props = {}, children = []) {
     const node = document.createElement(tag);
@@ -761,90 +679,10 @@
     return node;
   }
 
-  function renderInspector(result) {
-    inspector.textContent = "";
-    if (result.state === "unverifiable") {
-      inspector.textContent =
-        `could not load the demo chains (${result.reason}). ` +
-        "If you are viewing this locally, serve the repo root: python -m http.server";
-      return;
-    }
-    for (const caveat of result.caveats) {
-      inspector.appendChild(el("div", { className: "caveat-box" }, `⚠ ${caveat}`));
-    }
-    const { receipts, linkResult } = result;
-    receipts.forEach((r, i) => {
-      if (i > 0) {
-        const broken = linkResult.ok === false && linkResult.brokenAt === i;
-        inspector.appendChild(
-          broken
-            ? el("div", { className: "link-row bad" },
-                `link ✗ expected ${SHORT(linkResult.expected)}, found ${SHORT(linkResult.found)}`)
-            : el("div", { className: "link-row ok" }, [
-                el("span", { className: "lnk-ok" }, "link ✓ "),
-                "input matches upstream output",
-              ])
-        );
-      }
-      const totals = totalsOf(r);
-      const card = el("div", { className: "stage-card" }, [
-        el("div", { className: "row1" }, [
-          el("span", { className: "stage-name" }, stageNameOf(r)),
-          el("span", { className: "kind" }, r.kind),
-          el("span", { className: "ts" }, r.created_at || ""),
-        ]),
-        el("div", { className: "row2" }, [
-          el("span", {}, [
-            "out ",
-            el("span", { className: "hash" }, SHORT(outputHashOf(r))),
-          ]),
-          el("span", {}, `rows ${totals.row_count ?? "?"}`),
-          el("span", {}, `sig ${(r.signature && r.signature.key_fingerprint || "").slice(0, 8)}…`),
-        ]),
-        el("details", {}, [
-          el("summary", {}, "raw receipt JSON"),
-          el("pre", {}, JSON.stringify(r, null, 2)),
-        ]),
-      ]);
-      inspector.appendChild(card);
-    });
-  }
-
-  // Mirror the CLI report for the same chain, built from the live result.
-  function renderTerminal(result, def) {
-    terminal.textContent = "";
-    const line = (cls, text) => terminal.appendChild(el("span", { className: cls }, text + "\n"));
-    line("t-prompt", `$ ${def.cmd}`);
-    if (result.state === "unverifiable") {
-      line("", "(run it yourself: pip install -e . && receipts demo)");
-      return;
-    }
-    const { receipts, linkResult, caveats } = result;
-    const rows = receipts.length ? totalsOf(receipts[receipts.length - 1]).row_count : "?";
-    if (result.state === "green") {
-      line("t-green", `✓ CHAIN INTACT: ${receipts.length} receipts, ${result.transforms} transforms, final row_count ${rows}`);
-      line("t-prompt", "# exit 0 · the light is green");
-    } else if (result.state === "yellow") {
-      line("t-amber", `⚠ CHAIN VERIFIES, WITH CAVEATS: ${receipts.length} receipts, ${result.transforms} transforms, final row_count ${rows}`);
-      for (const caveat of caveats) line("", `  - ${caveat}`);
-      line("t-amber", "  A human should look.");
-      line("t-prompt", "# exit 2 · the light is yellow");
-    } else {
-      line("t-red", `✗ CHAIN BROKEN at link ${linkResult.brokenAt - 1} -> ${linkResult.brokenAt} (${linkResult.brokenStage})`);
-      line("", `  expected input hash ${SHORT(linkResult.expected)}  (output of ${stageNameOf(receipts[linkResult.brokenAt - 1])})`);
-      line("", `  found    input hash ${SHORT(linkResult.found)}`);
-      if (linkResult.delta && linkResult.delta.length) {
-        line("", `  Control totals delta vs upstream: ${linkResult.delta.join(", ")}`);
-      }
-      line("t-prompt", "# exit 1 · the light is red");
-    }
-  }
-
   async function setState(name) {
     const def = STATES[name];
     buttons.forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.set === name)));
     spend.textContent = def.spend;
-    inspState.textContent = def.inspLabel;
 
     if (lightHandle) lightHandle.destroy();
     lightHandle = mountTamperSignal(slot, def.chain, def.pub);
@@ -864,11 +702,6 @@
       if (pill) pill.classList.add("lr-attn");
     });
 
-    if (!resultCache[name]) {
-      resultCache[name] = await verifyReceipts(def.chain, def.pub);
-    }
-    renderInspector(resultCache[name]);
-    renderTerminal(resultCache[name], def);
   }
 
   buttons.forEach((b) => b.addEventListener("click", () => setState(b.dataset.set)));

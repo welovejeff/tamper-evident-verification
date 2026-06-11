@@ -27,6 +27,22 @@ The previous brand word, "lineage," is retired (decision 2026-06-10): it filed
 the project under the warehouse-lineage category (OpenLineage, dbt, metadata
 catalogs), which is exactly what this is not. See the banned list below.
 
+## 0.5 Two registers, one truth
+
+The project speaks in two registers, bound by the same rules:
+
+- **Plain register** (the landing page, social, anything a non-technical
+  vibe coder sees first): no code, no jargon nouns (hash, chain, key,
+  pipeline as architecture), pain-first, "your AI assistant does the
+  technical part." Receipts may carry their colloquial weight ("pull up the
+  receipts"). Decision 2026-06-10, from a real user test: code blocks on the
+  landing page scared away exactly the person the product serves.
+- **Developer register** (README, AGENTS.md, demos, docs): precise nouns,
+  real commands, real output.
+
+The locked lines, the verdict table, the banned words, and the honesty rule
+bind BOTH registers. "Plain" means fewer nouns, never bigger claims.
+
 ## 1. The traffic-light copy system
 
 **Decision: only green rhymes.** All three states share the same skeleton, "The
