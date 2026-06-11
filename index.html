@@ -785,32 +785,35 @@
 
   // Live GitHub star count on the "visit GitHub" button. Best-effort: the
   // GitHub API is unauthenticated (60 req/hr/IP) and CORS-enabled; if it's
-  // rate-limited, offline, or fails, the button stays as-is. A session cache
-  // avoids refetching on in-session navigations.
+  // rate-limited, offline, or fails, the button stays as-is. A valid session
+  // cache is authoritative and skips the API call entirely, so repeat
+  // in-session navigations make no further requests.
   (async function showGitHubStars() {
     const wrap = document.querySelector(".gh-stars");
     const out = wrap && wrap.querySelector(".gh-star-count");
     if (!out) return;
     const REPO = "welovejeff/tamper-evident-verification";
     const CACHE_KEY = "ts-gh-stars";
+    // Render only finite numbers; returns whether it actually displayed a
+    // value, so a corrupt cache neither shows NaN nor short-circuits the fetch.
     const show = (n) => {
       const value = Number(n);
-      if (!Number.isFinite(value)) return; // ignore corrupt cache / bad input
+      if (!Number.isFinite(value)) return false;
       out.textContent = value.toLocaleString();
       wrap.hidden = false;
+      return true;
     };
     try {
       const cached = sessionStorage.getItem(CACHE_KEY);
-      if (cached !== null && cached !== "") show(cached);
-    } catch { /* sessionStorage may be unavailable */ }
+      if (cached !== null && show(cached)) return; // cached this session; no refetch
+    } catch { /* sessionStorage unavailable; fall through to fetch */ }
     try {
       const res = await fetch(`https://api.github.com/repos/${REPO}`, {
         headers: { Accept: "application/vnd.github+json" },
       });
       if (!res.ok) return;
       const data = await res.json();
-      if (typeof data.stargazers_count === "number") {
-        show(data.stargazers_count);
+      if (typeof data.stargazers_count === "number" && show(data.stargazers_count)) {
         try { sessionStorage.setItem(CACHE_KEY, String(data.stargazers_count)); } catch {}
       }
     } catch { /* offline or rate-limited: leave the button as-is */ }
