@@ -12,28 +12,29 @@ import {
 
 const TYPE_THRESHOLD = 0.9;
 
-function columnsOf(records) {
+// Normalize record keys once and capture first-seen column order. Shared by
+// controlTotals and groupedNumericColumns so the two can never disagree on what
+// a "column" is or how its cells are addressed.
+function normalizedRecords(records) {
   const columns = [];
   const seen = new Set();
-  for (const record of records) {
-    for (const key of Object.keys(record)) {
+  const normRecords = records.map((record) => {
+    const out = {};
+    for (const [key, value] of Object.entries(record)) {
       const name = normalizeHeader(key);
+      out[name] = value;
       if (!seen.has(name)) {
         seen.add(name);
         columns.push(name);
       }
     }
-  }
-  return columns;
+    return out;
+  });
+  return { columns, normRecords };
 }
 
 export function controlTotals(records) {
-  const columns = columnsOf(records);
-  const normRecords = records.map((record) => {
-    const out = {};
-    for (const [k, v] of Object.entries(record)) out[normalizeHeader(k)] = v;
-    return out;
-  });
+  const { columns, normRecords } = normalizedRecords(records);
 
   const nullCounts = {};
   const numericSums = {};
@@ -78,6 +79,56 @@ export function controlTotals(records) {
     date_ranges: dateRanges,
     null_counts: nullCounts,
   };
+}
+
+// Thousands-grouped numbers ("289,084", "1,198,372", "1 198 372") are an
+// extremely common export shape, but they don't parse as plain decimals, so
+// coerceDecimal rejects them and their column never reaches numeric_sums. The
+// failure is silent: a data-receipt-column on such a column looks wired but can
+// never flag a change. We deliberately do NOT coerce them -- that would diverge
+// from the Python canonicalization (breaking cross-stack verification) and
+// reintroduce the locale ambiguity ("1,234" = 1234 or 1.234?) the canonical
+// format rejects. Instead we name them so the author can add a normalize step.
+// Separator class: comma, space, no-break space (U+00A0), narrow no-break
+// space (U+202F) -- the grouping characters real-world exports emit.
+const GROUPED_NUMERIC_RE = /^[+-]?\d{1,3}([,\u0020\u00a0\u202f]\d{3})+(\.\d+)?$/;
+
+// Columns excluded from numeric_sums that would become numeric if grouping
+// separators were stripped. Pure; reuses TYPE_THRESHOLD so a hit here means
+// "strip the separators and this column joins numeric_sums." Returns
+// [{ column, example }] (example: a representative grouped value, for messages).
+export function groupedNumericColumns(records) {
+  const { columns, normRecords } = normalizedRecords(records);
+
+  const flagged = [];
+  for (const column of columns) {
+    const nonNull = [];
+    for (const record of normRecords) {
+      const value = record[column] ?? null;
+      if (normalizeCell(value) !== null) nonNull.push(value);
+    }
+    if (!nonNull.length) continue;
+
+    const coercible = nonNull.filter((v) => coerceDecimal(v) !== null).length;
+    // Already numeric (in numeric_sums): nothing to surface.
+    if (coercible / nonNull.length >= TYPE_THRESHOLD) continue;
+
+    let grouped = 0;
+    let example = null;
+    for (const value of nonNull) {
+      if (typeof value !== "string" || coerceDecimal(value) !== null) continue;
+      if (GROUPED_NUMERIC_RE.test(value.trim())) {
+        grouped += 1;
+        if (example === null) example = value.trim();
+      }
+    }
+    // Flag only if stripping separators would push the column over the numeric
+    // threshold -- i.e. fixing the data actually re-enables flagging.
+    if (grouped > 0 && (coercible + grouped) / nonNull.length >= TYPE_THRESHOLD) {
+      flagged.push({ column, example });
+    }
+  }
+  return flagged;
 }
 
 const sortedUnion = (a, b) => [...new Set([...Object.keys(a), ...Object.keys(b)])].sort();
