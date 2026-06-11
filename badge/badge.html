@@ -38,6 +38,14 @@
       .ts-demos-nav a:hover { color: #e5e7eb; }
       .ts-demos-nav a[aria-current="page"] { color: #67e8f9; }
       .ts-demos-nav .back { margin-left: auto; color: #34d399; }
+      @media (max-width: 600px) {
+        .ts-demos-nav { font-size: 15px; gap: 2px 20px; padding: 12px 16px; }
+        .ts-demos-nav a { padding: 8px 0; display: inline-block; }
+        .ts-demos-nav .back {
+          flex-basis: 100%; margin-left: 0; margin-top: 6px;
+          padding-top: 10px; border-top: 1px solid #1f2937;
+        }
+      }
     </style>
   </head>
   <body>
