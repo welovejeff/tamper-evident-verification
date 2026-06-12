@@ -10,7 +10,7 @@
 //   const output = await clean(records);
 
 import { readFileSync } from "node:fs";
-import { basename } from "node:path";
+import { basename, join } from "node:path";
 
 import {
   decimalToPlainString,
@@ -19,9 +19,11 @@ import {
   parseDecimal,
   semanticHash,
 } from "./canonical.js";
+import { archiveRunSnapshot } from "./history.js";
 import { loadPrivateKey, publicHexFromPrivate } from "./keys.js";
 import { loadRecords } from "./load.js";
 import {
+  CHAIN_FILENAME,
   SOURCE_RECEIPT_NAME,
   buildSourceManifest,
   buildTransformReceipt,
@@ -29,6 +31,7 @@ import {
   loadReceipts,
   nextReceiptFilename,
   outputHashOf,
+  readChain,
   readChainFiles,
   verifyChain,
   writeChain,
@@ -224,6 +227,14 @@ export function ingestFile({
 // (sync or async), wrapped here with receiptStep. Returns the final output
 // records. This is the clean, idempotent "rebuild on data change" pipeline the
 // raw receiptStep chain can't express (re-running it throws ChainTailMismatch).
+//
+// After the stages complete, the run is archived as a snapshot under
+// <chainDir>/history/ (signed with keyPath), so programmatic rebuilds leave
+// the same run memory CLI verifies do. A failed archive degrades to a stderr
+// notice and never fails the rebuild. This is the ONLY programmatic entry
+// point that writes history: verifyChain stays side-effect-free by design,
+// and API users who manage chains by hand call writeRunSnapshot (or
+// archiveRunSnapshot) from "./history.js" explicitly.
 export async function rebuildChain({
   file,
   stages = [],
@@ -250,6 +261,16 @@ export async function rebuildChain({
     }
     const step = receiptStep(stage, { chainDir, keyPath });
     current = await step(current);
+  }
+  try {
+    const privateKey = loadPrivateKey(keyPath);
+    archiveRunSnapshot(chainDir, readChain(join(chainDir, CHAIN_FILENAME)), loadReceipts(chainDir), {
+      privateKey,
+      trustedKeys: [publicHexFromPrivate(privateKey)],
+    });
+  } catch (err) {
+    // Archiving must never fail the rebuild; the chain itself is complete.
+    console.error(`could not archive run snapshot: ${err.message}`);
   }
   return current;
 }

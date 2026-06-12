@@ -1,0 +1,88 @@
+{
+  "kind": "run_snapshot",
+  "spec_version": "1.2",
+  "created_at": "2026-06-12T00:05:00Z",
+  "chain_tail_hash": "2f1a7381f52aff46b39d52d2cf0cc1877666a54e06a934f50bf3640d540ee336",
+  "source": {
+    "filename": "export.csv",
+    "declared_origin": "snapshot parity fixture",
+    "columns": [
+      "day",
+      "spend"
+    ]
+  },
+  "stages": [
+    {
+      "name": "source",
+      "kind": "source_manifest",
+      "totals": {
+        "row_count": 4,
+        "column_count": 3,
+        "numeric_sums": {
+          "spend": "36"
+        },
+        "date_ranges": {},
+        "null_counts": {},
+        "bucket_column": "day",
+        "period_buckets": {
+          "2026-05-01": {
+            "row_count": 2,
+            "numeric_sums": {
+              "spend": "15"
+            },
+            "null_counts": {}
+          },
+          "2026-05-02": {
+            "row_count": 2,
+            "numeric_sums": {
+              "spend": "21"
+            },
+            "null_counts": {}
+          }
+        }
+      }
+    },
+    {
+      "name": "clean",
+      "kind": "transform_receipt",
+      "totals": {
+        "row_count": 3,
+        "column_count": 3,
+        "numeric_sums": {
+          "spend": "35"
+        },
+        "date_ranges": {},
+        "null_counts": {},
+        "bucket_column": "day",
+        "period_buckets": {
+          "2026-05-01": {
+            "row_count": 2,
+            "numeric_sums": {
+              "spend": "15"
+            },
+            "null_counts": {}
+          },
+          "2026-05-02": {
+            "row_count": 1,
+            "numeric_sums": {
+              "spend": "20"
+            },
+            "null_counts": {}
+          }
+        }
+      },
+      "code_hash": "a4278f2e28eb959a57ffc6d922286a00400e3e53bd50a3e87bd04e5d3d63b3bf",
+      "code_file": "pipeline.py"
+    }
+  ],
+  "tolerance": {
+    "band": "0.05",
+    "settle_hours": 72,
+    "bucket_column": "day"
+  },
+  "signature": {
+    "alg": "ed25519",
+    "key_fingerprint": "574458be7c7374c1",
+    "value": "a1e9ca2257a90cff916bdbeab6ed016e7449be545ee6ae37bf85559422026f2e7e8fb9b7ee465e947798d447bb32759c193046da4fe4707a904a385eac281d0c"
+  }
+}

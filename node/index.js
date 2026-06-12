@@ -24,6 +24,18 @@ export {
   sign,
   verify,
 } from "./keys.js";
+export {
+  FUTURE_SKEW_SECONDS,
+  HISTORY_DIRNAME,
+  archiveRunSnapshot,
+  buildRunSnapshot,
+  chainTailHash,
+  historyHasTail,
+  latestSnapshot,
+  loadSnapshots,
+  snapshotBodyHash,
+  writeRunSnapshot,
+} from "./history.js";
 export { loadCsv, loadJsonRecords, loadNdjson, loadRecords, parseCsv } from "./load.js";
 export {
   CHAIN_FILENAME,

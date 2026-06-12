@@ -10,13 +10,14 @@
 // Exit codes are the traffic light: 0 green, 1 red, 2 yellow.
 
 import { createHash } from "node:crypto";
-import { writeFileSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { parseArgs } from "node:util";
 import process from "node:process";
 
 import { canonicalDocument, canonicalJsonBytes, semanticHash } from "./canonical.js";
-import { generateKeys, loadPublicKeyHex } from "./keys.js";
+import { archiveRunSnapshot } from "./history.js";
+import { generateKeys, loadPrivateKey, loadPublicKeyHex, publicHexFromPrivate } from "./keys.js";
 import { loadRecords } from "./load.js";
 import {
   SOURCE_RECEIPT_NAME,
@@ -214,7 +215,40 @@ function cmdVerify(args) {
   } else {
     for (const line of result.lines) console.log(line);
   }
+  // Archive the run snapshot AFTER the final exit code settled: a red run
+  // never poisons history. Notices go to stderr ONLY, so the --json stdout
+  // payload stays untouched; archiving can never change verdict or exit code.
+  if (code !== 1) {
+    const notice = (message) => console.error(message);
+    let privateKey = null;
+    try {
+      privateKey = resolveSnapshotKey();
+    } catch (err) {
+      notice(`could not load a signing key for the run snapshot: ${err.message}`);
+    }
+    try {
+      const trusted = (Array.isArray(publicHex) ? publicHex : [publicHex]).concat([chainKey]).filter(Boolean);
+      // Snapshots this machine signs must count as valid on the next run
+      // even when the signing key differs from the chain key, or the
+      // idempotence check would re-write a snapshot on every verify.
+      if (privateKey !== null) trusted.push(publicHexFromPrivate(privateKey));
+      archiveRunSnapshot(chainDir, chain, receipts, { privateKey, trustedKeys: trusted, onNotice: notice });
+    } catch (err) {
+      notice(`could not archive run snapshot: ${err.message}`);
+    }
+  }
   return code;
+}
+
+// The private key snapshots sign with, or null for unsigned snapshots. Same
+// precedence as ingest: TAMPER_SIGNAL_KEY from the environment wins, else the
+// default keys/signing.key when it exists. Verify takes no --key flag
+// (verification needs no private key), so an absent key just means the
+// snapshot is written unsigned.
+function resolveSnapshotKey() {
+  const defaultKey = "keys/signing.key";
+  if (!process.env.TAMPER_SIGNAL_KEY && !existsSync(defaultKey)) return null;
+  return loadPrivateKey(defaultKey);
 }
 
 function cmdExport(args) {

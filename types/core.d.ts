@@ -41,6 +41,15 @@ export interface ReceiptSignature {
   [key: string]: unknown;
 }
 
+/** The producer's signed continuity expectation (spec 1.2, ingest flags). */
+export interface ToleranceDeclaration {
+  /** Plain decimal string, e.g. "0.05" (floats never enter signed bodies). */
+  band: string;
+  settle_hours: number;
+  /** Present when the producer declared the bucket column explicitly. */
+  bucket_column?: string;
+}
+
 export interface SourceManifest {
   kind: "source_manifest";
   spec_version: string;
@@ -53,6 +62,8 @@ export interface SourceManifest {
   };
   semantic_hash: string;
   control_totals: ControlTotals;
+  /** Present only when declared at ingest; covered by the signature. */
+  tolerance?: ToleranceDeclaration;
   signature?: ReceiptSignature;
 }
 
@@ -68,6 +79,44 @@ export interface TransformReceipt {
 }
 
 export type Receipt = SourceManifest | TransformReceipt;
+
+/** One stage entry inside a run snapshot. */
+export interface SnapshotStage {
+  name: string;
+  /** The receipt kind, or null when the receipt carried none. */
+  kind: string | null;
+  /** Transform receipts only, when the receipt recorded one. */
+  code_hash?: string;
+  code_file?: string;
+  totals: ControlTotals;
+}
+
+/**
+ * A compact, content-addressed record of one verified run, archived to
+ * `<chain dir>/history/<body-hash>.json` by CLI verifies with a non-red
+ * final verdict (and by rebuildChain). Signed when a private key was
+ * available, unsigned otherwise; unsigned snapshots are weaker evidence.
+ */
+export interface RunSnapshot {
+  kind: "run_snapshot";
+  spec_version: string;
+  created_at: string;
+  /** The sha256 chain.json records for the LAST receipt file of the run. */
+  chain_tail_hash: string;
+  source: {
+    filename: string;
+    declared_origin: string;
+    /** Sorted normalized column names visible in the source control totals. */
+    columns: string[];
+  };
+  /**
+   * Display-only copy of the manifest declaration; cross-run judgment reads
+   * the band from the SIGNED source manifest in the chain, never from here.
+   */
+  tolerance?: ToleranceDeclaration;
+  stages: SnapshotStage[];
+  signature?: ReceiptSignature;
+}
 
 /**
  * The canonical table document (table.json): normalized headers and canonical

@@ -24,7 +24,7 @@ export const SPEC_VERSION = "1.2";
 export const CHAIN_FILENAME = "chain.json";
 export const SOURCE_RECEIPT_NAME = "000_source.json";
 
-const nowIso = () => new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
+export const nowIso = () => new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
 
 export function codeHashOf(fn) {
   // Node has no inspect.getsource; the function's own toString() is the
@@ -33,7 +33,9 @@ export function codeHashOf(fn) {
   return createHash("sha256").update(String(fn), "utf-8").digest("hex");
 }
 
-function signBody(body, privateKey) {
+// Exported for history.js (run snapshots sign with the same block receipts
+// carry); not part of the package surface (node/index.js does not re-export).
+export function signBody(body, privateKey) {
   const message = canonicalJsonBytes(body);
   const publicHex = publicHexFromPrivate(privateKey);
   return {

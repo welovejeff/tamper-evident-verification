@@ -64,7 +64,7 @@
     "AGENTS.md"
   ],
   "scripts": {
-    "test": "node --test node/test/badge.test.js node/test/canonical.test.js node/test/chain.test.js node/test/interop.test.js node/test/express.test.js node/test/totals.test.js node/test/pipeline.test.js node/test/theme.test.js"
+    "test": "node --test node/test/badge.test.js node/test/canonical.test.js node/test/chain.test.js node/test/interop.test.js node/test/express.test.js node/test/totals.test.js node/test/pipeline.test.js node/test/history.test.js node/test/theme.test.js"
   },
   "engines": {
     "node": ">=18.17"

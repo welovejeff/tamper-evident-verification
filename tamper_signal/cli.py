@@ -27,6 +27,7 @@ from .canonical import (
 )
 from .keys import generate_keys, load_private_key, load_public_key_hex, public_hex_from_private
 from .receipts import (
+    CHAIN_FILENAME,
     SOURCE_RECEIPT_NAME,
     build_source_manifest,
     read_chain,
@@ -109,6 +110,32 @@ def cmd_keygen(args: argparse.Namespace) -> int:
     return 0
 
 
+def _warn_if_unsnapshotted_reset(chain_dir: str) -> None:
+    """Warn when ingest is about to reset a chain whose run never reached
+    history (no snapshot records the outgoing chain's tail hash): the totals
+    of that run are about to become unrecoverable. Stderr only; never blocks
+    the ingest and never raises (a malformed old chain still gets the
+    warning, since it certainly was never snapshotted as-is).
+    """
+    chain_path = Path(chain_dir) / CHAIN_FILENAME
+    if not chain_path.exists():
+        return
+    from .history import chain_tail_hash, history_has_tail
+
+    try:
+        old_chain = read_chain(str(chain_path))
+        tail = chain_tail_hash(chain_dir, old_chain)
+        keys = [k for k in [old_chain.get("public_key")] if isinstance(k, str) and k]
+        snapshotted = history_has_tail(chain_dir, tail, trusted_keys=keys)
+    except Exception:  # noqa: BLE001 - a chain we cannot read was never archived
+        snapshotted = False
+    if not snapshotted:
+        print(
+            "warning: previous run was never verified; its totals will not enter history",
+            file=sys.stderr,
+        )
+
+
 def cmd_ingest(args: argparse.Namespace) -> int:
     # Parse the tolerance declaration before touching anything: an invalid
     # flag must exit 1 with nothing written. Any flag creates a declaration;
@@ -154,6 +181,7 @@ def cmd_ingest(args: argparse.Namespace) -> int:
         # A declared --bucket-column that fails detection surfaces here.
         print(str(exc), file=sys.stderr)
         return 1
+    _warn_if_unsnapshotted_reset(args.out)
     write_receipt(args.out, SOURCE_RECEIPT_NAME, manifest)
     write_chain(args.out, [SOURCE_RECEIPT_NAME], public_hex)
 
@@ -170,6 +198,60 @@ def cmd_ingest(args: argparse.Namespace) -> int:
         )
     print(f"  source manifest -> {Path(args.out) / SOURCE_RECEIPT_NAME}")
     return 0
+
+
+def _resolve_snapshot_key():
+    """The private key snapshots sign with, or None for unsigned snapshots.
+
+    Same precedence as ingest: TAMPER_SIGNAL_KEY from the environment wins,
+    else the default keys/signing.key when it exists. Verify takes no --key
+    flag (verification needs no private key), so an absent key just means the
+    snapshot is written unsigned.
+    """
+    default_key = Path("keys/signing.key")
+    if not os.environ.get("TAMPER_SIGNAL_KEY") and not default_key.exists():
+        return None
+    return load_private_key(str(default_key))
+
+
+def _archive_after_verify(
+    chain_dir: str,
+    chain: dict,
+    receipts: list,
+    trusted_keys: list[str],
+) -> None:
+    """Archive a run snapshot after a non-red final verdict.
+
+    Never raises and never changes the verdict or exit code: any failure
+    (key load, history scan, signing, write) degrades to a stderr notice.
+    Notices go to stderr ONLY so the --json stdout payload stays untouched.
+    """
+    from .history import archive_run_snapshot
+
+    def notice(message: str) -> None:
+        print(message, file=sys.stderr)
+
+    try:
+        key = _resolve_snapshot_key()
+    except Exception as exc:  # noqa: BLE001 - degrade to unsigned, never fail verify
+        notice(f"could not load a signing key for the run snapshot: {exc}")
+        key = None
+    if key is not None:
+        # Snapshots this machine signs must count as valid on the next run
+        # even when the signing key differs from the chain key, or the
+        # idempotence check would re-write a snapshot on every verify.
+        trusted_keys = trusted_keys + [public_hex_from_private(key)]
+    try:
+        archive_run_snapshot(
+            chain_dir,
+            chain,
+            receipts,
+            key=key,
+            trusted_keys=trusted_keys,
+            on_notice=notice,
+        )
+    except Exception as exc:  # noqa: BLE001 - archiving must never fail the verify
+        notice(f"could not archive run snapshot: {exc}")
 
 
 def cmd_verify(args: argparse.Namespace) -> int:
@@ -287,7 +369,21 @@ def cmd_verify(args: argparse.Namespace) -> int:
                 allow_staging=args.anchor_staging,
                 covers_receipts=recorded_hashes is not None,
             )
+    # Archive the run snapshot AFTER the anchor fold settled the final exit
+    # code: a red run (including an anchor mismatch) never poisons history.
+    if code != 1:
+        trusted = [key for key in _as_key_list(public_hex) + [chain_key] if key]
+        _archive_after_verify(chain_dir, chain, receipts, trusted)
     return code
+
+
+def _as_key_list(public_hex) -> list[str]:
+    """Normalize the verify key argument (str or list) to a list."""
+    if public_hex is None:
+        return []
+    if isinstance(public_hex, str):
+        return [public_hex]
+    return list(public_hex)
 
 
 GITIGNORE_LINES = ["keys/", "*.key"]
@@ -449,21 +545,50 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     return 1 if failures else 0
 
 
-def cmd_serve(args: argparse.Namespace) -> int:
-    """Serve the receipts directory on localhost with CORS for local dev."""
-    import http.server
-    import socketserver
-    from functools import partial
+def _serve_handler_class(directory: str):
+    """The request handler `receipts serve` uses, bound to a directory.
 
-    directory = str(Path(args.dir).resolve())
+    CORS is open and caching is off for every response. Anything under
+    history/ is 404'd: run snapshots are CLI-local memory, not published
+    receipts (and they leak run cadence and per-day totals).
+    """
+    import http.server
+
+    from .history import HISTORY_DIRNAME
+
+    history_dir = (Path(directory) / HISTORY_DIRNAME).resolve()
 
     class Handler(http.server.SimpleHTTPRequestHandler):
+        def __init__(self, *handler_args, **handler_kwargs) -> None:
+            super().__init__(*handler_args, directory=directory, **handler_kwargs)
+
         def end_headers(self) -> None:
             self.send_header("Access-Control-Allow-Origin", "*")
             self.send_header("Cache-Control", "no-store")
             super().end_headers()
 
-    handler = partial(Handler, directory=directory)
+        def send_head(self):  # covers GET and HEAD
+            # Resolve the translated filesystem path so neither /history/...
+            # nor a traversal spelling of it can reach the snapshot files.
+            try:
+                target = Path(self.translate_path(self.path)).resolve()
+            except (OSError, ValueError):
+                self.send_error(404, "Not found")
+                return None
+            if target == history_dir or history_dir in target.parents:
+                self.send_error(404, "Not found")
+                return None
+            return super().send_head()
+
+    return Handler
+
+
+def cmd_serve(args: argparse.Namespace) -> int:
+    """Serve the receipts directory on localhost with CORS for local dev."""
+    import socketserver
+
+    directory = str(Path(args.dir).resolve())
+    handler = _serve_handler_class(directory)
     print(f"Serving {directory} at http://localhost:{args.port}/chain.json")
     print("CORS is open and caching is off: local development only. Ctrl+C to stop.")
     try:

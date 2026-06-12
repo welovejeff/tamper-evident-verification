@@ -7,6 +7,7 @@ import type {
   ControlTotals,
   DataRecord,
   Receipt,
+  RunSnapshot,
   SourceManifest,
   TableDocument,
   TransformReceipt,
@@ -19,8 +20,11 @@ export type {
   DataRecord,
   PeriodBucket,
   Receipt,
+  RunSnapshot,
+  SnapshotStage,
   SourceManifest,
   TableDocument,
+  ToleranceDeclaration,
   TransformReceipt,
   Verdict,
 } from "../types/core.js";
@@ -147,6 +151,83 @@ export function verifyChain(
   options?: VerifyChainOptions,
 ): VerifyChainResult;
 
+// --- history.js --------------------------------------------------------------
+
+/** The directory under a chain dir holding run snapshots ("history"). */
+export const HISTORY_DIRNAME: string;
+/** created_at clock-skew tolerance for the history scanner, in seconds. */
+export const FUTURE_SKEW_SECONDS: number;
+
+/** One validated entry returned by loadSnapshots, newest first. */
+export interface LoadedSnapshot {
+  filename: string;
+  path: string;
+  snapshot: RunSnapshot;
+  created_at: string;
+  /** sha256 of the body's canonical bytes (the content address). */
+  body_hash: string;
+  signed: boolean;
+  /** True only for signed snapshots verifying under a trusted key. */
+  verified: boolean;
+}
+
+export interface BuildRunSnapshotOptions {
+  /** Sign the body when present; omitted/null writes unsigned. */
+  privateKey?: KeyObject | null;
+  /** Needed only for chains that record no receipt_hashes. */
+  chainDir?: string | null;
+  /** Pin the timestamp (tests/fixtures); defaults to the clock. */
+  createdAt?: string | null;
+}
+
+export interface LoadSnapshotsOptions {
+  /** Keys signed snapshots may verify under (include the chain's key). */
+  trustedKeys?: string[];
+  /** Reading clock in ms since epoch (tests); defaults to Date.now(). */
+  now?: number | null;
+  /** Receives one line per skipped/unverifiable file; CLI routes to stderr. */
+  onNotice?: ((message: string) => void) | null;
+}
+
+/** sha256 hex of a snapshot body's canonical bytes (its content address). */
+export function snapshotBodyHash(snapshot: RunSnapshot): string;
+/** The sha256 chain.json records for the LAST receipt file of the run. */
+export function chainTailHash(chainDir: string, chain: Chain): string;
+/** Build a run snapshot from a verified chain; signed when keyed. */
+export function buildRunSnapshot(
+  receipts: Receipt[],
+  chain: Chain,
+  options?: BuildRunSnapshotOptions,
+): RunSnapshot;
+/** Write a snapshot to <chainDir>/history/<body-hash>.json; returns the path. */
+export function writeRunSnapshot(chainDir: string, snapshot: RunSnapshot): string;
+/** Load and validate run snapshots, newest first. Never throws on bad content. */
+export function loadSnapshots(chainDir: string, options?: LoadSnapshotsOptions): LoadedSnapshot[];
+/** The newest snapshot that passes validation, or null. */
+export function latestSnapshot(chainDir: string, options?: LoadSnapshotsOptions): LoadedSnapshot | null;
+/** True when any usable snapshot records this chain tail hash. */
+export function historyHasTail(
+  chainDir: string,
+  tailHash: string,
+  options?: Pick<LoadSnapshotsOptions, "trustedKeys">,
+): boolean;
+/**
+ * Build and write a run snapshot unless the latest one already records the
+ * same chain tail hash (idempotent re-verify). Returns the path, or null when
+ * skipped. Throws on build/write failure: programmatic callers decide whether
+ * archiving is fatal (the CLI degrades to a stderr notice).
+ */
+export function archiveRunSnapshot(
+  chainDir: string,
+  chain: Chain,
+  receipts: Receipt[],
+  options?: {
+    privateKey?: KeyObject | null;
+    trustedKeys?: string[];
+    onNotice?: ((message: string) => void) | null;
+  },
+): string | null;
+
 // --- totals.js -------------------------------------------------------------
 
 /** Bucket key for rows whose bucket-column value is null or unparseable. */
@@ -199,6 +280,12 @@ export interface IngestFileOptions {
   declaredOrigin?: string;
   chainDir?: string;
   keyPath?: string;
+  /** Tolerance band, e.g. "5%" or "0.05" (signs a declaration in). */
+  band?: string | null;
+  /** Settling window, e.g. "72h" or "3d". */
+  settle?: string | null;
+  /** Column to key period buckets off (must be date-shaped). */
+  bucketColumn?: string | null;
 }
 
 export interface IngestFileResult {
@@ -224,6 +311,12 @@ export interface RebuildChainOptions {
   declaredOrigin?: string;
   chainDir?: string;
   keyPath?: string;
+  /** Tolerance band, e.g. "5%" or "0.05" (signs a declaration in). */
+  band?: string | null;
+  /** Settling window, e.g. "72h" or "3d". */
+  settle?: string | null;
+  /** Column to key period buckets off (must be date-shaped). */
+  bucketColumn?: string | null;
 }
 
 /**
@@ -231,5 +324,10 @@ export interface RebuildChainOptions {
  * then run each stage, appending a signed receipt per stage. Returns the final
  * output records. The idempotent "rebuild on data change" pipeline the raw
  * receiptStep chain can't express.
+ *
+ * After the stages complete the run is archived as a snapshot under
+ * <chainDir>/history/ (signed with keyPath); a failed archive degrades to a
+ * stderr notice. verifyChain itself stays side-effect-free: API users who
+ * manage chains by hand call writeRunSnapshot / archiveRunSnapshot directly.
  */
 export function rebuildChain(options: RebuildChainOptions): Promise<DataRecord[]>;
