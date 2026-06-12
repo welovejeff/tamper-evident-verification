@@ -16,7 +16,14 @@ import { parseArgs } from "node:util";
 import process from "node:process";
 
 import { canonicalDocument, canonicalJsonBytes, semanticHash } from "./canonical.js";
-import { archiveRunSnapshot, chainTailHash, loadSnapshots, runSource, runStages } from "./history.js";
+import {
+  archiveRunSnapshot,
+  chainTailHash,
+  judgeCrossRun,
+  loadSnapshots,
+  runSource,
+  runStages,
+} from "./history.js";
 import { generateKeys, loadPrivateKey, loadPublicKeyHex, publicHexFromPrivate } from "./keys.js";
 import { loadRecords } from "./load.js";
 import {
@@ -204,6 +211,17 @@ function cmdVerify(args) {
     recordedHashes,
     actualHashes,
   });
+  // Cross-run judgment (U6) runs AFTER the within-run verdict and BEFORE
+  // exit-code finalization: a red verify never judges, and judgment caveats
+  // are yellow, never red (R12). It lives in the CLI layer so verifyChain
+  // stays pure and the browser verifier untouched.
+  let judgment = { caveats: [], details: [], notices: [], breached: {} };
+  if (result.verdict !== "red") {
+    const trustedForHistory = (Array.isArray(publicHex) ? publicHex : [publicHex]).concat([chainKey]);
+    judgment = judgeAfterVerify(chainDir, chain, receipts, trustedForHistory);
+    if (judgment.caveats.length) foldJudgment(result, judgment.caveats);
+    for (const line of judgment.notices) console.error(line);
+  }
   const code = { green: 0, red: 1, yellow: 2 }[result.verdict];
   if (values.json) {
     // Same payload shape as the Python CLI's verify --json (AGENTS.md step 5).
@@ -216,6 +234,10 @@ function cmdVerify(args) {
       stages: receipts.map(stageNameOf),
       final_row_count: receipts.length ? (totalsOf(receipts[receipts.length - 1]).row_count ?? null) : null,
       caveats: result.caveats,
+      // Additive (R18): typed cross-run detail. Always present, [] when
+      // judgment found nothing or never ran, so consumers can rely on the
+      // key. Mirrors the Python payload byte-for-byte.
+      caveat_details: judgment.details,
       broken_link: result.brokenLinkDetail,
       data_mismatch: result.dataMismatch,
       receipt_mismatch: result.receiptMismatch,
@@ -242,12 +264,69 @@ function cmdVerify(args) {
       // even when the signing key differs from the chain key, or the
       // idempotence check would re-write a snapshot on every verify.
       if (privateKey !== null) trusted.push(publicHexFromPrivate(privateKey));
-      archiveRunSnapshot(chainDir, chain, receipts, { privateKey, trustedKeys: trusted, onNotice: notice });
+      archiveRunSnapshot(chainDir, chain, receipts, {
+        privateKey,
+        trustedKeys: trusted,
+        onNotice: notice,
+        breached: Object.keys(judgment.breached).length ? judgment.breached : null,
+      });
     } catch (err) {
       notice(`could not archive run snapshot: ${err.message}`);
     }
   }
   return code;
+}
+
+// Run cross-run judgment for a non-red verify; never throws. Returns
+// judgeCrossRun's shape ({caveats, details, notices, breached}). With no
+// tolerance declaration in the source manifest this is a no-op with zero
+// output (AE13: verification stays exact and silent). Any failure degrades
+// to an empty judgment with a notice, never a verdict change. Mirrors
+// _judge_after_verify in tamper_signal/cli.py.
+function judgeAfterVerify(chainDir, chain, receipts, trustedKeys) {
+  const empty = { caveats: [], details: [], notices: [], breached: {} };
+  const source = receipts.length ? receipts[0] : null;
+  const tolerance = source !== null && typeof source === "object" ? source.tolerance : null;
+  if (tolerance === null || typeof tolerance !== "object" || Array.isArray(tolerance)) return empty;
+  const notices = [];
+  try {
+    let privateKey = null;
+    try {
+      privateKey = resolveSnapshotKey();
+    } catch {
+      privateKey = null; // judging without the machine key is fine
+    }
+    const keys = trustedKeys.filter(Boolean);
+    if (privateKey !== null) keys.push(publicHexFromPrivate(privateKey));
+    const items = loadSnapshots(chainDir, { trustedKeys: keys, onNotice: (m) => notices.push(m) });
+    const judgment = judgeCrossRun(receipts, chain, items.map((item) => item.snapshot));
+    judgment.notices = notices.concat(judgment.notices);
+    return judgment;
+  } catch (err) {
+    return { ...empty, notices: notices.concat([`cross-run judgment skipped: ${err.message}`]) };
+  }
+}
+
+// Fold judgment caveats into a verify result so the verdict, summary lines,
+// and exit mapping work untouched. A green report becomes the standard
+// yellow report; a yellow report gains the new caveat lines before its
+// closing "A human should look." line (existing machinery, never
+// duplicated). Mirrors _fold_judgment_caveats in tamper_signal/cli.py.
+function foldJudgment(result, caveats) {
+  const newLines = caveats.map((caveat) => `  - ${caveat}`);
+  if (result.caveats.length) {
+    result.lines.splice(result.lines.length - 1, 0, ...newLines);
+  } else {
+    const header = result.lines.length ? result.lines[result.lines.length - 1] : "";
+    const prefix = "✓ CHAIN INTACT: ";
+    const summary = header.startsWith(prefix) ? header.slice(prefix.length) : header;
+    if (result.lines.length) {
+      result.lines[result.lines.length - 1] = `⚠ CHAIN VERIFIES, WITH CAVEATS: ${summary}`;
+    }
+    result.lines.push(...newLines, "  A human should look.");
+  }
+  result.caveats.push(...caveats);
+  result.verdict = "yellow";
 }
 
 // The private key snapshots sign with, or null for unsigned snapshots. Same

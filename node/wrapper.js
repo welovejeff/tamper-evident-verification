@@ -19,7 +19,7 @@ import {
   parseDecimal,
   semanticHash,
 } from "./canonical.js";
-import { archiveRunSnapshot } from "./history.js";
+import { archiveRunSnapshot, judgeCrossRun, loadSnapshots } from "./history.js";
 import { loadPrivateKey, publicHexFromPrivate } from "./keys.js";
 import { loadRecords } from "./load.js";
 import {
@@ -264,10 +264,22 @@ export async function rebuildChain({
   }
   try {
     const privateKey = loadPrivateKey(keyPath);
-    archiveRunSnapshot(chainDir, readChain(join(chainDir, CHAIN_FILENAME)), loadReceipts(chainDir), {
-      privateKey,
-      trustedKeys: [publicHexFromPrivate(privateKey)],
-    });
+    const trustedKeys = [publicHexFromPrivate(privateKey)];
+    const chain = readChain(join(chainDir, CHAIN_FILENAME));
+    const receipts = loadReceipts(chainDir);
+    // Cross-run judgment runs here only to compute the baseline-advancement
+    // guard for the snapshot this rebuild writes: without it, a rebuild that
+    // skips CLI verify would let a breached value become the next baseline.
+    // Caveats and notices are a verify concern; rebuild drops them.
+    let breached = null;
+    try {
+      const items = loadSnapshots(chainDir, { trustedKeys });
+      const judgment = judgeCrossRun(receipts, chain, items.map((item) => item.snapshot));
+      if (Object.keys(judgment.breached).length) breached = judgment.breached;
+    } catch {
+      breached = null; // judgment must never fail the rebuild either
+    }
+    archiveRunSnapshot(chainDir, chain, receipts, { privateKey, trustedKeys, breached });
   } catch (err) {
     // Archiving must never fail the rebuild; the chain itself is complete.
     console.error(`could not archive run snapshot: ${err.message}`);

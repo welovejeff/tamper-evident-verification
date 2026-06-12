@@ -220,12 +220,14 @@ def _archive_after_verify(
     chain: dict,
     receipts: list,
     trusted_keys: list[str],
+    breached: dict | None = None,
 ) -> None:
     """Archive a run snapshot after a non-red final verdict.
 
     Never raises and never changes the verdict or exit code: any failure
     (key load, history scan, signing, write) degrades to a stderr notice.
     Notices go to stderr ONLY so the --json stdout payload stays untouched.
+    `breached` is the baseline-advancement guard from this run's judgment.
     """
     from .history import archive_run_snapshot
 
@@ -250,9 +252,66 @@ def _archive_after_verify(
             key=key,
             trusted_keys=trusted_keys,
             on_notice=notice,
+            breached=breached,
         )
     except Exception as exc:  # noqa: BLE001 - archiving must never fail the verify
         notice(f"could not archive run snapshot: {exc}")
+
+
+def _judge_after_verify(
+    chain_dir: str,
+    chain: dict,
+    receipts: list,
+    trusted_keys: list[str],
+) -> dict:
+    """Run cross-run judgment for a non-red verify; never raises.
+
+    Returns judge_cross_run's shape ({caveats, details, notices, breached}).
+    With no tolerance declaration in the source manifest this is a no-op with
+    zero output (AE13: verification stays exact and silent). Any failure
+    degrades to an empty judgment with a notice, never a verdict change.
+    """
+    from .history import _empty_judgment, judge_cross_run, load_snapshots
+
+    source = receipts[0] if receipts and isinstance(receipts[0], dict) else {}
+    if not isinstance(source.get("tolerance"), dict):
+        return _empty_judgment()
+    notices: list[str] = []
+    try:
+        try:
+            key = _resolve_snapshot_key()
+        except Exception:  # noqa: BLE001 - judging without the machine key is fine
+            key = None
+        keys = [k for k in trusted_keys if k]
+        if key is not None:
+            keys.append(public_hex_from_private(key))
+        items = load_snapshots(chain_dir, trusted_keys=keys, on_notice=notices.append)
+        judgment = judge_cross_run(receipts, chain, [i["snapshot"] for i in items])
+    except Exception as exc:  # noqa: BLE001 - judgment must never fail the verify
+        empty = _empty_judgment()
+        empty["notices"] = notices + [f"cross-run judgment skipped: {exc}"]
+        return empty
+    judgment["notices"] = notices + judgment["notices"]
+    return judgment
+
+
+def _fold_judgment_caveats(result, caveats: list[str]) -> None:
+    """Fold judgment caveats into a ChainResult so the verdict property,
+    summary lines, and exit mapping work untouched. A green report becomes
+    the standard yellow report; a yellow report gains the new caveat lines
+    before its closing "A human should look." line (existing machinery, never
+    duplicated)."""
+    new_lines = [f"  - {caveat}" for caveat in caveats]
+    if result.caveats:
+        result.lines[-1:-1] = new_lines
+    else:
+        header = result.lines[-1] if result.lines else ""
+        summary = header.removeprefix("✓ CHAIN INTACT: ")
+        if result.lines:
+            result.lines[-1] = f"⚠ CHAIN VERIFIES, WITH CAVEATS: {summary}"
+        result.lines.extend(new_lines)
+        result.lines.append("  A human should look.")
+    result.caveats.extend(caveats)
 
 
 def cmd_verify(args: argparse.Namespace) -> int:
@@ -313,6 +372,19 @@ def cmd_verify(args: argparse.Namespace) -> int:
         recorded_hashes=recorded_hashes,
         actual_hashes=actual_hashes,
     )
+    # Cross-run judgment (U6) runs AFTER the within-run verdict and BEFORE
+    # the anchor fold and exit-code finalization: a red verify never judges,
+    # and judgment caveats are yellow, never red (R12). It lives in the CLI
+    # layer so verify_chain stays pure and the browser verifier untouched.
+    judgment = {"caveats": [], "details": [], "notices": [], "breached": {}}
+    if result.verdict != "red":
+        judgment = _judge_after_verify(
+            chain_dir, chain, receipts, _as_key_list(public_hex) + [chain_key or ""]
+        )
+        if judgment["caveats"]:
+            _fold_judgment_caveats(result, judgment["caveats"])
+        for line in judgment["notices"]:
+            print(line, file=sys.stderr)
     # Exit codes are the traffic light: 0 green, 1 red, 2 yellow.
     code = {"green": 0, "red": 1, "yellow": 2}[result.verdict]
     if args.json:
@@ -331,6 +403,10 @@ def cmd_verify(args: argparse.Namespace) -> int:
             "stages": [stage_name_of(r) for r in receipts],
             "final_row_count": (totals_of(receipts[-1]).get("row_count") if receipts else None),
             "caveats": result.caveats,
+            # Additive (R18): typed cross-run detail. Always present, [] when
+            # judgment found nothing or never ran, so consumers can rely on
+            # the key. Anchor caveats deliberately have no details entry.
+            "caveat_details": judgment["details"],
             "broken_link": result.broken_link_detail,
             "data_mismatch": result.data_mismatch,
             "receipt_mismatch": result.receipt_mismatch,
@@ -374,7 +450,9 @@ def cmd_verify(args: argparse.Namespace) -> int:
     # code: a red run (including an anchor mismatch) never poisons history.
     if code != 1:
         trusted = [key for key in _as_key_list(public_hex) + [chain_key] if key]
-        _archive_after_verify(chain_dir, chain, receipts, trusted)
+        _archive_after_verify(
+            chain_dir, chain, receipts, trusted, breached=judgment["breached"] or None
+        )
     return code
 
 

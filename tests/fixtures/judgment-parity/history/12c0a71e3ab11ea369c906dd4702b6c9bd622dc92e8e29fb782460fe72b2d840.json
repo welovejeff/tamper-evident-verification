@@ -1,0 +1,56 @@
+{
+  "kind": "run_snapshot",
+  "spec_version": "1.2",
+  "created_at": "2026-06-11T00:05:00Z",
+  "chain_tail_hash": "de4b69ba1754a8ac34f87770849dafb61a8ca0558a282fb74ae8dc499765e6bc",
+  "source": {
+    "filename": "export.csv",
+    "declared_origin": "judgment parity fixture",
+    "columns": [
+      "day",
+      "spend"
+    ]
+  },
+  "stages": [
+    {
+      "name": "source",
+      "kind": "source_manifest",
+      "totals": {
+        "row_count": 3,
+        "column_count": 2,
+        "numeric_sums": {
+          "spend": "130"
+        },
+        "date_ranges": {},
+        "null_counts": {},
+        "bucket_column": "day",
+        "period_buckets": {
+          "2026-05-01": {
+            "row_count": 2,
+            "numeric_sums": {
+              "spend": "30"
+            },
+            "null_counts": {}
+          },
+          "2026-06-11": {
+            "row_count": 1,
+            "numeric_sums": {
+              "spend": "100"
+            },
+            "null_counts": {}
+          }
+        }
+      }
+    }
+  ],
+  "tolerance": {
+    "band": "0.05",
+    "settle_hours": 72,
+    "bucket_column": "day"
+  },
+  "signature": {
+    "alg": "ed25519",
+    "key_fingerprint": "f3cb642d7dac9688",
+    "value": "455fbc249e23d9d01d407894ab21e9960f176d6ae72feea7e598f17497e63f3afcc31cfb66dfe14de841e2695e4994413ed4d6cdda3455e0ff578713fa9d2e0c"
+  }
+}
