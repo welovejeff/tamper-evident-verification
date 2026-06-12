@@ -104,22 +104,13 @@ def _source_columns(totals: dict[str, Any]) -> list[str]:
     return sorted(names)
 
 
-def build_run_snapshot(
-    receipts: list[dict[str, Any]],
-    chain: dict[str, Any],
-    *,
-    key: Ed25519PrivateKey | None = None,
-    chain_dir: str | None = None,
-    created_at: str | None = None,
-) -> dict[str, Any]:
-    """Build a run snapshot body from a verified chain; sign it when keyed.
+def run_stages(receipts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Per-stage identity and totals in the snapshot's stage shape.
 
-    `chain_dir` is only needed for chains that record no receipt_hashes (the
-    tail hash is then computed from the last receipt file). `created_at`
-    exists for tests and fixtures; production callers take the clock.
+    Shared by build_run_snapshot and `receipts diff`'s chain-dir adapter so a
+    live chain and an archived snapshot always compare in the same shape:
+    [{name, kind, code_hash?, code_file?, totals}].
     """
-    source = receipts[0] if receipts else {}
-    source_totals = totals_of(source)
     stages: list[dict[str, Any]] = []
     for receipt in receipts:
         kind = _kind(receipt)
@@ -136,18 +127,42 @@ def build_run_snapshot(
             if code_file:
                 stage["code_file"] = code_file
         stages.append(stage)
+    return stages
+
+
+def run_source(receipts: list[dict[str, Any]]) -> dict[str, Any]:
+    """Source identity in the snapshot's source shape (filename, origin, columns)."""
+    source = receipts[0] if receipts else {}
+    return {
+        "filename": _str_at(source, "source", "filename", default=""),
+        "declared_origin": _str_at(source, "source", "declared_origin", default=""),
+        "columns": _source_columns(totals_of(source)),
+    }
+
+
+def build_run_snapshot(
+    receipts: list[dict[str, Any]],
+    chain: dict[str, Any],
+    *,
+    key: Ed25519PrivateKey | None = None,
+    chain_dir: str | None = None,
+    created_at: str | None = None,
+) -> dict[str, Any]:
+    """Build a run snapshot body from a verified chain; sign it when keyed.
+
+    `chain_dir` is only needed for chains that record no receipt_hashes (the
+    tail hash is then computed from the last receipt file). `created_at`
+    exists for tests and fixtures; production callers take the clock.
+    """
+    source = receipts[0] if receipts else {}
 
     body: dict[str, Any] = {
         "kind": "run_snapshot",
         "spec_version": SPEC_VERSION,
         "created_at": created_at or _now_iso(),
         "chain_tail_hash": chain_tail_hash(chain_dir if chain_dir is not None else ".", chain),
-        "source": {
-            "filename": _str_at(source, "source", "filename", default=""),
-            "declared_origin": _str_at(source, "source", "declared_origin", default=""),
-            "columns": _source_columns(source_totals),
-        },
-        "stages": stages,
+        "source": run_source(receipts),
+        "stages": run_stages(receipts),
     }
     tolerance = source.get("tolerance") if isinstance(source, dict) else None
     if isinstance(tolerance, dict):

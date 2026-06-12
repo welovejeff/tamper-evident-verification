@@ -277,6 +277,108 @@ export function groupedNumericColumns(records) {
 
 const sortedUnion = (a, b) => [...new Set([...Object.keys(a), ...Object.keys(b)])].sort();
 
+const dictAt = (totals, key) => {
+  const value = totals[key];
+  return value !== null && typeof value === "object" && !Array.isArray(value) ? value : {};
+};
+
+const isInt = (value) => typeof value === "number" && Number.isInteger(value);
+
+// Structural equality matching Python's dict/list ==, for attacker-controlled
+// totals sub-objects (date ranges, bucket entries) regardless of key order.
+function deepEqual(x, y) {
+  if (x === y) return true;
+  if (x === null || y === null || typeof x !== "object" || typeof y !== "object") return false;
+  if (Array.isArray(x) !== Array.isArray(y)) return false;
+  if (Array.isArray(x)) {
+    return x.length === y.length && x.every((v, i) => deepEqual(v, y[i]));
+  }
+  const keys = Object.keys(x);
+  if (keys.length !== Object.keys(y).length) return false;
+  return keys.every((k) => k in y && deepEqual(x[k], y[k]));
+}
+
+// Structured, machine-readable delta between two control totals: the Node
+// port of tamper_signal/totals.py structured_totals_delta. Feeds
+// `tamper-signal diff`. Only keys that CHANGED appear; an empty object means
+// no movement. Key insertion order is fixed and shared with Python so
+// serialized output matches across stacks. The existing totalsDelta strings
+// stay untouched (they feed verify's red report and the documented JSON).
+export function structuredTotalsDelta(a, b) {
+  const delta = {};
+
+  for (const key of ["row_count", "column_count"]) {
+    const before = a[key];
+    const after = b[key];
+    if (before !== after) {
+      const entry = { before: before ?? null, after: after ?? null };
+      if (isInt(before) && isInt(after)) entry.delta = after - before;
+      delta[key] = entry;
+    }
+  }
+
+  const upSums = dictAt(a, "numeric_sums");
+  const downSums = dictAt(b, "numeric_sums");
+  const sums = {};
+  for (const column of [...new Set([...Object.keys(upSums), ...Object.keys(downSums)])].sort(codePointCompare)) {
+    const before = upSums[column];
+    const after = downSums[column];
+    if (before === after) continue;
+    const entry = { before: before ?? null, after: after ?? null };
+    if (typeof before === "string" && typeof after === "string") {
+      const beforeDec = coerceDecimal(before);
+      const afterDec = coerceDecimal(after);
+      if (beforeDec && afterDec) {
+        // Sums in receipt JSON are attacker-controlled; unparseable values
+        // report before/after without a computed delta, never a crash.
+        entry.delta = decimalToPlainString(sumDecimals([afterDec, { v: -beforeDec.v, exp: beforeDec.exp }]));
+      }
+    }
+    sums[column] = entry;
+  }
+  if (Object.keys(sums).length) delta.numeric_sums = sums;
+
+  const upNulls = dictAt(a, "null_counts");
+  const downNulls = dictAt(b, "null_counts");
+  const nulls = {};
+  for (const column of [...new Set([...Object.keys(upNulls), ...Object.keys(downNulls)])].sort(codePointCompare)) {
+    const before = upNulls[column] ?? 0;
+    const after = downNulls[column] ?? 0;
+    if (before === after) continue;
+    const entry = { before, after };
+    if (isInt(before) && isInt(after)) entry.delta = after - before;
+    nulls[column] = entry;
+  }
+  if (Object.keys(nulls).length) delta.null_counts = nulls;
+
+  const upRanges = dictAt(a, "date_ranges");
+  const downRanges = dictAt(b, "date_ranges");
+  const ranges = {};
+  for (const column of [...new Set([...Object.keys(upRanges), ...Object.keys(downRanges)])].sort(codePointCompare)) {
+    const before = upRanges[column];
+    const after = downRanges[column];
+    if (deepEqual(before ?? null, after ?? null)) continue;
+    ranges[column] = {
+      before: before !== null && typeof before === "object" && !Array.isArray(before) ? before : null,
+      after: after !== null && typeof after === "object" && !Array.isArray(after) ? after : null,
+    };
+  }
+  if (Object.keys(ranges).length) delta.date_ranges = ranges;
+
+  const hasBuckets = (t) =>
+    t.period_buckets !== null && typeof t.period_buckets === "object" && !Array.isArray(t.period_buckets);
+  if (hasBuckets(a) || hasBuckets(b)) {
+    const upBuckets = hasBuckets(a) ? a.period_buckets : {};
+    const downBuckets = hasBuckets(b) ? b.period_buckets : {};
+    const moved = [...new Set([...Object.keys(upBuckets), ...Object.keys(downBuckets)])]
+      .filter((key) => !deepEqual(upBuckets[key] ?? null, downBuckets[key] ?? null))
+      .sort(codePointCompare);
+    if (moved.length) delta.period_buckets_changed = moved;
+  }
+
+  return delta;
+}
+
 // Human-legible lines describing only what changed, mirroring totals_delta
 // (including the computed numeric diff, which badge.js omits).
 export function totalsDelta(upstream, downstream) {

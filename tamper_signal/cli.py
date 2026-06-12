@@ -4,6 +4,7 @@ Commands:
   receipts keygen --out keys/
   receipts ingest <file.xlsx> --origin "..." --key keys/signing.key --out receipts/
   receipts verify receipts/chain.json --pub keys/signing.pub [--data <current.xlsx>] [--json]
+  receipts diff [A] [B] [--chain receipts/] [--json]
   receipts init
   receipts doctor [--url http://localhost:8787/chain.json]
   receipts serve
@@ -641,6 +642,279 @@ def cmd_export(args: argparse.Namespace) -> int:
     return 0
 
 
+def _chain_dir_of(ref: str) -> str:
+    """Normalize a --chain value: accept a chain dir or a chain.json path."""
+    path = Path(ref)
+    if path.name == CHAIN_FILENAME:
+        return str(path.parent)
+    return ref
+
+
+def _diff_side_from_chain_dir(chain_dir: str, ref: str) -> dict:
+    """Adapter: a live chain directory in the snapshot's diff shape.
+
+    Raises ValueError with a clean message on any load failure (missing
+    chain.json, unreadable receipts); `receipts diff` treats those as usage
+    errors (exit 1).
+    """
+    from .history import chain_tail_hash, run_source, run_stages
+
+    chain_path = Path(chain_dir) / CHAIN_FILENAME
+    if not chain_path.is_file():
+        raise ValueError(f"no {CHAIN_FILENAME} in {chain_dir or '.'}")
+    try:
+        chain = read_chain(str(chain_path))
+    except (OSError, ValueError) as exc:
+        raise ValueError(f"cannot read {chain_path}: {exc}") from exc
+    if not isinstance(chain, dict):
+        raise ValueError(f"{chain_path} is not a chain file")
+    receipts = [read_receipt(chain_dir, name) for name in chain.get("receipts", [])]
+    try:
+        tail = chain_tail_hash(chain_dir, chain)
+    except (OSError, ValueError):
+        # A chain with no receipts still diffs (it just cannot anchor the
+        # default-mode "differs from current tail" selection).
+        tail = None
+    return {
+        "ref": ref,
+        "created_at": None,
+        "source": run_source(receipts),
+        "stages": run_stages(receipts),
+        "tail": tail,
+        "unsigned": False,
+        "public_key": chain.get("public_key") if isinstance(chain.get("public_key"), str) else None,
+    }
+
+
+def _diff_side_from_snapshot(snapshot: dict, ref: str, *, signed: bool | None = None) -> dict:
+    """Adapter: an archived run snapshot in the diff shape."""
+    stages = snapshot.get("stages")
+    source = snapshot.get("source")
+    created = snapshot.get("created_at")
+    if signed is None:
+        signed = isinstance(snapshot.get("signature"), dict)
+    return {
+        "ref": ref,
+        "created_at": created if isinstance(created, str) else None,
+        "source": source if isinstance(source, dict) else {},
+        "stages": stages if isinstance(stages, list) else [],
+        "tail": snapshot.get("chain_tail_hash"),
+        "unsigned": not signed,
+        "public_key": None,
+    }
+
+
+def _load_diff_side(ref: str) -> dict:
+    """Load one explicit diff argument: a chain directory, a chain.json path,
+    or a run-snapshot file. Raises ValueError on anything unloadable."""
+    import json as _json
+
+    path = Path(ref)
+    if path.is_dir():
+        return _diff_side_from_chain_dir(str(path), ref)
+    if not path.is_file():
+        raise ValueError(f"no such file or directory: {ref}")
+    try:
+        payload = _json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, _json.JSONDecodeError) as exc:
+        raise ValueError(f"cannot read {ref}: {exc}") from exc
+    if isinstance(payload, dict) and payload.get("kind") == "run_snapshot":
+        return _diff_side_from_snapshot(payload, ref)
+    if isinstance(payload, dict) and isinstance(payload.get("receipts"), list):
+        return _diff_side_from_chain_dir(str(path.parent), ref)
+    raise ValueError(f"{ref} is neither a chain directory, a chain.json, nor a run snapshot")
+
+
+def _render_stage_delta(delta: dict) -> list[str]:
+    """Human lines (ASCII only) for one stage's structured totals delta."""
+    lines: list[str] = []
+    for key in ("row_count", "column_count"):
+        entry = delta.get(key)
+        if entry:
+            suffix = f" ({entry['delta']:+d})" if "delta" in entry else ""
+            lines.append(f"{key} {entry['before']} -> {entry['after']}{suffix}")
+    for column, entry in (delta.get("numeric_sums") or {}).items():
+        before = entry["before"] if entry["before"] is not None else "(added)"
+        after = entry["after"] if entry["after"] is not None else "(removed)"
+        suffix = f" ({entry['delta']})" if "delta" in entry else ""
+        lines.append(f"{column} {before} -> {after}{suffix}")
+    for column, entry in (delta.get("null_counts") or {}).items():
+        suffix = f" ({entry['delta']:+d})" if "delta" in entry else ""
+        lines.append(f"null_counts[{column}] {entry['before']} -> {entry['after']}{suffix}")
+
+    def _range(value) -> str:
+        if isinstance(value, dict):
+            return f"{value.get('min')}..{value.get('max')}"
+        return "(none)"
+
+    for column, entry in (delta.get("date_ranges") or {}).items():
+        lines.append(f"date_ranges[{column}] {_range(entry['before'])} -> {_range(entry['after'])}")
+    moved = delta.get("period_buckets_changed")
+    if moved:
+        lines.append(f"period_buckets changed: {', '.join(moved)}")
+    return lines
+
+
+def cmd_diff(args: argparse.Namespace) -> int:
+    """Compare two runs: per-stage code-hash changes plus a structured totals
+    delta (including date ranges). Read-only: never writes anything. Exit 0
+    whether or not differences are found; 1 on usage/load errors."""
+    import json as _json
+
+    from .totals import structured_totals_delta
+
+    runs = args.runs or []
+    if len(runs) > 2:
+        print("diff takes at most two runs (chain directories or snapshot files)", file=sys.stderr)
+        return 1
+
+    chain_dir = _chain_dir_of(args.chain)
+    try:
+        if len(runs) == 2:
+            side_a = _load_diff_side(runs[0])
+            side_b = _load_diff_side(runs[1])
+        elif len(runs) == 1:
+            # One arg: that run (the "before") vs the current chain.
+            side_a = _load_diff_side(runs[0])
+            side_b = _diff_side_from_chain_dir(chain_dir, chain_dir)
+        else:
+            # Zero args (hardened default): current chain vs the most recent
+            # valid snapshot whose tail DIFFERS from the current chain's, so
+            # a freshly archived snapshot of this very run never self-compares.
+            from .history import load_snapshots
+
+            side_b = _diff_side_from_chain_dir(chain_dir, chain_dir)
+            trusted = [k for k in [side_b["public_key"]] if k]
+            items = load_snapshots(
+                chain_dir,
+                trusted_keys=trusted,
+                on_notice=lambda message: print(message, file=sys.stderr),
+            )
+            prior = next(
+                (
+                    item
+                    for item in items
+                    if item["snapshot"].get("chain_tail_hash") != side_b["tail"]
+                ),
+                None,
+            )
+            if prior is None:
+                print("no prior run archived to compare against")
+                return 0
+            side_a = _diff_side_from_snapshot(
+                prior["snapshot"], prior["path"], signed=prior["signed"]
+            )
+    except ValueError as exc:
+        print(f"diff: {exc}", file=sys.stderr)
+        return 1
+
+    source_a = side_a["source"]
+    source_b = side_b["source"]
+    identity_mismatch = source_a.get("filename") != source_b.get("filename") or source_a.get(
+        "columns"
+    ) != source_b.get("columns")
+
+    # Stage alignment is BY NAME, order-independent; first receipt wins a
+    # duplicated name. Output order: A's stages, then B-only stages appended.
+    stages_a = {
+        s.get("name"): s for s in reversed(side_a["stages"]) if isinstance(s, dict)
+    }
+    stages_b = {
+        s.get("name"): s for s in reversed(side_b["stages"]) if isinstance(s, dict)
+    }
+    order: list = []
+    seen: set = set()
+    for stage in list(side_a["stages"]) + list(side_b["stages"]):
+        if isinstance(stage, dict) and stage.get("name") not in seen:
+            seen.add(stage.get("name"))
+            order.append(stage.get("name"))
+
+    stage_rows: list[dict] = []
+    for name in order:
+        stage_a = stages_a.get(name)
+        stage_b = stages_b.get(name)
+        if stage_a is not None and stage_b is not None:
+            code_before = stage_a.get("code_hash") if isinstance(stage_a.get("code_hash"), str) else ""
+            code_after = stage_b.get("code_hash") if isinstance(stage_b.get("code_hash"), str) else ""
+            code_changed = code_before != code_after
+            totals_a = stage_a.get("totals") if isinstance(stage_a.get("totals"), dict) else {}
+            totals_b = stage_b.get("totals") if isinstance(stage_b.get("totals"), dict) else {}
+            row: dict = {
+                "name": name,
+                "status": "matched",
+                "code_changed": code_changed,
+                "totals": structured_totals_delta(totals_a, totals_b),
+            }
+            if code_changed:
+                row["code_hash"] = {"before8": code_before[:8], "after8": code_after[:8]}
+                code_file = stage_b.get("code_file") or stage_a.get("code_file")
+                if isinstance(code_file, str) and code_file:
+                    row["code_file"] = code_file
+            stage_rows.append(row)
+        else:
+            stage_rows.append(
+                {
+                    "name": name,
+                    "status": "removed" if stage_a is not None else "added",
+                    "code_changed": False,
+                    "totals": None,
+                }
+            )
+
+    if args.json:
+        payload = {
+            "a": {
+                "ref": side_a["ref"],
+                "created_at": side_a["created_at"],
+                "unsigned": side_a["unsigned"],
+            },
+            "b": {
+                "ref": side_b["ref"],
+                "created_at": side_b["created_at"],
+                "unsigned": side_b["unsigned"],
+            },
+            "stages": stage_rows,
+            "identity_mismatch": identity_mismatch,
+        }
+        print(_json.dumps(payload, indent=2))
+        return 0
+
+    for side in (side_a, side_b):
+        if side["unsigned"]:
+            print(f"note: snapshot {Path(side['ref']).name} is unsigned; weaker evidence")
+    if identity_mismatch:
+        name_a = source_a.get("filename") or "(unknown)"
+        name_b = source_b.get("filename") or "(unknown)"
+        print(f"note: sources differ ({name_a} vs {name_b}); comparing anyway")
+    created_a = f" (created {side_a['created_at']})" if side_a["created_at"] else ""
+    created_b = f" (created {side_b['created_at']})" if side_b["created_at"] else ""
+    print(f"a: {side_a['ref']}{created_a}")
+    print(f"b: {side_b['ref']}{created_b}")
+
+    any_difference = False
+    for row in stage_rows:
+        if row["status"] != "matched":
+            any_difference = True
+            print(f"stage {row['name']}: {row['status']}")
+            continue
+        lines: list[str] = []
+        if row["code_changed"]:
+            hashes = row["code_hash"]
+            where = f" ({row['code_file']})" if "code_file" in row else ""
+            before8 = hashes["before8"] or "(none)"
+            after8 = hashes["after8"] or "(none)"
+            lines.append(f"code_hash {before8} -> {after8}{where}")
+        lines.extend(_render_stage_delta(row["totals"]))
+        if lines:
+            any_difference = True
+            print(f"stage {row['name']}")
+            for line in lines:
+                print(f"  {line}")
+    if not any_difference:
+        print("no differences")
+    return 0
+
+
 def cmd_anchor(args: argparse.Namespace) -> int:
     """Anchor chain.json in the Sigstore transparency log."""
     import json as _json
@@ -843,6 +1117,31 @@ def build_parser() -> argparse.ArgumentParser:
     p_export.add_argument("--out", default=None, help="Output path (default: <chain dir>/table.json)")
     p_export.add_argument("--sheet", default=None, help="Worksheet name (xlsx only, optional)")
     p_export.set_defaults(func=cmd_export)
+
+    p_diff = sub.add_parser(
+        "diff",
+        help="Compare two runs: per-stage code-hash changes and totals deltas "
+        "(read-only; exit 0 with or without differences)",
+    )
+    p_diff.add_argument(
+        "runs",
+        nargs="*",
+        help="Up to two runs: chain directories or run-snapshot files. "
+        "Zero args: current chain vs the latest differing archived snapshot. "
+        "One arg: that run vs the current chain.",
+    )
+    p_diff.add_argument(
+        "--chain",
+        default="receipts/",
+        help="Current chain directory (or chain.json path) used when fewer "
+        "than two runs are given",
+    )
+    p_diff.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit the structured diff as JSON instead of the text report",
+    )
+    p_diff.set_defaults(func=cmd_diff)
 
     p_anchor = sub.add_parser(
         "anchor",

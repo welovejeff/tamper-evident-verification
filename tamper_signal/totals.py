@@ -241,6 +241,109 @@ def control_totals(
     return totals
 
 
+def _dict_at(totals: dict[str, Any], key: str) -> dict[str, Any]:
+    """A column-keyed map from totals, tolerating absent or non-dict values."""
+    value = totals.get(key)
+    return value if isinstance(value, dict) else {}
+
+
+def _is_int(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def structured_totals_delta(a: dict[str, Any], b: dict[str, Any]) -> dict[str, Any]:
+    """Structured, machine-readable delta between two control totals.
+
+    Feeds `receipts diff` (--json and the human report). Only keys that
+    CHANGED appear; an empty dict means no movement. Shape:
+
+      row_count / column_count: {"before", "after", "delta"?}
+      numeric_sums:  {col: {"before", "after", "delta"?}}  (absent side: None)
+      null_counts:   {col: {"before", "after", "delta"}}   (absent side: 0)
+      date_ranges:   {col: {"before": {min,max} | None, "after": ...}}
+      period_buckets_changed: [bucket keys whose totals moved]
+
+    The existing totals_delta() strings stay untouched (they feed verify's
+    red report and the documented JSON). Key insertion order is fixed and
+    mirrored by node/totals.js structuredTotalsDelta, so serialized output
+    matches across stacks. Totals in receipt JSON are attacker-controlled:
+    unparseable sums report before/after without a computed delta, never a
+    crash.
+    """
+    delta: dict[str, Any] = {}
+
+    for key in ("row_count", "column_count"):
+        before = a.get(key)
+        after = b.get(key)
+        if before != after:
+            entry: dict[str, Any] = {"before": before, "after": after}
+            if _is_int(before) and _is_int(after):
+                entry["delta"] = after - before
+            delta[key] = entry
+
+    up_sums = _dict_at(a, "numeric_sums")
+    down_sums = _dict_at(b, "numeric_sums")
+    sums: dict[str, Any] = {}
+    for column in sorted(set(up_sums) | set(down_sums)):
+        before = up_sums.get(column)
+        after = down_sums.get(column)
+        if before == after:
+            continue
+        entry = {"before": before, "after": after}
+        if isinstance(before, str) and isinstance(after, str):
+            try:
+                entry["delta"] = decimal_to_plain_string(Decimal(after) - Decimal(before))
+            except InvalidOperation:
+                pass
+        sums[column] = entry
+    if sums:
+        delta["numeric_sums"] = sums
+
+    up_nulls = _dict_at(a, "null_counts")
+    down_nulls = _dict_at(b, "null_counts")
+    nulls: dict[str, Any] = {}
+    for column in sorted(set(up_nulls) | set(down_nulls)):
+        before = up_nulls.get(column, 0)
+        after = down_nulls.get(column, 0)
+        if before == after:
+            continue
+        entry = {"before": before, "after": after}
+        if _is_int(before) and _is_int(after):
+            entry["delta"] = after - before
+        nulls[column] = entry
+    if nulls:
+        delta["null_counts"] = nulls
+
+    up_ranges = _dict_at(a, "date_ranges")
+    down_ranges = _dict_at(b, "date_ranges")
+    ranges: dict[str, Any] = {}
+    for column in sorted(set(up_ranges) | set(down_ranges)):
+        before = up_ranges.get(column)
+        after = down_ranges.get(column)
+        if before != after:
+            ranges[column] = {
+                "before": before if isinstance(before, dict) else None,
+                "after": after if isinstance(after, dict) else None,
+            }
+    if ranges:
+        delta["date_ranges"] = ranges
+
+    up_buckets = a.get("period_buckets")
+    down_buckets = b.get("period_buckets")
+    if isinstance(up_buckets, dict) or isinstance(down_buckets, dict):
+        up_buckets = up_buckets if isinstance(up_buckets, dict) else {}
+        down_buckets = down_buckets if isinstance(down_buckets, dict) else {}
+        moved = sorted(
+            key
+            for key in set(up_buckets) | set(down_buckets)
+            if up_buckets.get(key) != down_buckets.get(key)
+        )
+        if moved:
+            delta["period_buckets_changed"] = moved
+
+    return delta
+
+
 def totals_delta(upstream: dict[str, Any], downstream: dict[str, Any]) -> list[str]:
     """Human-legible lines describing only what changed between two totals.
 

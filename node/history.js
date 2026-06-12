@@ -91,14 +91,13 @@ const strAt = (receipt, keys, fallback) => {
   return typeof cur === "string" ? cur : fallback;
 };
 
-// Build a run snapshot body from a verified chain; sign it when keyed.
-// `chainDir` is only needed for chains that record no receipt_hashes (the
-// tail hash is then computed from the last receipt file). `createdAt` exists
-// for tests and fixtures; production callers take the clock. Mirrors
-// tamper_signal/history.py build_run_snapshot byte-for-byte for the body.
-export function buildRunSnapshot(receipts, chain, { privateKey = null, chainDir = null, createdAt = null } = {}) {
-  const source = receipts.length ? receipts[0] : {};
-  const stages = receipts.map((receipt) => {
+// Per-stage identity and totals in the snapshot's stage shape. Shared by
+// buildRunSnapshot and `tamper-signal diff`'s chain-dir adapter so a live
+// chain and an archived snapshot always compare in the same shape:
+// [{name, kind, code_hash?, code_file?, totals}]. Mirrors history.py
+// run_stages byte-for-byte.
+export function runStages(receipts) {
+  return receipts.map((receipt) => {
     const kind = receipt !== null && typeof receipt === "object" && typeof receipt.kind === "string" ? receipt.kind : null;
     const stage = {
       name: stageNameOf(receipt),
@@ -113,18 +112,34 @@ export function buildRunSnapshot(receipts, chain, { privateKey = null, chainDir 
     }
     return stage;
   });
+}
+
+// Source identity in the snapshot's source shape (filename, origin, columns).
+// Mirrors history.py run_source.
+export function runSource(receipts) {
+  const source = receipts.length ? receipts[0] : {};
+  return {
+    filename: strAt(source, ["source", "filename"], ""),
+    declared_origin: strAt(source, ["source", "declared_origin"], ""),
+    columns: sourceColumns(totalsOf(source)),
+  };
+}
+
+// Build a run snapshot body from a verified chain; sign it when keyed.
+// `chainDir` is only needed for chains that record no receipt_hashes (the
+// tail hash is then computed from the last receipt file). `createdAt` exists
+// for tests and fixtures; production callers take the clock. Mirrors
+// tamper_signal/history.py build_run_snapshot byte-for-byte for the body.
+export function buildRunSnapshot(receipts, chain, { privateKey = null, chainDir = null, createdAt = null } = {}) {
+  const source = receipts.length ? receipts[0] : {};
 
   const body = {
     kind: "run_snapshot",
     spec_version: SPEC_VERSION,
     created_at: createdAt ?? nowIso(),
     chain_tail_hash: chainTailHash(chainDir ?? ".", chain),
-    source: {
-      filename: strAt(source, ["source", "filename"], ""),
-      declared_origin: strAt(source, ["source", "declared_origin"], ""),
-      columns: sourceColumns(totalsOf(source)),
-    },
-    stages,
+    source: runSource(receipts),
+    stages: runStages(receipts),
   };
   const tolerance = source !== null && typeof source === "object" ? source.tolerance : undefined;
   if (tolerance !== null && typeof tolerance === "object" && !Array.isArray(tolerance)) {

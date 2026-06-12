@@ -189,6 +189,14 @@ export interface LoadSnapshotsOptions {
   onNotice?: ((message: string) => void) | null;
 }
 
+/**
+ * Per-stage identity and totals in the snapshot's stage shape. Shared by
+ * buildRunSnapshot and the diff command's chain-dir adapter, so a live chain
+ * and an archived snapshot always compare in the same shape.
+ */
+export function runStages(receipts: Receipt[]): SnapshotStage[];
+/** Source identity in the snapshot's source shape (filename, origin, columns). */
+export function runSource(receipts: Receipt[]): RunSnapshot["source"];
 /** sha256 hex of a snapshot body's canonical bytes (its content address). */
 export function snapshotBodyHash(snapshot: RunSnapshot): string;
 /** The sha256 chain.json records for the LAST receipt file of the run. */
@@ -251,6 +259,32 @@ export function groupedNumericColumns(
 ): Array<{ column: string; example: string | null }>;
 /** Human-legible lines describing what changed between two control totals. */
 export function totalsDelta(upstream: ControlTotals, downstream: ControlTotals): string[];
+
+/**
+ * Structured, machine-readable delta between two control totals (feeds the
+ * diff command). Only keys that CHANGED appear; an empty object means no
+ * movement. Numeric deltas are plain decimal strings, never floats.
+ */
+export interface StructuredTotalsDelta {
+  row_count?: { before: number | null; after: number | null; delta?: number };
+  column_count?: { before: number | null; after: number | null; delta?: number };
+  /** Absent side is null; delta omitted when either side does not parse. */
+  numeric_sums?: Record<string, { before: string | null; after: string | null; delta?: string }>;
+  /** Absent side counts as 0. */
+  null_counts?: Record<string, { before: number; after: number; delta?: number }>;
+  date_ranges?: Record<
+    string,
+    {
+      before: { min: string; max: string } | null;
+      after: { min: string; max: string } | null;
+    }
+  >;
+  /** Bucket keys whose row_count/numeric_sums/null_counts moved, sorted. */
+  period_buckets_changed?: string[];
+}
+
+/** Structured delta between two control totals; {} when nothing changed. */
+export function structuredTotalsDelta(a: ControlTotals, b: ControlTotals): StructuredTotalsDelta;
 
 // --- wrapper.js ------------------------------------------------------------
 
