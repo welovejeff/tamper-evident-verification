@@ -1,0 +1,35 @@
+{
+  "kind": "source_manifest",
+  "spec_version": "1.1",
+  "created_at": "2026-06-10T23:24:57Z",
+  "source": {
+    "filename": "sample_export.xlsx",
+    "evidence_hash": "402ae9682341625d1013fa3b81ae956cbc3490c76612adbced2c5716a2627f7e",
+    "byte_size": 180561,
+    "declared_origin": "Sample social export, May 2026"
+  },
+  "semantic_hash": "6112c042990f87f98d2e2d4cc0a03327f71525049118a10971c475904bb2354c",
+  "control_totals": {
+    "row_count": 5000,
+    "column_count": 6,
+    "numeric_sums": {
+      "impressions": "127503272",
+      "clicks": "6376923",
+      "spend_usd": "2024069.42"
+    },
+    "date_ranges": {
+      "date": {
+        "min": "2026-05-01",
+        "max": "2026-05-31"
+      }
+    },
+    "null_counts": {
+      "campaign_name": 13
+    }
+  },
+  "signature": {
+    "alg": "ed25519",
+    "key_fingerprint": "4eb2080aefa12a53",
+    "value": "5faaafe1c0093e72501b7616395bc997e07b4f6fcb460662e7177c77c796422aa65fc462864302760fbb8a76e1fa05215637b971f19186f8c71ea4f8f7b42903"
+  }
+}

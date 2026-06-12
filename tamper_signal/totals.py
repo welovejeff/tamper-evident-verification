@@ -9,6 +9,7 @@ never floats.
 from __future__ import annotations
 
 import datetime as dt
+import re
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
@@ -22,6 +23,20 @@ from .canonical import (
 # A column qualifies as numeric / date when at least this share of its non-null
 # values parse as that type.
 _TYPE_THRESHOLD = 0.90
+
+# ISO shapes recognized for BUCKETING ONLY (period_buckets). Canonicalization
+# (canonical.py) is untouched: a date-shaped string still canonicalizes as a
+# string, so semantic hashes do not move. The shapes are strict:
+#   date:     YYYY-MM-DD
+#   datetime: YYYY-MM-DD then "T" or " ", HH:MM, optional :SS, optional .fff,
+#             optional "Z" or +HH:MM/-HH:MM offset.
+_ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_ISO_DATETIME_RE = re.compile(
+    r"^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})?$"
+)
+
+# Bucket key for rows whose bucket-column value is null or unparseable.
+UNBUCKETED_KEY = "_unbucketed"
 
 
 def _columns(records: list[dict[str, Any]]) -> list[str]:
@@ -49,12 +64,97 @@ def _try_date(value: Any) -> bool:
     return isinstance(value, (dt.date, dt.datetime))
 
 
-def control_totals(records: list[dict[str, Any]]) -> dict[str, Any]:
+def _bucket_key_for(normalized: str | bool | None) -> str | None:
+    """Canonical UTC day key (YYYY-MM-DD) for a normalized cell, or None.
+
+    Typed dates/datetimes arrive already normalized by normalize_cell, which
+    applies canonical.py's rules: aware datetimes convert to UTC and midnight
+    datetimes collapse to the bare date. Date-shaped strings (which stay
+    strings under canonicalization) are parsed here under the SAME rules:
+    naive datetimes are assumed UTC, aware ones convert to UTC, and the key is
+    the date component after that normalization. Strings that match a shape
+    but do not parse as a real date (e.g. month 13) return None.
+    """
+    if not isinstance(normalized, str):
+        return None
+    if _ISO_DATE_RE.match(normalized):
+        try:
+            dt.date.fromisoformat(normalized)
+        except ValueError:
+            return None
+        return normalized
+    if _ISO_DATETIME_RE.match(normalized):
+        try:
+            parsed = dt.datetime.fromisoformat(normalized.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        if parsed.tzinfo is not None:
+            parsed = parsed.astimezone(dt.timezone.utc)
+        return parsed.date().isoformat()
+    return None
+
+
+def _period_buckets(
+    norm_records: list[dict[str, Any]],
+    bucket_column: str,
+    columns: list[str],
+    numeric_columns: list[str],
+) -> dict[str, dict[str, Any]]:
+    """Aggregate per-UTC-day buckets keyed off `bucket_column`.
+
+    Column classification happened ONCE on the whole table (the caller passes
+    `numeric_columns` from it), so per-bucket numeric_sums always sum to the
+    whole-table sums. Rows whose bucket value is null or unparseable land
+    under UNBUCKETED_KEY. All sums stay Decimal until serialization.
+    """
+    row_counts: dict[str, int] = {}
+    sums: dict[str, dict[str, Decimal]] = {}
+    nulls: dict[str, dict[str, int]] = {}
+
+    for record in norm_records:
+        key = _bucket_key_for(normalize_cell(record.get(bucket_column)))
+        if key is None:
+            key = UNBUCKETED_KEY
+        row_counts[key] = row_counts.get(key, 0) + 1
+        bucket_sums = sums.setdefault(key, {c: Decimal(0) for c in numeric_columns})
+        bucket_nulls = nulls.setdefault(key, {})
+        for column in numeric_columns:
+            d = _coerce_decimal(record.get(column))
+            if d is not None:
+                bucket_sums[column] += d
+        for column in columns:
+            if normalize_cell(record.get(column)) is None:
+                bucket_nulls[column] = bucket_nulls.get(column, 0) + 1
+
+    return {
+        key: {
+            "row_count": row_counts[key],
+            "numeric_sums": {
+                column: decimal_to_plain_string(total)
+                for column, total in sums[key].items()
+            },
+            "null_counts": nulls[key],
+        }
+        for key in sorted(row_counts)
+    }
+
+
+def control_totals(
+    records: list[dict[str, Any]], *, bucket_column: str | None = None
+) -> dict[str, Any]:
     """Compute control totals over a list-of-dicts.
 
     Returns row_count, column_count, numeric_sums, date_ranges, null_counts.
     A column counts as numeric/date when >= 90% of its non-null values parse as
     that type. null_counts lists only columns with at least one null.
+
+    When a bucket column resolves, the result also carries "bucket_column" and
+    "period_buckets" (per-UTC-day row_count, numeric_sums, null_counts). A
+    column qualifies for bucketing when >= 90% of its non-null values are
+    typed dates/datetimes or ISO-shaped date strings (a bucketing-only rule;
+    see _ISO_DATE_RE / _ISO_DATETIME_RE). Exactly one qualifying column is
+    used automatically; with several, pass `bucket_column` to pick one (a name
+    that fails detection raises ValueError); with none, no buckets.
     """
     columns = _columns(records)
     row_count = len(records)
@@ -69,6 +169,7 @@ def control_totals(records: list[dict[str, Any]]) -> dict[str, Any]:
     null_counts: dict[str, int] = {}
     numeric_sums: dict[str, str] = {}
     date_ranges: dict[str, dict[str, str]] = {}
+    bucket_candidates: list[str] = []
 
     for column in columns:
         non_null: list[Any] = []
@@ -85,6 +186,14 @@ def control_totals(records: list[dict[str, Any]]) -> dict[str, Any]:
 
         if not non_null:
             continue
+
+        # Bucket-column detection (bucketing only; canonicalization untouched):
+        # typed dates/datetimes and ISO-shaped date strings both count.
+        date_shaped = sum(
+            1 for v in non_null if _bucket_key_for(normalize_cell(v)) is not None
+        )
+        if date_shaped / len(non_null) >= _TYPE_THRESHOLD:
+            bucket_candidates.append(column)
 
         # Numeric detection + sum.
         decimals = [_coerce_decimal(v) for v in non_null]
@@ -104,13 +213,32 @@ def control_totals(records: list[dict[str, Any]]) -> dict[str, Any]:
         if len(iso_values) / len(non_null) >= _TYPE_THRESHOLD and iso_values:
             date_ranges[column] = {"min": min(iso_values), "max": max(iso_values)}
 
-    return {
+    totals: dict[str, Any] = {
         "row_count": row_count,
         "column_count": len(columns),
         "numeric_sums": numeric_sums,
         "date_ranges": date_ranges,
         "null_counts": null_counts,
     }
+
+    resolved: str | None = None
+    if bucket_column is not None:
+        resolved = normalize_header(bucket_column)
+        if resolved not in bucket_candidates:
+            raise ValueError(
+                f"bucket column {resolved!r} does not qualify: fewer than 90% of "
+                "its non-null values are dates or ISO-shaped date strings"
+            )
+    elif len(bucket_candidates) == 1:
+        resolved = bucket_candidates[0]
+
+    if resolved is not None:
+        totals["bucket_column"] = resolved
+        totals["period_buckets"] = _period_buckets(
+            norm_records, resolved, columns, list(numeric_sums)
+        )
+
+    return totals
 
 
 def totals_delta(upstream: dict[str, Any], downstream: dict[str, Any]) -> list[str]:
