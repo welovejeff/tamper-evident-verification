@@ -1,0 +1,23 @@
+# Normalize all text to LF in the repository and on checkout, so a Windows
+# checkout (where git defaults to core.autocrlf=true) does not rewrite line
+# endings. This is load-bearing, not cosmetic: a receipt chain commits to the
+# sha256 of each receipt file's RAW bytes (receipt_hashes), so a CRLF checkout
+# would change those bytes and make a committed, valid chain verify as broken.
+* text=auto eol=lf
+
+# Byte-sensitive committed artifacts: signed receipt chains, run snapshots, and
+# the cross-language golden vectors. These are read as raw bytes during
+# verification and compared across the Python and JS stacks, so they must be
+# byte-identical on every platform. Keep them LF regardless of any local
+# core.autocrlf setting.
+*.json text eol=lf
+
+# Binary assets git should never touch.
+*.gif binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.mp4 binary
+*.woff binary
+*.woff2 binary
