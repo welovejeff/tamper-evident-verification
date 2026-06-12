@@ -24,6 +24,6 @@ chain faithfully verifies wrong numbers.
 # recorded under 1.0 and 1.1 still verify.
 SPEC_VERSION = "1.2"
 
-from .wrapper import receipt_step
+from .wrapper import ingest_file, receipt_step
 
-__all__ = ["SPEC_VERSION", "receipt_step"]
+__all__ = ["SPEC_VERSION", "ingest_file", "receipt_step"]

@@ -206,6 +206,8 @@ export function controlTotals(records, { bucketColumn = null } = {}) {
   // qualifying column buckets automatically; with several or none, no buckets.
   let resolved = null;
   if (bucketColumn !== null && bucketColumn !== undefined) {
+    // A declared column always wins, even when it spans a single day: the
+    // author asked for it explicitly.
     resolved = normalizeHeader(bucketColumn);
     if (!bucketCandidates.includes(resolved)) {
       throw new Error(
@@ -214,7 +216,18 @@ export function controlTotals(records, { bucketColumn = null } = {}) {
       );
     }
   } else if (bucketCandidates.length === 1) {
-    resolved = bucketCandidates[0];
+    // Auto-selection guard: a real period axis spans multiple days, so a
+    // qualifying column only auto-buckets when it yields at least two distinct
+    // bucket dates. A constant or ID-shaped date column (one distinct day) is
+    // far more likely a coincidence than a period axis; the author can still
+    // force it with --bucket-column. Mirrors tamper_signal/totals.py.
+    const candidate = bucketCandidates[0];
+    const distinctDays = new Set();
+    for (const record of normRecords) {
+      const key = bucketKeyFor(normalizeCell(record[candidate] ?? null));
+      if (key !== null) distinctDays.add(key);
+    }
+    if (distinctDays.size >= 2) resolved = candidate;
   }
 
   if (resolved !== null) {

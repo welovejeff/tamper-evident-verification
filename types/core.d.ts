@@ -115,6 +115,12 @@ export interface RunSnapshot {
    */
   tolerance?: ToleranceDeclaration;
   stages: SnapshotStage[];
+  /**
+   * Baseline-advancement guard from cross-run judgment: bucket key (or the
+   * "whole-table" sentinel) -> the metric ids this run's judgment flagged as
+   * band breaches or settled movement. Absent means nothing breached.
+   */
+  breached?: Record<string, string[]>;
   signature?: ReceiptSignature;
 }
 

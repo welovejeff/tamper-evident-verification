@@ -228,9 +228,12 @@ test("null and unparseable rows land in _unbucketed", () => {
   for (let i = 0; i < 18; i += 1) {
     records.push({ day: new Date("2026-05-01T00:00:00Z"), amount: 1 });
   }
+  // A second dated day so the column spans a real period axis (>= 2 distinct
+  // bucket dates), which the auto-selection guard requires.
+  records.push({ day: new Date("2026-05-02T00:00:00Z"), amount: 1 });
   records.push({ day: "2026-13-05", amount: 2 }); // shaped, not a real date
   records.push({ day: null, amount: 3 });
-  const totals = controlTotals(records); // 18/19 non-null date-shaped: qualifies
+  const totals = controlTotals(records); // 19/20 non-null date-shaped: qualifies
   assert.equal(totals.bucket_column, "day");
   const unbucketed = totals.period_buckets[UNBUCKETED_KEY];
   assert.equal(unbucketed.row_count, 2);

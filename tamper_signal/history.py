@@ -24,6 +24,7 @@ import datetime as dt
 import hashlib
 import json
 import math
+import re
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any, Callable
@@ -198,7 +199,21 @@ def write_run_snapshot(chain_dir: str, snapshot: dict[str, Any]) -> Path:
     history.mkdir(parents=True, exist_ok=True)
     path = history / f"{snapshot_body_hash(snapshot)}.json"
     if not path.exists():
-        path.write_text(json.dumps(snapshot, indent=2) + "\n", encoding="utf-8")
+        # Write to a temp file in the same directory, then atomically rename so
+        # a crash mid-write can never leave a truncated file whose
+        # content-addressed name lies about its bytes. The temp name carries
+        # the pid so concurrent writers of the same snapshot do not collide on
+        # the staging file. os.replace is atomic on the same filesystem; a
+        # FileExistsError on rename means another writer landed the identical
+        # bytes first (content-addressed = identical), so it is harmless.
+        import os
+
+        tmp = history / f".{path.name}.{os.getpid()}.tmp"
+        tmp.write_text(json.dumps(snapshot, indent=2) + "\n", encoding="utf-8")
+        try:
+            os.replace(tmp, path)
+        except FileExistsError:
+            tmp.unlink(missing_ok=True)
     return path
 
 
@@ -381,7 +396,13 @@ def archive_run_snapshot(
     catch everything and degrade to a stderr notice. `breached` threads to
     build_run_snapshot (the baseline-advancement guard).
     """
-    tail = chain_tail_hash(chain_dir, chain)
+    # An empty chain has no run to archive. Returning None (rather than letting
+    # chain_tail_hash raise) means programmatic callers get a clean no-op
+    # instead of an unhandled error.
+    try:
+        tail = chain_tail_hash(chain_dir, chain)
+    except ValueError:
+        return None
     latest = latest_snapshot(
         chain_dir, trusted_keys=trusted_keys, on_notice=on_notice
     )
@@ -409,10 +430,29 @@ def archive_run_snapshot(
 # Detail period key for the flat-band (whole-table) fallback comparison.
 WHOLE_TABLE_PERIOD = "whole-table"
 
+# A bucket key is a valid period date ONLY in strict extended ISO form
+# (YYYY-MM-DD). Python's date.fromisoformat also accepts basic-ISO (20260601)
+# and ISO-week (2026-W01) shapes, but the JS regex in node/history.js does
+# not; gating on this regex first keeps bucket-date acceptance byte-identical
+# across stacks (R14), so a crafted snapshot key cannot settle in one stack
+# and stay forever-settling in the other.
+_BUCKET_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
 BUCKET_LOSS_CAVEAT = "bucket column no longer detected; period judgment unavailable"
 
+COLUMNS_CHANGED_CAVEAT = (
+    "source columns changed since a prior run; judged the metrics on the "
+    "shared columns only"
+)
 
-def _empty_judgment() -> dict[str, Any]:
+
+def empty_judgment() -> dict[str, Any]:
+    """A judgment result with every key present and empty.
+
+    Callers rely on the four keys always being present (the CLI ships
+    `details` as caveat_details unconditionally), so this is the single
+    source of the empty shape.
+    """
     return {"caveats": [], "details": [], "notices": [], "breached": {}}
 
 
@@ -439,7 +479,7 @@ def _bucket_deadline(key: Any, settle_hours: int) -> dt.datetime | None:
     Non-date bucket keys (e.g. "_unbucketed") have no end of day: they never
     settle and are band-judged forever.
     """
-    if not isinstance(key, str):
+    if not isinstance(key, str) or not _BUCKET_DATE_RE.match(key):
         return None
     try:
         day = dt.date.fromisoformat(key)
@@ -488,12 +528,35 @@ def _metric_value(entry: Any, metric: str) -> Decimal | None:
         return None
     sums = entry.get("numeric_sums")
     value = sums.get(metric) if isinstance(sums, dict) else None
+    return _read_decimal(value)
+
+
+def _read_decimal(value: Any) -> Decimal | None:
+    """Read a numeric metric value as Decimal, identically across stacks.
+
+    Sums are normally quantized decimal strings ("12", "12.45"), but an
+    attacker-influenced or older snapshot can carry a JSON number instead.
+    A string, an int (not bool), and an integer-or-finite float all read as
+    the same Decimal so 12, 12.0, and "12" judge identically in both stacks
+    (R14). bool, None, NaN, and infinities read as None (silently out of
+    scope), never a crash.
+    """
+    if isinstance(value, bool):
+        return None
     if isinstance(value, str):
         try:
             parsed = Decimal(value)
         except InvalidOperation:
             return None
         return parsed if parsed.is_finite() else None
+    if isinstance(value, int):
+        return Decimal(value)
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            return None
+        # Round-trip through the JCS-canonical repr so a float reads the same
+        # decimal both stacks would serialize: 12.0 -> "12", not "12.0".
+        return Decimal(repr(value))
     return None
 
 
@@ -569,25 +632,90 @@ def _record(
     }
 
 
+def _clamped_elapsed_days(
+    first_created: dt.datetime,
+    current_created: dt.datetime,
+    settle_hours: int,
+    now_utc: dt.datetime,
+) -> int:
+    """Days from the first observation to now, clamped both ways (>= 1).
+
+    The cumulative bound widens with elapsed days, so two clocks must be
+    pinned or it could be widened without limit:
+    - current_created is clamped to now + FUTURE_SKEW_SECONDS, so a run that
+      stamps its own created_at far in the future cannot buy a wider
+      allowance (the loaded-snapshot future guard never saw this run's own
+      created_at).
+    - the result is capped at the settle window in days (ceil(settle/24)), so
+      an arbitrarily long gap cannot ratchet the allowance unbounded; past the
+      window the bucket is frozen, not endlessly widening.
+    """
+    horizon = now_utc + dt.timedelta(seconds=FUTURE_SKEW_SECONDS)
+    clamped_current = min(current_created, horizon)
+    raw_days = math.ceil((clamped_current - first_created).total_seconds() / 86400)
+    cap = max(1, math.ceil(settle_hours / 24))
+    return max(1, min(raw_days, cap))
+
+
 def _judge_flat(
-    base_totals: dict[str, Any], current_totals: dict[str, Any], band: Decimal
+    matching: list[tuple[dt.datetime, dict[str, Any], dict[str, Any]]],
+    current_totals: dict[str, Any],
+    band: Decimal,
+    settle_hours: int,
+    current_created: dt.datetime,
+    now_utc: dt.datetime,
 ) -> list[dict[str, Any]]:
-    """Flat-band fallback: whole-table row_count + numeric sums, no zones."""
+    """Flat-band fallback: whole-table row_count + numeric sums.
+
+    Hardened to mirror the settling-bucket path so the no-bucket path (a plain
+    CSV with no period axis) cannot be ratcheted sub-band every run without
+    limit:
+    - PER-STEP band against the most recent UNTAINTED observation, AND
+    - a CUMULATIVE bound (band * clamped elapsed_days) against the FIRST
+      untainted observation.
+    Either breach flags. Breaches record under the WHOLE_TABLE_PERIOD sentinel
+    so the breached guard keeps a breached whole-table value from becoming the
+    next baseline (a breached observation is tainted and skipped as a base).
+    """
     records: list[dict[str, Any]] = []
-    for metric in _flat_metric_names(base_totals, current_totals):
-        base = _metric_value(base_totals, metric)
+    metrics = _flat_metric_names(*[totals for _created, _snapshot, totals in matching], current_totals)
+    for metric in metrics:
         cur = _metric_value(current_totals, metric)
-        if base is None or cur is None:
+        if cur is None:
             continue
-        if base == 0:
-            if cur != 0:
-                records.append(
-                    _record("band_breach", metric, WHOLE_TABLE_PERIOD, base, cur, zero=True, flat=True)
-                )
-        elif abs(cur - base) > band * abs(base):
-            records.append(
-                _record("band_breach", metric, WHOLE_TABLE_PERIOD, base, cur, flat=True)
+        clean = [
+            (created, totals)
+            for created, snapshot, totals in matching
+            if not _tainted(snapshot, WHOLE_TABLE_PERIOD, metric)
+            and _metric_value(totals, metric) is not None
+        ]
+        if not clean:
+            continue
+        previous = _metric_value(clean[-1][1], metric)
+        first_created = clean[0][0]
+        first = _metric_value(clean[0][1], metric)
+        breach: dict[str, Any] | None = None
+        if previous is not None:
+            if previous == 0:
+                if cur != 0:
+                    breach = _record(
+                        "band_breach", metric, WHOLE_TABLE_PERIOD, previous, cur, zero=True, flat=True
+                    )
+            elif abs(cur - previous) > band * abs(previous):
+                breach = _record("band_breach", metric, WHOLE_TABLE_PERIOD, previous, cur, flat=True)
+        if breach is None and first is not None:
+            elapsed_days = _clamped_elapsed_days(
+                first_created, current_created, settle_hours, now_utc
             )
+            if first == 0:
+                if cur != 0:
+                    breach = _record(
+                        "band_breach", metric, WHOLE_TABLE_PERIOD, first, cur, zero=True, flat=True
+                    )
+            elif abs(cur - first) > band * Decimal(elapsed_days) * abs(first):
+                breach = _record("band_breach", metric, WHOLE_TABLE_PERIOD, first, cur, flat=True)
+        if breach is not None:
+            records.append(breach)
     return records
 
 
@@ -597,6 +725,7 @@ def _judge_buckets(
     current_created: dt.datetime,
     band: Decimal,
     settle_hours: int,
+    now_utc: dt.datetime,
 ) -> list[dict[str, Any]]:
     """Two-zone judgment of every bucket present in the current run."""
     records: list[dict[str, Any]] = []
@@ -617,6 +746,20 @@ def _judge_buckets(
         prior_created = observations[-1][0]
         deadline = _bucket_deadline(key, settle_hours)
         settled_at_prior = deadline is not None and prior_created > deadline
+        # Re-observation freeze: the prior observation was still settling, but
+        # this run lands WELL past the settling window (more than one full
+        # settle window beyond the deadline). The bucket has had ample time to
+        # settle; handing it another fresh band * elapsed_days allowance would
+        # let a large drift ride in as "still settling." Freeze it against the
+        # most recent untainted value instead. AE9 (current just past the
+        # deadline, inside one settle window) stays in the settling zone and
+        # keeps its bounded allowance, so it stays green.
+        settle_span = dt.timedelta(hours=settle_hours)
+        settled_now = (
+            deadline is not None
+            and not settled_at_prior
+            and current_created > deadline + settle_span
+        )
 
         for metric in _bucket_metric_names(entry, observations[-1][2]):
             cur = _metric_value(entry, metric)
@@ -643,6 +786,13 @@ def _judge_buckets(
                 if base is None or cur == base:
                     continue
                 records.append(_record("settled_movement", metric, key, base, cur))
+            elif settled_now:
+                # FROZEN on re-observation: the settled baseline is the most
+                # recent untainted settling-era value; any movement flags.
+                base = _metric_value(clean[-1][2], metric)
+                if base is None or cur == base:
+                    continue
+                records.append(_record("settled_movement", metric, key, base, cur))
             else:
                 previous = _metric_value(clean[-1][2], metric)
                 first_created = clean[0][0]
@@ -655,9 +805,8 @@ def _judge_buckets(
                     elif abs(cur - previous) > band * abs(previous):
                         breach = _record("band_breach", metric, key, previous, cur)
                 if breach is None and first is not None:
-                    elapsed_days = max(
-                        1,
-                        math.ceil((current_created - first_created).total_seconds() / 86400),
+                    elapsed_days = _clamped_elapsed_days(
+                        first_created, current_created, settle_hours, now_utc
                     )
                     if first == 0:
                         if cur != 0:
@@ -755,6 +904,13 @@ def _format_records(records: list[dict[str, Any]], out: dict[str, Any]) -> None:
             )
             continue
 
+        if rtype == "columns_changed":
+            out["caveats"].append(COLUMNS_CHANGED_CAVEAT)
+            out["details"].append(
+                {"type": rtype, "metric": None, "periods": 0, "worst": None, "buckets": []}
+            )
+            continue
+
         worst = _pick_worst(rtype, items)
         before_s, after_s, delta_s = _detail_values(worst)
         worst_entry: dict[str, Any] = {
@@ -814,10 +970,12 @@ def _format_records(records: list[dict[str, Any]], out: dict[str, Any]) -> None:
 
     # The baseline-advancement guard for the snapshot this run will write:
     # bucket/metric pairs that breached or moved while settled. Flat-band
-    # (whole-table) findings are not bucket pairs and stay out of the map.
+    # (whole-table) breaches record under the WHOLE_TABLE_PERIOD sentinel (the
+    # record's period) so a breached whole-table value cannot become the next
+    # flat baseline either.
     breached: dict[str, set[str]] = {}
     for record in records:
-        if record["type"] in ("band_breach", "settled_movement") and not record["flat"]:
+        if record["type"] in ("band_breach", "settled_movement"):
             breached.setdefault(record["period"], set()).add(record["metric"])
     out["breached"] = {key: sorted(metrics) for key, metrics in sorted(breached.items())}
 
@@ -855,7 +1013,7 @@ def judge_cross_run(
     - buckets absent from the current run are silent unless they disappear
       from the interior of the current bucket range (bucket_removed).
     """
-    out = _empty_judgment()
+    out = empty_judgment()
     source = receipts[0] if receipts and isinstance(receipts[0], dict) else {}
     tolerance = source.get("tolerance") if isinstance(source, dict) else None
     if not isinstance(tolerance, dict):
@@ -915,19 +1073,25 @@ def judge_cross_run(
         return out
 
     identity = run_source(receipts)
+    current_columns = identity["columns"] if isinstance(identity["columns"], list) else []
     matching: list[tuple[dt.datetime, dict[str, Any], dict[str, Any]]] = []
+    columns_changed = False
     for created, snapshot in older:
         snapshot_source = snapshot.get("source")
         if not isinstance(snapshot_source, dict):
             continue
-        if (
-            snapshot_source.get("filename") != identity["filename"]
-            or snapshot_source.get("columns") != identity["columns"]
-        ):
+        # A FILENAME mismatch is a different source: full skip (handled by the
+        # empty-matching notice below). A COLUMN-SET change to the same file is
+        # not: we still judge the metrics on the shared columns and emit a
+        # typed columns_changed caveat, rather than going blind on every drift.
+        if snapshot_source.get("filename") != identity["filename"]:
             continue
         totals = _source_stage_totals(snapshot)
         if totals is None:
             continue
+        snapshot_columns = snapshot_source.get("columns")
+        if isinstance(snapshot_columns, list) and snapshot_columns != current_columns:
+            columns_changed = True
         matching.append((created, snapshot, totals))
     if not matching:
         out["notices"].append(
@@ -943,7 +1107,9 @@ def judge_cross_run(
     records: list[dict[str, Any]] = []
     if current_buckets is not None and latest_buckets is not None:
         records.extend(
-            _judge_buckets(matching, current_buckets, current_created, band, settle_hours)
+            _judge_buckets(
+                matching, current_buckets, current_created, band, settle_hours, now_utc
+            )
         )
         records.extend(_judge_removals(latest_buckets, current_buckets))
     elif current_buckets is not None:
@@ -953,14 +1119,21 @@ def judge_cross_run(
             "previous run snapshot has no period buckets; "
             "compared whole-table totals under the flat band"
         )
-        records.extend(_judge_flat(latest_totals, current_totals, band))
+        records.extend(
+            _judge_flat(matching, current_totals, band, settle_hours, current_created, now_utc)
+        )
     else:
         if latest_buckets is not None:
             # The previous run had buckets and this one does not: the bucket
             # column went missing, so period judgment is unavailable. The
             # flat band still covers whole-table totals.
             records.append(_record("bucket_loss", None, "", None, None))
-        records.extend(_judge_flat(latest_totals, current_totals, band))
+        records.extend(
+            _judge_flat(matching, current_totals, band, settle_hours, current_created, now_utc)
+        )
+
+    if columns_changed:
+        records.append(_record("columns_changed", None, "", None, None))
 
     _format_records(records, out)
     return out

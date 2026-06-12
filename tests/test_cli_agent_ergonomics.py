@@ -285,6 +285,54 @@ def test_settle_days_convert_to_hours_and_imply_default_band(tmp_path, capsys):
     assert manifest["tolerance"] == {"band": "0.05", "settle_hours": 72}
 
 
+def test_ingest_file_library_records_signed_tolerance_and_verifies(tmp_path, capsys):
+    # The public library entry point (mirrors node/wrapper.js ingestFile): a
+    # Python pipeline declares tolerance programmatically without the CLI.
+    from tamper_signal import ingest_file
+
+    generate_keys(str(tmp_path / "keys"))
+    data = tmp_path / "export.csv"
+    data.write_text(DATED_CSV, encoding="utf-8")
+
+    result = ingest_file(
+        str(data),
+        origin="t",
+        chain_dir=str(tmp_path / "receipts"),
+        key_path=str(tmp_path / "keys" / "signing.key"),
+        band="5%",
+    )
+    # The returned manifest carries the signed tolerance field (default settle).
+    assert result["manifest"]["tolerance"] == {"band": "0.05", "settle_hours": 72}
+    assert result["source_hash"] == result["manifest"]["semantic_hash"]
+
+    # It is persisted and signed: the receipt on disk verifies as-is.
+    manifest = read_receipt(str(tmp_path / "receipts"), SOURCE_RECEIPT_NAME)
+    assert manifest["tolerance"] == {"band": "0.05", "settle_hours": 72}
+
+    code = main(["verify", str(tmp_path / "receipts" / "chain.json"), "--json"])
+    payload = json.loads(capsys.readouterr().out)
+    assert code == 0
+    assert payload["verdict"] == "green"
+    assert payload["caveats"] == []
+
+
+def test_ingest_file_library_invalid_band_raises_and_writes_nothing(tmp_path):
+    # Invalid tolerance raises ValueError before anything is written.
+    from tamper_signal import ingest_file
+
+    generate_keys(str(tmp_path / "keys"))
+    data = tmp_path / "export.csv"
+    data.write_text(DATED_CSV, encoding="utf-8")
+    with pytest.raises(ValueError, match="invalid --band"):
+        ingest_file(
+            str(data),
+            chain_dir=str(tmp_path / "receipts"),
+            key_path=str(tmp_path / "keys" / "signing.key"),
+            band="banana",
+        )
+    assert not (tmp_path / "receipts" / SOURCE_RECEIPT_NAME).exists()
+
+
 def test_band_canonical_forms_are_pinned():
     # The canonical band form is the plain decimal string the totals
     # serializer produces; node/test/pipeline.test.js pins the same forms.

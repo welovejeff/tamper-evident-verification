@@ -22,83 +22,31 @@ from pathlib import Path
 
 from .canonical import (
     decimal_to_plain_string,
-    evidence_hash,
     load_records,
-    normalize_header,
     semantic_hash,
 )
 from .keys import generate_keys, load_private_key, load_public_key_hex, public_hex_from_private
 from .receipts import (
     CHAIN_FILENAME,
     SOURCE_RECEIPT_NAME,
-    build_source_manifest,
     read_chain,
     read_receipt,
     receipt_file_hashes,
     verify_chain,
-    write_chain,
-    write_receipt,
 )
 from .totals import control_totals
+from .wrapper import (
+    DEFAULT_BAND,
+    DEFAULT_SETTLE_HOURS,
+    ingest_file,
+    parse_band,
+    parse_settle,
+)
 
-
-# Tolerance declaration defaults: a producer who states only a band gets the
-# default settling window, and vice versa (R5).
-DEFAULT_BAND = "0.05"
-DEFAULT_SETTLE_HOURS = 72
-
-
-def parse_band(text: str) -> str:
-    """Normalize a band declaration to its canonical plain decimal string.
-
-    Accepts percent forms ("5%", "5 %", "5.5%") and plain fractions ("0.05").
-    The canonical form is the plain decimal string the totals serializer
-    produces, so "5%", "0.05" and "0.050" all normalize to "0.05". Bands must
-    be greater than zero and at most 100%. The result is a STRING because
-    floats never enter signed bodies.
-    """
-    from decimal import Decimal, InvalidOperation
-
-    raw = text.strip()
-    is_percent = raw.endswith("%")
-    if is_percent:
-        raw = raw[:-1].strip()
-    try:
-        value = Decimal(raw)
-    except (InvalidOperation, ValueError):
-        raise ValueError(f"invalid --band '{text}': not a number (try 5% or 0.05)") from None
-    if not value.is_finite():
-        raise ValueError(f"invalid --band '{text}': not a number (try 5% or 0.05)")
-    if is_percent:
-        value = value / Decimal(100)
-    if value <= 0:
-        raise ValueError(f"invalid --band '{text}': must be greater than zero")
-    if value > 1:
-        raise ValueError(f"invalid --band '{text}': must not exceed 100%")
-    band = decimal_to_plain_string(value)
-    if band == "0":
-        # Positive but below the six-place quantum: quantizes to zero.
-        raise ValueError(f"invalid --band '{text}': must be greater than zero")
-    return band
-
-
-def parse_settle(text: str) -> int:
-    """Parse a settling window to whole hours: "72", "72h", or "3d"."""
-    raw = text.strip().lower()
-    multiplier = 1
-    if raw.endswith("h"):
-        raw = raw[:-1].strip()
-    elif raw.endswith("d"):
-        raw = raw[:-1].strip()
-        multiplier = 24
-    if not (raw.isascii() and raw.isdigit()):
-        raise ValueError(
-            f"invalid --settle '{text}': expected a whole number of hours like 72, 72h, or 3d"
-        )
-    hours = int(raw) * multiplier
-    if hours <= 0:
-        raise ValueError(f"invalid --settle '{text}': must be a positive number of hours")
-    return hours
+# parse_band, parse_settle, DEFAULT_BAND, and DEFAULT_SETTLE_HOURS live in
+# wrapper.py now (alongside the programmatic ingest_file), but stay importable
+# from tamper_signal.cli for callers and tests that referenced them here.
+__all__ = ["DEFAULT_BAND", "DEFAULT_SETTLE_HOURS", "parse_band", "parse_settle", "main"]
 
 
 def cmd_keygen(args: argparse.Namespace) -> int:
@@ -112,87 +60,73 @@ def cmd_keygen(args: argparse.Namespace) -> int:
     return 0
 
 
-def _warn_if_unsnapshotted_reset(chain_dir: str) -> None:
-    """Warn when ingest is about to reset a chain whose run never reached
+def _is_unsnapshotted_reset(chain_dir: str) -> bool:
+    """True when ingest is about to reset a chain whose run never reached
     history (no snapshot records the outgoing chain's tail hash): the totals
-    of that run are about to become unrecoverable. Stderr only; never blocks
-    the ingest and never raises (a malformed old chain still gets the
-    warning, since it certainly was never snapshotted as-is).
+    of that run are about to become unrecoverable. Never raises (a malformed
+    old chain reads as never-snapshotted, since it certainly was never
+    snapshotted as-is). Computed from the OUTGOING chain BEFORE ingest_file
+    overwrites it; the caller emits the warning only after ingest succeeds.
     """
     chain_path = Path(chain_dir) / CHAIN_FILENAME
     if not chain_path.exists():
-        return
+        return False
     from .history import chain_tail_hash, history_has_tail
 
     try:
         old_chain = read_chain(str(chain_path))
         tail = chain_tail_hash(chain_dir, old_chain)
         keys = [k for k in [old_chain.get("public_key")] if isinstance(k, str) and k]
-        snapshotted = history_has_tail(chain_dir, tail, trusted_keys=keys)
+        return not history_has_tail(chain_dir, tail, trusted_keys=keys)
     except Exception:  # noqa: BLE001 - a chain we cannot read was never archived
-        snapshotted = False
-    if not snapshotted:
+        return True
+
+
+def cmd_ingest(args: argparse.Namespace) -> int:
+    if os.environ.get("TAMPER_SIGNAL_KEY"):
+        # The env var silently outranks --key; say so where it matters.
+        print("Signing with TAMPER_SIGNAL_KEY from the environment (overrides --key)", file=sys.stderr)
+
+    # Compute the unsnapshotted-reset condition from the OUTGOING chain before
+    # ingest_file overwrites chain.json; emit the warning only after ingest
+    # validation passes (below), so an invalid flag exits 1 with no warning.
+    unsnapshotted_reset = _is_unsnapshotted_reset(args.out)
+
+    # ingest_file parses the tolerance declaration, builds and signs the source
+    # manifest, and RESETS chain.json to it -- the same call a Python pipeline
+    # uses to declare tolerance programmatically. Invalid band/settle values
+    # and a non-qualifying --bucket-column raise ValueError before anything is
+    # written; surface them as a clean error and exit 1.
+    try:
+        result = ingest_file(
+            args.file,
+            origin=args.origin,
+            chain_dir=args.out,
+            key_path=args.key,
+            band=args.band,
+            settle=args.settle,
+            bucket_column=args.bucket_column,
+            sheet=args.sheet,
+        )
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+
+    if unsnapshotted_reset:
         print(
             "warning: previous run was never verified; its totals will not enter history",
             file=sys.stderr,
         )
 
-
-def cmd_ingest(args: argparse.Namespace) -> int:
-    # Parse the tolerance declaration before touching anything: an invalid
-    # flag must exit 1 with nothing written. Any flag creates a declaration;
-    # no flags means no tolerance field at all (verify behavior unchanged).
-    tolerance = None
-    bucket_column = None
-    if args.band or args.settle or args.bucket_column:
-        try:
-            tolerance = {
-                "band": parse_band(args.band) if args.band else DEFAULT_BAND,
-                "settle_hours": parse_settle(args.settle) if args.settle else DEFAULT_SETTLE_HOURS,
-            }
-        except ValueError as exc:
-            print(str(exc), file=sys.stderr)
-            return 1
-        if args.bucket_column:
-            bucket_column = normalize_header(args.bucket_column)
-            tolerance["bucket_column"] = bucket_column
-
-    source_path = Path(args.file)
-    raw = source_path.read_bytes()
-    records = load_records(str(source_path), sheet=args.sheet)
-
-    if os.environ.get("TAMPER_SIGNAL_KEY"):
-        # The env var silently outranks --key; say so where it matters.
-        print("Signing with TAMPER_SIGNAL_KEY from the environment (overrides --key)", file=sys.stderr)
-    private_key = load_private_key(args.key)
-    public_hex = public_hex_from_private(private_key)
-
-    try:
-        manifest = build_source_manifest(
-            filename=source_path.name,
-            evidence_hash=evidence_hash(raw),
-            byte_size=len(raw),
-            declared_origin=args.origin,
-            semantic_hash=semantic_hash(records),
-            records=records,
-            private_key=private_key,
-            tolerance=tolerance,
-            bucket_column=bucket_column,
-        )
-    except ValueError as exc:
-        # A declared --bucket-column that fails detection surfaces here.
-        print(str(exc), file=sys.stderr)
-        return 1
-    _warn_if_unsnapshotted_reset(args.out)
-    write_receipt(args.out, SOURCE_RECEIPT_NAME, manifest)
-    write_chain(args.out, [SOURCE_RECEIPT_NAME], public_hex)
-
+    manifest = result["manifest"]
+    tolerance = manifest.get("tolerance")
     totals = manifest["control_totals"]
-    print(f"Ingested {source_path.name}")
+    print(f"Ingested {manifest['source']['filename']}")
     print(f"  evidence_hash {manifest['source']['evidence_hash']}")
     print(f"  semantic_hash {manifest['semantic_hash']}")
     print(f"  rows {totals['row_count']}, columns {totals['column_count']}")
     if tolerance is not None:
+        bucket_column = tolerance.get("bucket_column")
         extra = f", bucket_column {bucket_column}" if bucket_column else ""
         print(
             f"  tolerance band {tolerance['band']}, "
@@ -272,11 +206,11 @@ def _judge_after_verify(
     zero output (AE13: verification stays exact and silent). Any failure
     degrades to an empty judgment with a notice, never a verdict change.
     """
-    from .history import _empty_judgment, judge_cross_run, load_snapshots
+    from .history import empty_judgment, judge_cross_run, load_snapshots
 
     source = receipts[0] if receipts and isinstance(receipts[0], dict) else {}
     if not isinstance(source.get("tolerance"), dict):
-        return _empty_judgment()
+        return empty_judgment()
     notices: list[str] = []
     try:
         try:
@@ -289,7 +223,7 @@ def _judge_after_verify(
         items = load_snapshots(chain_dir, trusted_keys=keys, on_notice=notices.append)
         judgment = judge_cross_run(receipts, chain, [i["snapshot"] for i in items])
     except Exception as exc:  # noqa: BLE001 - judgment must never fail the verify
-        empty = _empty_judgment()
+        empty = empty_judgment()
         empty["notices"] = notices + [f"cross-run judgment skipped: {exc}"]
         return empty
     judgment["notices"] = notices + judgment["notices"]

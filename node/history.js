@@ -15,8 +15,9 @@
 // explicitly; only the CLI verify and rebuildChain write snapshots for you.
 
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import process from "node:process";
 
 import {
   canonicalJsonBytes,
@@ -174,13 +175,47 @@ export function writeRunSnapshot(chainDir, snapshot) {
   const history = join(chainDir, HISTORY_DIRNAME);
   mkdirSync(history, { recursive: true });
   const path = join(history, `${snapshotBodyHash(snapshot)}.json`);
-  if (!existsSync(path)) writeFileSync(path, JSON.stringify(snapshot, null, 2) + "\n");
+  if (!existsSync(path)) {
+    // Write to a temp file in the same directory, then atomically rename so a
+    // crash mid-write can never leave a truncated file whose content-addressed
+    // name lies about its bytes. The temp name carries the pid so concurrent
+    // writers of the same snapshot do not collide on the staging file.
+    // renameSync is atomic on the same filesystem; an EEXIST means another
+    // writer landed the identical bytes first (content-addressed = identical),
+    // so it is harmless.
+    const tmp = join(history, `.${snapshotBodyHash(snapshot)}.json.${process.pid}.tmp`);
+    writeFileSync(tmp, JSON.stringify(snapshot, null, 2) + "\n");
+    try {
+      renameSync(tmp, path);
+    } catch (err) {
+      if (err.code === "EEXIST") {
+        try {
+          rmSync(tmp, { force: true });
+        } catch {
+          // best effort cleanup of the staging file
+        }
+      } else {
+        throw err;
+      }
+    }
+  }
   return path;
 }
 
+// A datetime carrying a time component (T or space then HH:MM) but no zone
+// suffix (trailing Z or +HH:MM / -HH:MM). Date.parse reads such a string as
+// host-local; Python reads it as UTC.
+const NAIVE_DATETIME_RE = /^\d{4}-\d{2}-\d{2}[Tt ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/;
+
 function parseCreatedAt(value) {
   if (typeof value !== "string") return null;
-  const ms = Date.parse(value);
+  // Python's datetime.fromisoformat treats a naive created_at as UTC; JS
+  // Date.parse treats a no-timezone datetime as host-local. Force a naive
+  // datetime to UTC so zone and elapsed boundaries match Python and do not
+  // drift with the reader's local clock (R14). Date-only strings already
+  // parse as UTC midnight in both stacks and are left untouched.
+  const text = NAIVE_DATETIME_RE.test(value.trim()) ? `${value.trim()}Z` : value;
+  const ms = Date.parse(text);
   return Number.isNaN(ms) ? null : ms;
 }
 
@@ -348,7 +383,15 @@ export function historyHasTail(chainDir, tailHash, { trustedKeys = [] } = {}) {
 // unchanged run is a no-op). Throws on build/write failure; CLI callers
 // catch everything and degrade to a stderr notice.
 export function archiveRunSnapshot(chainDir, chain, receipts, { privateKey = null, trustedKeys = [], onNotice = null, breached = null } = {}) {
-  const tail = chainTailHash(chainDir, chain);
+  // An empty chain has no run to archive. Returning null (rather than letting
+  // chainTailHash throw) means programmatic callers get a clean no-op instead
+  // of an unhandled error.
+  let tail;
+  try {
+    tail = chainTailHash(chainDir, chain);
+  } catch {
+    return null;
+  }
   const latest = latestSnapshot(chainDir, { trustedKeys, onNotice });
   if (latest !== null && latest.snapshot.chain_tail_hash === tail) return null;
   const snapshot = buildRunSnapshot(receipts, chain, { privateKey, chainDir, breached });
@@ -367,6 +410,9 @@ export function archiveRunSnapshot(chainDir, chain, receipts, { privateKey = nul
 export const WHOLE_TABLE_PERIOD = "whole-table";
 
 export const BUCKET_LOSS_CAVEAT = "bucket column no longer detected; period judgment unavailable";
+
+export const COLUMNS_CHANGED_CAVEAT =
+  "source columns changed since a prior run; judged the metrics on the shared columns only";
 
 const emptyJudgment = () => ({ caveats: [], details: [], notices: [], breached: {} });
 
@@ -404,11 +450,29 @@ const bucketsOf = (totals) => (isObj(totals.period_buckets) ? totals.period_buck
 // bucket_end (24:00 UTC of the bucket's day) + the settling window, in ms.
 // Non-date bucket keys (e.g. "_unbucketed") have no end of day: they never
 // settle and are band-judged forever.
+// A bucket key is a valid period date ONLY in strict extended ISO form
+// (YYYY-MM-DD) naming a real calendar day. Python gates on the same regex plus
+// date.fromisoformat (which rejects month 13 and Feb 30); JS Date.parse rolls
+// those over, so the explicit calendar check keeps acceptance byte-identical
+// across stacks (R14).
 function bucketDeadlineMs(key, settleHours) {
   if (typeof key !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(key)) return null;
+  const year = Number(key.slice(0, 4));
+  const month = Number(key.slice(5, 7));
+  const day = Number(key.slice(8, 10));
+  if (!isRealCalendarDate(year, month, day)) return null;
   const ms = Date.parse(`${key}T00:00:00Z`);
   if (Number.isNaN(ms)) return null;
   return ms + 86400000 + settleHours * 3600000;
+}
+
+// Real month, real day (leap years included), year >= 1. Mirrors Python's
+// date.fromisoformat calendar validation (and totals.js isRealDate).
+function isRealCalendarDate(year, month, day) {
+  if (year < 1 || month < 1 || month > 12 || day < 1) return false;
+  const leap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+  const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return day <= days[month - 1];
 }
 
 // True when this snapshot's judgment flagged the bucket/metric pair. Tainted
@@ -436,8 +500,24 @@ function metricValue(entry, metric) {
     return typeof value === "number" && Number.isInteger(value) ? { v: BigInt(value), exp: 0 } : null;
   }
   const sums = isObj(entry.numeric_sums) ? entry.numeric_sums : {};
-  const value = sums[metric];
-  return typeof value === "string" ? parseDecimal(value) : null;
+  return readDecimal(sums[metric]);
+}
+
+// Read a numeric metric value as an exact decimal, identically across stacks.
+// Sums are normally quantized decimal strings ("12", "12.45"), but an
+// attacker-influenced or older snapshot can carry a JSON number instead. A
+// string, and an integer-or-finite number all read as the same decimal so 12,
+// 12.0, and "12" judge identically in both stacks (R14). NaN and infinities
+// read as null (silently out of scope), never a crash.
+function readDecimal(value) {
+  if (typeof value === "string") return parseDecimal(value);
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) return null;
+    // String(12.0) === "12" and String(12.45) === "12.45": the same decimal
+    // both stacks serialize, matching Python's Decimal(repr(value)).
+    return parseDecimal(String(value));
+  }
+  return null;
 }
 
 // Judged metric ids for a bucket: row_count, numeric sums, null counts.
@@ -497,27 +577,70 @@ function makeRecord(type, metric, period, before, after, { zero = false, flat = 
   return { type, metric, period, before, after, zero, flat };
 }
 
-// Flat-band fallback: whole-table row_count + numeric sums, no zones.
-function judgeFlat(baseTotals, currentTotals, band) {
+// Days from the first observation to now, clamped both ways (>= 1). The
+// cumulative bound widens with elapsed days, so two clocks must be pinned or
+// it could be widened without limit: currentCreatedMs is clamped to
+// now + FUTURE_SKEW_SECONDS (a run cannot buy a wider allowance by stamping
+// its own created_at in the future), and the result is capped at the settle
+// window in days (an arbitrarily long gap cannot ratchet the allowance
+// unbounded). Mirrors history.py _clamped_elapsed_days.
+function clampedElapsedDays(firstCreatedMs, currentCreatedMs, settleHours, nowMs) {
+  const horizon = nowMs + FUTURE_SKEW_SECONDS * 1000;
+  const clampedCurrent = Math.min(currentCreatedMs, horizon);
+  const rawDays = Math.ceil((clampedCurrent - firstCreatedMs) / 86400000);
+  const cap = Math.max(1, Math.ceil(settleHours / 24));
+  return Math.max(1, Math.min(rawDays, cap));
+}
+
+// Flat-band fallback: whole-table row_count + numeric sums. Hardened to mirror
+// the settling-bucket path so the no-bucket path cannot be ratcheted sub-band
+// every run without limit: a PER-STEP band against the most recent untainted
+// observation AND a CUMULATIVE bound (band * clamped elapsed days) against the
+// FIRST untainted observation; either breach flags. Breaches record under the
+// WHOLE_TABLE_PERIOD sentinel so a breached whole-table value cannot become
+// the next baseline (a breached observation is tainted and skipped as a base).
+// Mirrors history.py _judge_flat. `matching` is [{createdMs, snapshot, totals}]
+// sorted oldest first.
+function judgeFlat(matching, currentTotals, band, settleHours, currentCreatedMs, nowMs) {
   const records = [];
-  for (const metric of flatMetricNames(baseTotals, currentTotals)) {
-    const base = metricValue(baseTotals, metric);
+  const metrics = flatMetricNames(...matching.map((m) => m.totals), currentTotals);
+  for (const metric of metrics) {
     const cur = metricValue(currentTotals, metric);
-    if (base === null || cur === null) continue;
-    if (isZeroDec(base)) {
-      if (!isZeroDec(cur)) {
-        records.push(makeRecord("band_breach", metric, WHOLE_TABLE_PERIOD, base, cur, { zero: true, flat: true }));
+    if (cur === null) continue;
+    const clean = matching.filter(
+      (m) => !tainted(m.snapshot, WHOLE_TABLE_PERIOD, metric) && metricValue(m.totals, metric) !== null
+    );
+    if (!clean.length) continue;
+    const previous = metricValue(clean[clean.length - 1].totals, metric);
+    const firstCreatedMs = clean[0].createdMs;
+    const first = metricValue(clean[0].totals, metric);
+    let breach = null;
+    if (previous !== null) {
+      if (isZeroDec(previous)) {
+        if (!isZeroDec(cur)) breach = makeRecord("band_breach", metric, WHOLE_TABLE_PERIOD, previous, cur, { zero: true, flat: true });
+      } else if (cmpDec(absDec(subDec(cur, previous)), mulDec(band, absDec(previous))) > 0) {
+        breach = makeRecord("band_breach", metric, WHOLE_TABLE_PERIOD, previous, cur, { flat: true });
       }
-    } else if (cmpDec(absDec(subDec(cur, base)), mulDec(band, absDec(base))) > 0) {
-      records.push(makeRecord("band_breach", metric, WHOLE_TABLE_PERIOD, base, cur, { flat: true }));
     }
+    if (breach === null && first !== null) {
+      const elapsedDays = clampedElapsedDays(firstCreatedMs, currentCreatedMs, settleHours, nowMs);
+      if (isZeroDec(first)) {
+        if (!isZeroDec(cur)) breach = makeRecord("band_breach", metric, WHOLE_TABLE_PERIOD, first, cur, { zero: true, flat: true });
+      } else {
+        const allowed = mulDec(mulDec(band, { v: BigInt(elapsedDays), exp: 0 }), absDec(first));
+        if (cmpDec(absDec(subDec(cur, first)), allowed) > 0) {
+          breach = makeRecord("band_breach", metric, WHOLE_TABLE_PERIOD, first, cur, { flat: true });
+        }
+      }
+    }
+    if (breach !== null) records.push(breach);
   }
   return records;
 }
 
 // Two-zone judgment of every bucket present in the current run. `matching`
 // is [{createdMs, snapshot, totals}] sorted oldest first.
-function judgeBuckets(matching, currentBuckets, currentCreatedMs, band, settleHours) {
+function judgeBuckets(matching, currentBuckets, currentCreatedMs, band, settleHours, nowMs) {
   const records = [];
   for (const key of Object.keys(currentBuckets).sort(codePointCompare)) {
     const entry = currentBuckets[key];
@@ -533,6 +656,16 @@ function judgeBuckets(matching, currentBuckets, currentCreatedMs, band, settleHo
     const priorCreatedMs = observations[observations.length - 1].createdMs;
     const deadlineMs = bucketDeadlineMs(key, settleHours);
     const settledAtPrior = deadlineMs !== null && priorCreatedMs > deadlineMs;
+    // Re-observation freeze: the prior observation was still settling, but
+    // this run lands WELL past the settling window (more than one full settle
+    // window beyond the deadline). The bucket has had ample time to settle;
+    // another fresh band * elapsed_days allowance would let a large drift ride
+    // in as "still settling." Freeze it instead. AE9 (current just past the
+    // deadline, inside one settle window) stays in the settling zone and keeps
+    // its bounded allowance, so it stays green. Mirrors history.py.
+    const settleSpanMs = settleHours * 3600000;
+    const settledNow =
+      deadlineMs !== null && !settledAtPrior && currentCreatedMs > deadlineMs + settleSpanMs;
 
     for (const metric of bucketMetricNames(entry, observations[observations.length - 1].observed)) {
       const cur = metricValue(entry, metric);
@@ -552,6 +685,12 @@ function judgeBuckets(matching, currentBuckets, currentCreatedMs, band, settleHo
         const base = metricValue(baseEntry, metric);
         if (base === null || cmpDec(cur, base) === 0) continue;
         records.push(makeRecord("settled_movement", metric, key, base, cur));
+      } else if (settledNow) {
+        // FROZEN on re-observation: the settled baseline is the most recent
+        // untainted settling-era value; any movement flags.
+        const base = metricValue(clean[clean.length - 1].observed, metric);
+        if (base === null || cmpDec(cur, base) === 0) continue;
+        records.push(makeRecord("settled_movement", metric, key, base, cur));
       } else {
         const previous = metricValue(clean[clean.length - 1].observed, metric);
         const firstCreatedMs = clean[0].createdMs;
@@ -565,7 +704,7 @@ function judgeBuckets(matching, currentBuckets, currentCreatedMs, band, settleHo
           }
         }
         if (breach === null && first !== null) {
-          const elapsedDays = Math.max(1, Math.ceil((currentCreatedMs - firstCreatedMs) / 86400000));
+          const elapsedDays = clampedElapsedDays(firstCreatedMs, currentCreatedMs, settleHours, nowMs);
           if (isZeroDec(first)) {
             if (!isZeroDec(cur)) breach = makeRecord("band_breach", metric, key, first, cur, { zero: true });
           } else {
@@ -668,6 +807,12 @@ function formatRecords(records, out) {
       continue;
     }
 
+    if (type === "columns_changed") {
+      out.caveats.push(COLUMNS_CHANGED_CAVEAT);
+      out.details.push({ type, metric: null, periods: 0, worst: null, buckets: [] });
+      continue;
+    }
+
     const worst = pickWorst(type, items);
     const { before, after, delta } = detailValues(worst);
     const worstEntry = { period: worst.period, before, after, delta };
@@ -715,10 +860,12 @@ function formatRecords(records, out) {
 
   // The baseline-advancement guard for the snapshot this run will write:
   // bucket/metric pairs that breached or moved while settled. Flat-band
-  // (whole-table) findings are not bucket pairs and stay out of the map.
+  // (whole-table) breaches record under the WHOLE_TABLE_PERIOD sentinel (the
+  // record's period) so a breached whole-table value cannot become the next
+  // flat baseline either.
   const breached = new Map();
   for (const record of records) {
-    if ((record.type === "band_breach" || record.type === "settled_movement") && !record.flat) {
+    if (record.type === "band_breach" || record.type === "settled_movement") {
       if (!breached.has(record.period)) breached.set(record.period, new Set());
       breached.get(record.period).add(record.metric);
     }
@@ -788,18 +935,22 @@ export function judgeCrossRun(receipts, chain, snapshots, { now = null } = {}) {
   }
 
   const identity = runSource(receipts);
+  const currentColumnsJson = JSON.stringify(identity.columns);
   const matching = [];
+  let columnsChanged = false;
   for (const { createdMs, snapshot } of older) {
     const snapshotSource = snapshot.source;
     if (!isObj(snapshotSource)) continue;
-    if (
-      snapshotSource.filename !== identity.filename ||
-      JSON.stringify(snapshotSource.columns ?? null) !== JSON.stringify(identity.columns)
-    ) {
-      continue;
-    }
+    // A FILENAME mismatch is a different source: full skip (handled by the
+    // empty-matching notice below). A COLUMN-SET change to the same file is
+    // not: we still judge the metrics on the shared columns and emit a typed
+    // columns_changed caveat, rather than going blind on every drift.
+    if (snapshotSource.filename !== identity.filename) continue;
     const totals = sourceStageTotals(snapshot);
     if (totals === null) continue;
+    if (Array.isArray(snapshotSource.columns) && JSON.stringify(snapshotSource.columns) !== currentColumnsJson) {
+      columnsChanged = true;
+    }
     matching.push({ createdMs, snapshot, totals });
   }
   if (!matching.length) {
@@ -814,7 +965,7 @@ export function judgeCrossRun(receipts, chain, snapshots, { now = null } = {}) {
 
   const records = [];
   if (currentBuckets !== null && latestBuckets !== null) {
-    records.push(...judgeBuckets(matching, currentBuckets, currentCreatedMs, band, settleHours));
+    records.push(...judgeBuckets(matching, currentBuckets, currentCreatedMs, band, settleHours, nowMs));
     records.push(...judgeRemovals(latestBuckets, currentBuckets));
   } else if (currentBuckets !== null) {
     // Mixed spec (AE14): the previous run predates period buckets. The flat
@@ -822,7 +973,7 @@ export function judgeCrossRun(receipts, chain, snapshots, { now = null } = {}) {
     out.notices.push(
       "previous run snapshot has no period buckets; compared whole-table totals under the flat band"
     );
-    records.push(...judgeFlat(latestTotals, currentTotals, band));
+    records.push(...judgeFlat(matching, currentTotals, band, settleHours, currentCreatedMs, nowMs));
   } else {
     if (latestBuckets !== null) {
       // The previous run had buckets and this one does not: the bucket
@@ -830,8 +981,10 @@ export function judgeCrossRun(receipts, chain, snapshots, { now = null } = {}) {
       // band still covers whole-table totals.
       records.push(makeRecord("bucket_loss", null, "", null, null));
     }
-    records.push(...judgeFlat(latestTotals, currentTotals, band));
+    records.push(...judgeFlat(matching, currentTotals, band, settleHours, currentCreatedMs, nowMs));
   }
+
+  if (columnsChanged) records.push(makeRecord("columns_changed", null, "", null, null));
 
   formatRecords(records, out);
   return out;

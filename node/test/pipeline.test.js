@@ -267,6 +267,54 @@ test("CLI ingest records the declaration and rejects invalid bands with exit 1",
   assert.deepEqual(readChainFiles(join(chainDir, "fresh")), []);
 });
 
+// --- ingest reset warning parity (mirrors Python _warn_if_unsnapshotted_reset) ---
+
+test("CLI ingest warns when it resets a chain whose run never reached history", async () => {
+  const { spawnSync } = await import("node:child_process");
+  const { fileURLToPath } = await import("node:url");
+  const { keyPath, chainDir, csvPath, dir } = setup();
+  const cli = fileURLToPath(new URL("../cli.js", import.meta.url));
+  const pub = join(dir, "keys", "signing.pub");
+  // Run every CLI invocation with cwd = the tmpdir so verify's snapshot-signing
+  // key (resolved from the relative keys/signing.key) is the SAME key that
+  // signs the chain. Otherwise a stray keys/signing.key in the repo cwd would
+  // sign the snapshot under a key historyHasTail does not trust.
+  const ingest = () =>
+    spawnSync(process.execPath, [cli, "ingest", csvPath, "--key", keyPath, "--out", chainDir], {
+      encoding: "utf-8",
+      cwd: dir,
+    });
+
+  // First ingest: no prior chain.json, so no warning.
+  const first = ingest();
+  assert.equal(first.status, 0);
+  assert.ok(!first.stderr.includes("previous run was never verified"));
+
+  // Second ingest WITHOUT a verify in between: the prior run never reached
+  // history, so resetting it must warn (stderr only; ingest still exits 0).
+  const reset = ingest();
+  assert.equal(reset.status, 0);
+  assert.ok(
+    reset.stderr.includes("previous run was never verified; its totals will not enter history"),
+    `expected reset warning, got stderr: ${reset.stderr}`
+  );
+
+  // Verify archives a run snapshot for the current chain tail; a following
+  // re-ingest finds the outgoing run in history, so no warning fires.
+  const verify = spawnSync(
+    process.execPath,
+    [cli, "verify", join(chainDir, "chain.json"), "--pub", pub],
+    { encoding: "utf-8", cwd: dir }
+  );
+  assert.equal(verify.status, 0, `verify failed: ${verify.stderr}`);
+  const afterVerify = ingest();
+  assert.equal(afterVerify.status, 0);
+  assert.ok(
+    !afterVerify.stderr.includes("previous run was never verified"),
+    `unexpected reset warning after verify, stderr: ${afterVerify.stderr}`
+  );
+});
+
 test("a tolerance-bearing manifest body canonicalizes to the pinned cross-stack hash", () => {
   // tests/test_cli_agent_ergonomics.py pins this exact body to this hash:
   // identical canonical bytes in both stacks, floats never enter the body.

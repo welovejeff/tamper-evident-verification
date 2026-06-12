@@ -20,6 +20,7 @@ import {
   LOG_GRANULARITIES,
   archiveRunSnapshot,
   chainTailHash,
+  historyHasTail,
   judgeCrossRun,
   loadSnapshots,
   periodKey,
@@ -30,6 +31,7 @@ import { decimalToPlainString, parseDecimal } from "./canonical.js";
 import { generateKeys, loadPrivateKey, loadPublicKeyHex, publicHexFromPrivate } from "./keys.js";
 import { loadRecords } from "./load.js";
 import {
+  CHAIN_FILENAME,
   SOURCE_RECEIPT_NAME,
   outputHashOf,
   readChain,
@@ -88,6 +90,28 @@ function cmdKeygen(args) {
   return 0;
 }
 
+// True when ingest is about to reset a chain whose run never reached history
+// (no snapshot records the outgoing chain's tail hash): the totals of that run
+// are about to become unrecoverable. Never throws (a malformed old chain reads
+// as never-snapshotted, since it certainly was never snapshotted as-is).
+// Computed from the OUTGOING chain BEFORE ingestFile overwrites it; the caller
+// emits the warning only after ingest validation passes, to mirror Python
+// _warn_if_unsnapshotted_reset (which warns after the manifest builds, so an
+// invalid --bucket-column exits 1 with no warning).
+function isUnsnapshottedReset(chainDir) {
+  const chainPath = join(chainDir, CHAIN_FILENAME);
+  if (!existsSync(chainPath)) return false;
+  try {
+    const oldChain = readChain(chainPath);
+    const tail = chainTailHash(chainDir, oldChain);
+    const key = oldChain.public_key;
+    const keys = typeof key === "string" && key ? [key] : [];
+    return !historyHasTail(chainDir, tail, { trustedKeys: keys });
+  } catch {
+    return true; // a chain we cannot read was never archived as-is
+  }
+}
+
 function cmdIngest(args) {
   const { values, positionals } = parseArgs({
     args,
@@ -110,6 +134,10 @@ function cmdIngest(args) {
     // The env var silently outranks --key; say so where it matters.
     console.error("Signing with TAMPER_SIGNAL_KEY from the environment (overrides --key)");
   }
+  // Compute the unsnapshotted-reset condition from the OUTGOING chain before
+  // ingestFile overwrites chain.json; emit the warning only after ingest
+  // validation passes (below), so an invalid flag exits 1 with no warning.
+  const unsnapshottedReset = isUnsnapshottedReset(values.out);
   // ingestFile resets the chain to a fresh source manifest; the same call is
   // the programmatic entry point and the foundation of rebuildChain. Invalid
   // tolerance values and a non-qualifying --bucket-column throw before
@@ -129,6 +157,9 @@ function cmdIngest(args) {
   } catch (err) {
     console.error(err.message);
     return 1;
+  }
+  if (unsnapshottedReset) {
+    console.error("warning: previous run was never verified; its totals will not enter history");
   }
   const totals = manifest.control_totals;
   console.log(`Ingested ${basename(file)}`);

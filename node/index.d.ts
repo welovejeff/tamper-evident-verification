@@ -157,6 +157,12 @@ export function verifyChain(
 export const HISTORY_DIRNAME: string;
 /** created_at clock-skew tolerance for the history scanner, in seconds. */
 export const FUTURE_SKEW_SECONDS: number;
+/** Detail period key for the flat-band (whole-table) fallback comparison. */
+export const WHOLE_TABLE_PERIOD: string;
+/** Caveat string emitted when the bucket column is no longer detected. */
+export const BUCKET_LOSS_CAVEAT: string;
+/** Caveat string emitted when source columns changed since a prior run. */
+export const COLUMNS_CHANGED_CAVEAT: string;
 
 /** One validated entry returned by loadSnapshots, newest first. */
 export interface LoadedSnapshot {
@@ -233,8 +239,67 @@ export function archiveRunSnapshot(
     privateKey?: KeyObject | null;
     trustedKeys?: string[];
     onNotice?: ((message: string) => void) | null;
+    /** Baseline-advancement guard recorded into the snapshot body. */
+    breached?: Record<string, string[]> | null;
   },
 ): string | null;
+
+/**
+ * One per-(type, metric) entry in a cross-run judgment's typed detail, as
+ * surfaced under `caveat_details` in the verify --json payload. `bucket_loss`
+ * and `columns_changed` are flag entries with no metric, worst, or buckets.
+ */
+export interface CaveatDetail {
+  type: "band_breach" | "settled_movement" | "bucket_removed" | "bucket_loss" | "columns_changed";
+  /** The judged metric id; null for flag entries (bucket_loss, columns_changed). */
+  metric: string | null;
+  /** Number of buckets in this group; 0 for flag entries. */
+  periods: number;
+  /** The worst movement in the group; null for flag entries. */
+  worst: {
+    period: string;
+    before: string | null;
+    after: string | null;
+    delta: string | null;
+    /** Present only for non-zero-baseline band breaches, e.g. "+9.2%". */
+    delta_pct?: string;
+  } | null;
+  /** Per-bucket detail for the group; [] for flag entries. */
+  buckets: Array<{
+    period: string;
+    before: string | null;
+    after: string | null;
+    delta: string | null;
+  }>;
+}
+
+/** The structured result of judgeCrossRun. */
+export interface JudgeCrossRunResult {
+  /** Yellow caveat strings, one per (type, metric) group. */
+  caveats: string[];
+  /** Typed per-group detail (the verify --json caveat_details payload). */
+  details: CaveatDetail[];
+  /** Stderr-bound notices explaining why judgment was limited or skipped. */
+  notices: string[];
+  /**
+   * Baseline-advancement guard: bucket key (or the WHOLE_TABLE_PERIOD
+   * sentinel) -> the metric ids this run flagged. Empty when nothing breached.
+   */
+  breached: Record<string, string[]>;
+}
+
+/**
+ * Judge the source manifest's period buckets against run history. Pure and
+ * side-effect-free: takes the verified chain's receipts, the chain document,
+ * and validated snapshot bodies (as loaded by loadSnapshots). With no
+ * tolerance declaration it returns the empty judgment.
+ */
+export function judgeCrossRun(
+  receipts: Receipt[],
+  chain: Chain,
+  snapshots: RunSnapshot[],
+  options?: { now?: number | null },
+): JudgeCrossRunResult;
 
 // --- totals.js -------------------------------------------------------------
 
@@ -287,6 +352,21 @@ export interface StructuredTotalsDelta {
 export function structuredTotalsDelta(a: ControlTotals, b: ControlTotals): StructuredTotalsDelta;
 
 // --- wrapper.js ------------------------------------------------------------
+
+/** Default tolerance band when only a settling window is declared ("0.05"). */
+export const DEFAULT_BAND: string;
+/** Default settling window in hours when only a band is declared (72). */
+export const DEFAULT_SETTLE_HOURS: number;
+
+/**
+ * Normalize a band declaration to its canonical plain decimal string. Accepts
+ * percent forms ("5%", "5.5%") and plain fractions ("0.05"); throws on a
+ * non-number, zero, or a value above 100%. Returns a STRING (floats never
+ * enter signed bodies).
+ */
+export function parseBand(text: string): string;
+/** Parse a settling window to whole hours: "72", "72h", or "3d". */
+export function parseSettle(text: string): number;
 
 /** Thrown when input data does not descend from the current chain tail. */
 export class ChainTailMismatch extends Error {}
@@ -365,3 +445,69 @@ export interface RebuildChainOptions {
  * manage chains by hand call writeRunSnapshot / archiveRunSnapshot directly.
  */
 export function rebuildChain(options: RebuildChainOptions): Promise<DataRecord[]>;
+
+// --- CLI --json payload shapes ---------------------------------------------
+// Documented contracts for the `diff --json` and `log --json` stdout payloads.
+// Byte-identical across the Node and Python CLIs.
+
+/** One run's identity in a DiffResult side (a or b). */
+export interface DiffSide {
+  ref: string;
+  /** Snapshot timestamp; null for a live chain directory. */
+  created_at: string | null;
+  /** True when the side is an unsigned snapshot (weaker evidence). */
+  unsigned: boolean;
+}
+
+/** One stage row in a DiffResult. */
+export interface DiffStage {
+  name: string;
+  /** "matched" when present on both sides, else "added" / "removed". */
+  status: "matched" | "added" | "removed";
+  code_changed: boolean;
+  /** Structured totals delta for matched stages; null for added/removed. */
+  totals: StructuredTotalsDelta | null;
+  /** Present only when code_changed: the 8-char code-hash prefixes. */
+  code_hash?: { before8: string; after8: string };
+  /** Present only when code_changed and a source file was recorded. */
+  code_file?: string;
+}
+
+/** The `diff --json` payload: two runs compared stage by stage. */
+export interface DiffResult {
+  a: DiffSide;
+  b: DiffSide;
+  stages: DiffStage[];
+  /** True when filename or column set differs between the two sources. */
+  identity_mismatch: boolean;
+}
+
+/** One metric cell in a LogRun: the display value and delta vs the prior row. */
+export interface LogMetricCell {
+  /** Display string, or "-" when the metric is absent in this run. */
+  value: string;
+  /** Signed delta vs the previous rendered row; omitted on the first. */
+  delta?: string;
+}
+
+/** One period row in a LogResult. */
+export interface LogRun {
+  period: string;
+  created_at: string;
+  /** 8-char chain-tail-hash prefix, or null when absent. */
+  tail: string | null;
+  unsigned: boolean;
+  /** Per-metric value and delta, keyed by metric id. */
+  metrics: Record<string, LogMetricCell>;
+  /** Metric ids this run's judgment flagged anywhere, sorted. */
+  breached: string[];
+}
+
+/** The `log --json` payload: archived run history as a per-metric trend. */
+export interface LogResult {
+  granularity: "day" | "week" | "month" | "quarter";
+  /** Total runs collapsed away by the granularity (hidden same-period runs). */
+  collapsed: number;
+  /** One row per period, oldest first. */
+  runs: LogRun[];
+}

@@ -25,12 +25,16 @@ export {
   verify,
 } from "./keys.js";
 export {
+  BUCKET_LOSS_CAVEAT,
+  COLUMNS_CHANGED_CAVEAT,
   FUTURE_SKEW_SECONDS,
   HISTORY_DIRNAME,
+  WHOLE_TABLE_PERIOD,
   archiveRunSnapshot,
   buildRunSnapshot,
   chainTailHash,
   historyHasTail,
+  judgeCrossRun,
   latestSnapshot,
   loadSnapshots,
   runSource,
@@ -66,4 +70,13 @@ export {
   structuredTotalsDelta,
   totalsDelta,
 } from "./totals.js";
-export { ChainTailMismatch, ingestFile, rebuildChain, receiptStep } from "./wrapper.js";
+export {
+  ChainTailMismatch,
+  DEFAULT_BAND,
+  DEFAULT_SETTLE_HOURS,
+  ingestFile,
+  parseBand,
+  parseSettle,
+  rebuildChain,
+  receiptStep,
+} from "./wrapper.js";

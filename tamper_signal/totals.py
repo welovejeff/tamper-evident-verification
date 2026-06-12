@@ -223,6 +223,8 @@ def control_totals(
 
     resolved: str | None = None
     if bucket_column is not None:
+        # A declared column always wins, even when it spans a single day: the
+        # author asked for it explicitly.
         resolved = normalize_header(bucket_column)
         if resolved not in bucket_candidates:
             raise ValueError(
@@ -230,7 +232,19 @@ def control_totals(
                 "its non-null values are dates or ISO-shaped date strings"
             )
     elif len(bucket_candidates) == 1:
-        resolved = bucket_candidates[0]
+        # Auto-selection guard: a real period axis spans multiple days, so a
+        # qualifying column only auto-buckets when it yields at least two
+        # distinct bucket dates. A constant or ID-shaped date column (one
+        # distinct day) is far more likely a coincidence than a period axis;
+        # the author can still force it with --bucket-column.
+        candidate = bucket_candidates[0]
+        distinct_days = {
+            key
+            for record in norm_records
+            if (key := _bucket_key_for(normalize_cell(record.get(candidate)))) is not None
+        }
+        if len(distinct_days) >= 2:
+            resolved = candidate
 
     if resolved is not None:
         totals["bucket_column"] = resolved

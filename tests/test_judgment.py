@@ -29,6 +29,7 @@ from tamper_signal.keys import generate_keys
 FIXTURES = Path(__file__).parent / "fixtures"
 BAND_VECTORS = json.loads((FIXTURES / "band_vectors.json").read_text(encoding="utf-8"))
 PARITY = FIXTURES / "judgment-parity"
+PARITY_REVERSE = FIXTURES / "judgment-parity-reverse"
 
 
 # ---------------------------------------------------------------------------
@@ -259,10 +260,133 @@ def test_malformed_tolerance_skips_with_notice():
 
 
 # ---------------------------------------------------------------------------
+# Flat-band (whole-table, no buckets) hardening: cumulative bound + breached
+# guard + tainted-baseline skip. Mirrored by node/test/judgment.test.js.
+# ---------------------------------------------------------------------------
+def _flat_totals(spend: str, row_count: int = 10) -> dict:
+    return {
+        "row_count": row_count,
+        "column_count": 2,
+        "numeric_sums": {"spend": spend},
+        "date_ranges": {},
+        "null_counts": {},
+    }
+
+
+def _flat_snapshot(created_at: str, spend: str, breached: dict | None = None) -> dict:
+    snapshot = {
+        "kind": "run_snapshot",
+        "spec_version": "1.2",
+        "created_at": created_at,
+        "chain_tail_hash": hashlib.sha256(created_at.encode()).hexdigest(),
+        "source": {"filename": "export.csv", "declared_origin": "", "columns": ["spend"]},
+        "stages": [{"name": "source", "kind": "source_manifest", "totals": _flat_totals(spend)}],
+    }
+    if breached is not None:
+        snapshot["breached"] = breached
+    return snapshot
+
+
+def _flat_manifest(created_at: str, spend: str) -> dict:
+    return {
+        "kind": "source_manifest",
+        "spec_version": "1.2",
+        "created_at": created_at,
+        "source": {"filename": "export.csv", "evidence_hash": "00", "byte_size": 1, "declared_origin": ""},
+        "semantic_hash": "00",
+        "control_totals": _flat_totals(spend),
+        "tolerance": {"band": "0.05", "settle_hours": 72},
+    }
+
+
+def test_flat_band_multi_run_sub_band_ratchet_eventually_breaches():
+    """A plain CSV (no bucket column) drifting just under the per-step band
+    every run must eventually trip the cumulative whole-table bound, instead
+    of ratcheting forever."""
+    # Four daily history runs, each +4.9 (4.9% per step, under the 5% band).
+    history = [
+        _flat_snapshot("2026-06-01T12:00:00Z", "100"),
+        _flat_snapshot("2026-06-02T12:00:00Z", "104.9"),
+        _flat_snapshot("2026-06-03T12:00:00Z", "109.8"),
+        _flat_snapshot("2026-06-04T12:00:00Z", "114.7"),
+    ]
+    # Current run, one more sub-band step. settle_hours=72 caps the cumulative
+    # window at 3 days, so the bound is 0.05 * 3 * 100 = 15 against the first
+    # observation; 119.6 - 100 = 19.6 > 15, a cumulative breach.
+    manifest = _flat_manifest("2026-06-05T12:00:00Z", "119.6")
+    judgment = judge_cross_run(
+        [manifest], CHAIN, history, now=_parse_created_at("2026-06-05T12:00:00Z")
+    )
+    [detail] = judgment["details"]
+    assert detail["type"] == "band_breach"
+    assert detail["worst"]["period"] == "whole-table"
+    assert judgment["breached"] == {"whole-table": ["spend"]}
+
+
+def test_flat_band_tainted_whole_table_value_never_becomes_baseline():
+    """A breached whole-table observation is tainted; the next run is judged
+    against the clean pre-breach value, not the tampered one."""
+    history = [
+        _flat_snapshot("2026-06-02T12:00:00Z", "100"),
+        # This run breached and recorded the whole-table guard.
+        _flat_snapshot("2026-06-03T12:00:00Z", "140", breached={"whole-table": ["spend"]}),
+    ]
+    manifest = _flat_manifest("2026-06-04T12:00:00Z", "140")
+    judgment = judge_cross_run(
+        [manifest], CHAIN, history, now=_parse_created_at("2026-06-04T12:00:00Z")
+    )
+    [detail] = judgment["details"]
+    assert detail["type"] == "band_breach"
+    # Judged against the clean 100, not the tainted 140 (which would be green).
+    assert detail["worst"]["before"] == "100"
+
+
+def test_future_dated_current_chain_cumulative_still_binds():
+    """A current run that stamps its own created_at far in the future cannot
+    buy a wider cumulative allowance: the elapsed-days clamp pins it to now."""
+    # Sub-band daily drift; per-step always passes, so only the cumulative
+    # bound can catch the accumulated ratchet.
+    history = [
+        _flat_snapshot("2026-06-01T12:00:00Z", "100"),
+        _flat_snapshot("2026-06-02T12:00:00Z", "104.9"),
+        _flat_snapshot("2026-06-03T12:00:00Z", "109.8"),
+        _flat_snapshot("2026-06-04T12:00:00Z", "114.7"),
+    ]
+    # created_at is years in the future; without the clamp the elapsed-days
+    # multiplier would balloon and the bound would never bind. now is the real
+    # clock, so the clamp holds the window to the 3-day settle cap.
+    manifest = _flat_manifest("2030-01-01T00:00:00Z", "119.6")
+    judgment = judge_cross_run(
+        [manifest], CHAIN, history, now=_parse_created_at("2026-06-05T12:00:00Z")
+    )
+    [detail] = judgment["details"]
+    assert detail["type"] == "band_breach"
+    assert detail["worst"]["period"] == "whole-table"
+
+
+def test_columns_changed_judges_shared_metrics_with_typed_caveat():
+    """A column-set change to the same file still judges the shared metric and
+    emits a columns_changed caveat, rather than skipping all judgment."""
+    case = _simple_case("100", "109")
+    snapshot = _snapshot_from(case["history"][0])
+    # Same filename, but the prior run had an extra column.
+    snapshot["source"]["columns"] = ["day", "spend"]
+    judgment = judge_cross_run([_manifest_from(case)], CHAIN, [snapshot])
+    types = sorted(d["type"] for d in judgment["details"])
+    assert "columns_changed" in types
+    assert "band_breach" in types  # the shared spend metric is still judged
+    assert any("shared columns" in c for c in judgment["caveats"])
+
+
+# ---------------------------------------------------------------------------
 # CLI integration (mirrors the test_run_history harness)
 # ---------------------------------------------------------------------------
 def _yesterday() -> str:
     return (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=1)).date().isoformat()
+
+
+def _two_days_ago() -> str:
+    return (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=2)).date().isoformat()
 
 
 def _seed(tmp_path, monkeypatch, csv: str) -> None:
@@ -280,12 +404,15 @@ def _snapshots(tmp_path) -> list[Path]:
 def test_cli_band_breach_alone_exits_2_with_typed_details(tmp_path, monkeypatch, capsys):
     """AE2 + AE6: a band breach is yellow (exit 2), never red."""
     day = _yesterday()
-    _seed(tmp_path, monkeypatch, f"day,spend\n{day},100\n")
+    prev = _two_days_ago()
+    # A second, stable day so the bucket column spans a real period axis (the
+    # auto-selection guard wants >= 2 distinct dates); only `day` drifts.
+    _seed(tmp_path, monkeypatch, f"day,spend\n{prev},50\n{day},100\n")
     assert main(["ingest", "export.csv", "--origin", "t", "--band", "5%"]) == 0
     assert main(["verify", "receipts/chain.json"]) == 0  # first run: history begins
     assert "no run history yet" in capsys.readouterr().err
 
-    (tmp_path / "export.csv").write_text(f"day,spend\n{day},109\n", encoding="utf-8")
+    (tmp_path / "export.csv").write_text(f"day,spend\n{prev},50\n{day},109\n", encoding="utf-8")
     assert main(["ingest", "export.csv", "--origin", "t", "--band", "5%"]) == 0
     capsys.readouterr()
     code = main(["verify", "receipts/chain.json", "--json"])
@@ -369,7 +496,11 @@ def test_cli_garbage_snapshot_skipped_never_red(tmp_path, monkeypatch, capsys):
 def test_cli_11_era_snapshot_falls_back_to_flat_band_with_notice(tmp_path, monkeypatch, capsys):
     """AE14: a snapshot without buckets is judged under the flat band."""
     day = _yesterday()
-    _seed(tmp_path, monkeypatch, f"day,spend\n{day},109\n")
+    prev = _two_days_ago()
+    # Two distinct days so the current run buckets (the auto-selection guard
+    # wants >= 2 distinct dates); whole-table spend is 50 + 59 = 109 and
+    # row_count is 2, matching the pre-buckets snapshot so only spend drifts.
+    _seed(tmp_path, monkeypatch, f"day,spend\n{prev},50\n{day},59\n")
     assert main(["ingest", "export.csv", "--origin", "t", "--band", "5%"]) == 0
     old_snapshot = {
         "kind": "run_snapshot",
@@ -382,7 +513,7 @@ def test_cli_11_era_snapshot_falls_back_to_flat_band_with_notice(tmp_path, monke
                 "name": "source",
                 "kind": "source_manifest",
                 "totals": {
-                    "row_count": 1,
+                    "row_count": 2,
                     "column_count": 2,
                     "numeric_sums": {"spend": "100"},
                     "date_ranges": {},
@@ -461,11 +592,12 @@ def test_cli_breached_baseline_guard_keeps_flagging(tmp_path, monkeypatch, capsy
     """Breach on run N, unchanged on run N+1: still yellow, because the
     breached snapshot never becomes the baseline."""
     day = _yesterday()
-    _seed(tmp_path, monkeypatch, f"day,spend\n{day},100\n")
+    prev = _two_days_ago()
+    _seed(tmp_path, monkeypatch, f"day,spend\n{prev},50\n{day},100\n")
     assert main(["ingest", "export.csv", "--origin", "t", "--band", "5%"]) == 0
     assert main(["verify", "receipts/chain.json"]) == 0
 
-    (tmp_path / "export.csv").write_text(f"day,spend\n{day},109\n", encoding="utf-8")
+    (tmp_path / "export.csv").write_text(f"day,spend\n{prev},50\n{day},109\n", encoding="utf-8")
     assert main(["ingest", "export.csv", "--origin", "t", "--band", "5%"]) == 0
     assert main(["verify", "receipts/chain.json"]) == 2
     # The archived snapshot carries the baseline-advancement guard.
@@ -511,6 +643,25 @@ def test_parity_fixture_cli_emits_the_pinned_caveat_details(tmp_path, monkeypatc
     monkeypatch.delenv("TAMPER_SIGNAL_KEY", raising=False)
     shutil.copytree(PARITY, tmp_path / "receipts")
     expected = json.loads((PARITY / "expected_caveat_details.json").read_text(encoding="utf-8"))
+    capsys.readouterr()
+
+    code = main(["verify", "receipts/chain.json", "--json"])
+    payload = json.loads(capsys.readouterr().out)
+    assert code == 2
+    assert payload["caveats"] == expected["caveats"]
+    assert payload["caveat_details"] == expected["caveat_details"]
+
+
+def test_reverse_parity_node_written_history_judged_by_python(tmp_path, monkeypatch, capsys):
+    """A run snapshot WRITTEN BY THE NODE STACK, read and judged by Python's
+    judge_cross_run, must reproduce the pinned caveat_details byte-for-byte
+    (R14, the JS-writes / Python-reads direction)."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("TAMPER_SIGNAL_KEY", raising=False)
+    shutil.copytree(PARITY_REVERSE, tmp_path / "receipts")
+    expected = json.loads(
+        (PARITY_REVERSE / "expected_caveat_details.json").read_text(encoding="utf-8")
+    )
     capsys.readouterr()
 
     code = main(["verify", "receipts/chain.json", "--json"])

@@ -1,0 +1,55 @@
+{
+  "caveats": [
+    "totals drift beyond declared band: spend breached in 1 bucket, worst 2026-06-11 (+9%)",
+    "settled period moved: spend changed in 1 settled bucket, worst 2026-05-01 (+1)"
+  ],
+  "caveat_details": [
+    {
+      "type": "band_breach",
+      "metric": "spend",
+      "periods": 1,
+      "worst": {
+        "period": "2026-06-11",
+        "before": "100",
+        "after": "109",
+        "delta": "+9",
+        "delta_pct": "+9%"
+      },
+      "buckets": [
+        {
+          "period": "2026-06-11",
+          "before": "100",
+          "after": "109",
+          "delta": "+9"
+        }
+      ]
+    },
+    {
+      "type": "settled_movement",
+      "metric": "spend",
+      "periods": 1,
+      "worst": {
+        "period": "2026-05-01",
+        "before": "30",
+        "after": "31",
+        "delta": "+1"
+      },
+      "buckets": [
+        {
+          "period": "2026-05-01",
+          "before": "30",
+          "after": "31",
+          "delta": "+1"
+        }
+      ]
+    }
+  ],
+  "breached": {
+    "2026-05-01": [
+      "spend"
+    ],
+    "2026-06-11": [
+      "spend"
+    ]
+  }
+}

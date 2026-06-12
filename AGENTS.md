@@ -54,8 +54,8 @@ npm install tamper-signal
 ```
 
 This provides the `tamper-signal` CLI and the programmatic API. The CLI
-implements **keygen, ingest, verify, and export** (exit codes 0 green, 1 red,
-2 yellow):
+implements **keygen, ingest, verify, diff, log, and export** (exit codes 0
+green, 1 red, 2 yellow):
 
 ```bash
 tamper-signal keygen --out keys/

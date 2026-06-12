@@ -138,9 +138,12 @@ def test_bare_date_and_midnight_datetime_share_a_bucket():
 
 def test_null_and_unparseable_rows_land_in_unbucketed():
     records = [{"day": dt.date(2026, 5, 1), "amount": 1} for _ in range(18)]
+    # A second dated day so the column spans a real period axis (>= 2 distinct
+    # bucket dates), which the auto-selection guard requires.
+    records.append({"day": dt.date(2026, 5, 2), "amount": 1})
     records.append({"day": "2026-13-05", "amount": 2})  # shaped, not a real date
     records.append({"day": None, "amount": 3})
-    totals = control_totals(records)  # 18/19 non-null date-shaped: qualifies
+    totals = control_totals(records)  # 19/20 non-null date-shaped: qualifies
     assert totals["bucket_column"] == "day"
     unbucketed = totals["period_buckets"][UNBUCKETED_KEY]
     assert unbucketed["row_count"] == 2
