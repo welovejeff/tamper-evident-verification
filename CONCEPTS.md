@@ -28,6 +28,18 @@ An external, public witness that a Chain existed byte-for-byte at a point in tim
 ### Control totals
 Human-legible aggregates (row counts, numeric sums, date ranges, null counts) recorded in every Receipt. Hashes say a chain is broken; Control totals say how broken — the delta between stages quantifies what changed.
 
+### Tolerance declaration
+A producer's opt-in statement of how much period-over-period movement is normal: a band (default 5% day over day) plus a Settling window, recorded in the source manifest at ingest and covered by its signature. Absent a declaration, verification is exact and one for one; because the declaration is signed, loosening it after the fact breaks the signature.
+
+### Settling window
+The period (default 72 hours) during which reporting data legitimately recalculates as late conversions land and attribution backfills. Inside the window, movement within the declared band is expected maturation. A period older than the window is settled — frozen — and any movement there, at any size, is a caveat worth a human look.
+
+### Run snapshot
+A compact, content-addressed record of one verified run, archived automatically under receipts/history/ when a CLI verify ends non-red. It carries each stage's code identity and control totals (including period buckets), the source identity, and the chain tail hash, and is signed when a private key is available. Snapshots are what give the chain a memory: diff, log, and the two-zone judgment all read them. History is weaker evidence than the Chain itself — snapshots sit outside receipt_hashes and anchoring.
+
+### Period buckets
+Per-day control totals recorded alongside the whole-table totals, keyed off the data's bucket column (a date column detected for bucketing purposes, or one named in the Tolerance declaration). Buckets are what let verification tell "yesterday's data drifted" apart from "three-week-old data moved" — the distinction the two-zone judgment runs on.
+
 ## Verification verdicts
 
 ### Tamper Signal (the signal)
