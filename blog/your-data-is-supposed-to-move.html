@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Your data is supposed to move · Tamper Signal</title>
+<meta name="description" content="Tamper Signal 1.6.0: real reporting data drifts as it matures, and a trust tool that cries wolf on normal drift gets muted. The new tolerance bands and run history teach the light what normal looks like, so green stays believable on a pipeline that refreshes every morning." />
+<meta name="author" content="Jeff MacDonald" />
+<meta property="og:type" content="article" />
+<meta property="article:author" content="https://github.com/welovejeff" />
+<meta property="og:title" content="Your data is supposed to move" />
+<meta property="og:description" content="Tamper Signal 1.6.0 teaches the chain what normal drift looks like, so the green light stays believable on pipelines that refresh every day." />
+<meta property="og:image" content="https://tampersignal.com/docs/media/thumbs/stoplight.jpg" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:image" content="https://tampersignal.com/docs/media/thumbs/stoplight.jpg" />
+<link rel="canonical" href="https://tampersignal.com/blog/your-data-is-supposed-to-move.html" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='%2334d399'/%3E%3C/svg%3E" />
+<link rel="stylesheet" href="blog.css" />
+</head>
+<body>
+
+<div class="top">
+  <div class="wrap">
+    <a class="logo-stacked" href="/" aria-label="Tamper Signal — home">
+      <span class="ls-rail" aria-hidden="true"><i class="r"></i><i class="y"></i><i class="g"></i></span>
+      <span class="ls-words">TAMPER<br>SIGNAL</span>
+    </a>
+    <nav>
+      <a href="/#demo">live demo</a>
+      <a href="/#how">how it works</a>
+      <a href="/docs/">docs</a>
+      <a href="/blog/">blog</a>
+      <a href="/#explore">explore</a>
+      <a href="https://github.com/welovejeff/tamper-evident-verification">github</a>
+    </nav>
+  </div>
+</div>
+
+<article class="post">
+  <div class="wrap">
+    <a class="post-back" href="/blog/">← all posts</a>
+    <h1>Your data is supposed to move</h1>
+    <p class="post-meta">By <a href="https://github.com/welovejeff" rel="author">Jeff MacDonald</a> · June 2026 · Tamper Signal 1.6.0</p>
+
+    <p>A trust tool that cries wolf gets muted, and a muted trust tool is worthless.</p>
+
+    <p>That one sentence is the reason 1.6.0 exists. Tamper Signal has always been able to prove your dashboard numbers descend from the source unchanged. It turns out "unchanged" was the wrong word for the pipelines people actually run.</p>
+
+    <h2>The daily-refresh problem</h2>
+
+    <p>Open any real reporting export. A paid-media pull, a month of TikTok performance, a Google Analytics download. Run it today, run it again tomorrow, and the numbers will be different. Not because anyone tampered with anything. Because the data is still settling.</p>
+
+    <p>Conversions arrive late. Attribution backfills. The reporting window keeps maturing for a day or two after the period closes, and then it stops. Anyone who has lived in this data knows the rule by heart: a metric moving less than five percent day over day is not a story, it is Tuesday.</p>
+
+    <p>Tamper Signal's original check asked one question: is this byte-for-byte identical to last time? For a one-shot pipeline that froze on a deadline, that was exactly right. For a dashboard that refreshes every morning, the answer is always no, and an answer that is always no carries no information. That is why the old drift warning shipped switched off by default. Left on, it fired every single day, and a light that flashes every day is a light you learn to ignore.</p>
+
+    <h2>Teach it what normal looks like</h2>
+
+    <p>1.6.0 gives the receipt chain two things it never had: a memory, and a sense of normal.</p>
+
+    <p>The sense of normal is a tolerance band you declare once, at ingest, and sign into the chain:</p>
+
+    <pre><code>receipts ingest export.csv --origin "TikTok, May 2026" --band 5% --settle 72h</code></pre>
+
+    <p>You are telling the tool the truth about your data: expect movement up to five percent day over day, and expect it to keep settling for about seventy-two hours. Because the declaration is signed into the manifest, nobody can quietly widen the band later to hide a problem. Loosening the rules breaks the signature.</p>
+
+    <p>Then verification does something smarter than byte-equality. It judges each day's data in one of two zones.</p>
+
+    <div class="verdict"><span class="lt g" aria-hidden="true"></span><p><strong>Recent, still-settling data may drift inside the band and stay green.</strong> Yesterday's impressions ticked up four percent? That is the window maturing. The light does not flinch, because nothing happened that should make it flinch.</p></div>
+    <div class="verdict"><span class="lt y" aria-hidden="true"></span><p><strong>Settled data is frozen.</strong> A number from three weeks ago already settled. Nothing legitimate should be touching it, so any movement there, even half a percent, trips yellow and asks for a human. A flat tolerance would have shrugged at that two percent edit to last month's totals. This one catches it.</p></div>
+
+    <p>This is both quieter and more protective than the old check. Quieter, because the normal daily wobble no longer lights anything up. More protective, because the place a real problem hides, a small change to settled history, is exactly where the light now looks hardest. The whole point is to spend the light's credibility only where it counts.</p>
+
+    <h2>A memory, so you can ask "what changed?"</h2>
+
+    <p>The second half is history. Every time you verify, Tamper Signal now quietly archives a small signed snapshot of that run. Over weeks and quarters those snapshots become a record you can interrogate.</p>
+
+    <pre><code>receipts diff      # what moved since the last run, and at which stage
+receipts log       # the trend, day over day, week over week</code></pre>
+
+    <p>When this week's number looks off, you no longer have to guess whether the data moved or the AI rewrote your transform. <code>diff</code> tells you exactly which stage's code changed and exactly how the totals shifted. <code>log</code> shows you the settling curve flattening over two or three days, the way it always does, which is what makes the one day it does not jump out.</p>
+
+    <h2>Still continuity, not correctness</h2>
+
+    <p>A band is not a claim that your data is right. It is your own signed statement of how much a period normally moves, and the tool holding you to it. Tamper Signal still proves continuity, not correctness. It still cannot tell you the source export was good.</p>
+
+    <p>What 1.6.0 changes is narrower and, like the red light that names the broken link, more useful in practice. The green light now means something on a pipeline that refreshes every morning, because it stopped crying wolf on the mornings nothing was wrong. The light is green, the data is clean, and now it stays believable on the days your data was only doing what data does.</p>
+
+    <h2>Upgrade</h2>
+
+    <pre><code>pip install --upgrade tamper-signal      # or: npm install tamper-signal@latest</code></pre>
+
+    <p>1.6.0 is fully backward compatible. Chains you signed under earlier versions still verify green. With no band declared, verification behaves exactly as it did before, so you can adopt the new judgment one pipeline at a time. The one new habit worth knowing: verifying now leaves a small history trail in <code>receipts/history/</code>, which is what diff and log read. Commit it or ignore it, to taste.</p>
+
+    <p class="post-end">Your data is supposed to move. Now your receipts know the difference.</p>
+  </div>
+</article>
+
+<footer>
+  <div class="wrap">
+    <span>MIT licensed</span>
+    <span>·</span>
+    <a href="https://github.com/welovejeff/tamper-evident-verification">github.com/welovejeff/tamper-evident-verification</a>
+    <span>·</span>
+    <a href="/">tampersignal.com</a>
+  </div>
+</footer>
+
+</body>
+</html>
