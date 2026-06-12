@@ -45,5 +45,5 @@ export {
   writeChain,
   writeReceipt,
 } from "./receipts.js";
-export { controlTotals, groupedNumericColumns, totalsDelta } from "./totals.js";
+export { UNBUCKETED_KEY, controlTotals, groupedNumericColumns, totalsDelta } from "./totals.js";
 export { ChainTailMismatch, ingestFile, rebuildChain, receiptStep } from "./wrapper.js";

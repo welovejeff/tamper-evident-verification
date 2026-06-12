@@ -17,6 +17,7 @@ export type {
   Chain,
   ControlTotals,
   DataRecord,
+  PeriodBucket,
   Receipt,
   SourceManifest,
   TableDocument,
@@ -148,7 +149,17 @@ export function verifyChain(
 
 // --- totals.js -------------------------------------------------------------
 
-export function controlTotals(records: DataRecord[]): ControlTotals;
+/** Bucket key for rows whose bucket-column value is null or unparseable. */
+export const UNBUCKETED_KEY: string;
+/**
+ * Control totals for a record set. Pass bucketColumn to pick the period
+ * bucket column when several qualify; throws if the named column does not
+ * qualify (fewer than 90% of its non-null values are date-shaped).
+ */
+export function controlTotals(
+  records: DataRecord[],
+  opts?: { bucketColumn?: string | null },
+): ControlTotals;
 /**
  * Columns excluded from numeric_sums that would become numeric if thousands
  * grouping separators were stripped. Use to surface silently-inert

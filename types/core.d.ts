@@ -11,6 +11,15 @@ export type Verdict = "green" | "yellow" | "red" | "unverifiable";
 /** Signal state including the transient pre-result "checking". */
 export type SignalState = Verdict | "checking";
 
+/** One per-UTC-day bucket inside period_buckets (spec 1.2). */
+export interface PeriodBucket {
+  row_count: number;
+  /** column -> exact decimal sum for this bucket (every numeric column). */
+  numeric_sums: Record<string, string>;
+  /** column -> null count; only columns with at least one null here. */
+  null_counts: Record<string, number>;
+}
+
 /** Human-legible control totals attached to every receipt. */
 export interface ControlTotals {
   row_count: number;
@@ -21,6 +30,10 @@ export interface ControlTotals {
   date_ranges: Record<string, { min: string; max: string }>;
   /** column -> count of null/blank cells. */
   null_counts: Record<string, number>;
+  /** Present when a bucket column resolved (spec 1.2). */
+  bucket_column?: string;
+  /** UTC day (or "_unbucketed") -> per-period totals (spec 1.2). */
+  period_buckets?: Record<string, PeriodBucket>;
 }
 
 export interface ReceiptSignature {

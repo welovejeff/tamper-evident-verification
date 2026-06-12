@@ -10,7 +10,17 @@ import { canonicalJsonBytes } from "./canonical.js";
 import { keyFingerprint, publicHexFromPrivate, sign, verify } from "./keys.js";
 import { controlTotals, totalsDelta } from "./totals.js";
 
-export const SPEC_VERSION = "1.1";
+// 1.1: numeric-looking text canonicalizes as the number it parses to (cell
+// normalization), so format round-trips that stringify numbers keep the
+// semantic hash stable. Chains recorded under 1.0 still verify.
+// 1.2: control totals gain optional per-period buckets. When exactly one
+// column is date-shaped (>= 90% of its non-null values are typed Dates or
+// ISO-shaped date strings, a bucketing-only rule), totals carry
+// "bucket_column" and "period_buckets": per-UTC-day row_count, numeric_sums
+// and null_counts, with unbucketable rows under "_unbucketed".
+// Canonicalization is unchanged, so semantic hashes do not move; chains
+// recorded under 1.0 and 1.1 still verify.
+export const SPEC_VERSION = "1.2";
 export const CHAIN_FILENAME = "chain.json";
 export const SOURCE_RECEIPT_NAME = "000_source.json";
 
