@@ -36,8 +36,13 @@ const USAGE = `usage: tamper-signal <command>
 commands:
   keygen --out keys/                         generate an Ed25519 signing keypair
   ingest <file> --origin "..." [--key keys/signing.key] [--out receipts/]
+                [--band 5%] [--settle 72h] [--bucket-column <name>]
                                              create a signed source manifest
-                                             (.csv, .tsv, .json, .ndjson)
+                                             (.csv, .tsv, .json, .ndjson);
+                                             --band/--settle/--bucket-column
+                                             sign a tolerance declaration into
+                                             the manifest (band default 0.05,
+                                             settle default 72h)
   verify <chain.json> [--pub key.pub ...] [--data <file>] [--warn-drift] [--json]
                                              verify a chain (exit 0 green, 1 red, 2 yellow)
   export <chain.json> --data <file> [--out receipts/table.json]
@@ -62,6 +67,9 @@ function cmdIngest(args) {
       origin: { type: "string", default: "" },
       key: { type: "string", default: "keys/signing.key" },
       out: { type: "string", default: "receipts/" },
+      band: { type: "string" },
+      settle: { type: "string" },
+      "bucket-column": { type: "string" },
     },
   });
   const file = positionals[0];
@@ -74,18 +82,37 @@ function cmdIngest(args) {
     console.error("Signing with TAMPER_SIGNAL_KEY from the environment (overrides --key)");
   }
   // ingestFile resets the chain to a fresh source manifest; the same call is
-  // the programmatic entry point and the foundation of rebuildChain.
-  const { manifest, records } = ingestFile({
-    file,
-    declaredOrigin: values.origin,
-    chainDir: values.out,
-    keyPath: values.key,
-  });
+  // the programmatic entry point and the foundation of rebuildChain. Invalid
+  // tolerance values and a non-qualifying --bucket-column throw before
+  // anything is written; surface them as a clean error and exit 1.
+  let manifest;
+  let records;
+  try {
+    ({ manifest, records } = ingestFile({
+      file,
+      declaredOrigin: values.origin,
+      chainDir: values.out,
+      keyPath: values.key,
+      band: values.band ?? null,
+      settle: values.settle ?? null,
+      bucketColumn: values["bucket-column"] ?? null,
+    }));
+  } catch (err) {
+    console.error(err.message);
+    return 1;
+  }
   const totals = manifest.control_totals;
   console.log(`Ingested ${basename(file)}`);
   console.log(`  evidence_hash ${manifest.source.evidence_hash}`);
   console.log(`  semantic_hash ${manifest.semantic_hash}`);
   console.log(`  rows ${totals.row_count}, columns ${totals.column_count}`);
+  if (manifest.tolerance) {
+    const t = manifest.tolerance;
+    const extra = t.bucket_column ? `, bucket_column ${t.bucket_column}` : "";
+    console.log(
+      `  tolerance band ${t.band}, settle_hours ${t.settle_hours}${extra} (signed into the manifest)`
+    );
+  }
   console.log(`  source manifest -> ${values.out.replace(/\/?$/, "/")}${SOURCE_RECEIPT_NAME}`);
 
   // Surface columns that look numeric but were excluded from numeric_sums

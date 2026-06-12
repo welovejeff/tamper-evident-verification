@@ -12,7 +12,13 @@
 import { readFileSync } from "node:fs";
 import { basename } from "node:path";
 
-import { evidenceHash, semanticHash } from "./canonical.js";
+import {
+  decimalToPlainString,
+  evidenceHash,
+  normalizeHeader,
+  parseDecimal,
+  semanticHash,
+} from "./canonical.js";
 import { loadPrivateKey, publicHexFromPrivate } from "./keys.js";
 import { loadRecords } from "./load.js";
 import {
@@ -30,6 +36,86 @@ import {
 } from "./receipts.js";
 
 export class ChainTailMismatch extends Error {}
+
+// Tolerance declaration defaults: a producer who states only a band gets the
+// default settling window, and vice versa. Mirrors tamper_signal/cli.py.
+export const DEFAULT_BAND = "0.05";
+export const DEFAULT_SETTLE_HOURS = 72;
+
+// Normalize a band declaration to its canonical plain decimal string.
+// Accepts percent forms ("5%", "5 %", "5.5%") and plain fractions ("0.05").
+// The canonical form is the plain decimal string the totals serializer
+// produces, so "5%", "0.05" and "0.050" all normalize to "0.05". Bands must
+// be greater than zero and at most 100%. The result is a STRING because
+// floats never enter signed bodies. Mirrors parse_band in tamper_signal/cli.py
+// including the error messages.
+export function parseBand(text) {
+  let raw = String(text).trim();
+  const isPercent = raw.endsWith("%");
+  if (isPercent) raw = raw.slice(0, -1).trim();
+  const dec = parseDecimal(raw);
+  if (dec === null) {
+    throw new Error(`invalid --band '${text}': not a number (try 5% or 0.05)`);
+  }
+  if (isPercent) dec.exp -= 2;
+  if (dec.v <= 0n) {
+    throw new Error(`invalid --band '${text}': must be greater than zero`);
+  }
+  const exceedsOne =
+    dec.exp >= 0 ? dec.v * 10n ** BigInt(dec.exp) > 1n : dec.v > 10n ** BigInt(-dec.exp);
+  if (exceedsOne) {
+    throw new Error(`invalid --band '${text}': must not exceed 100%`);
+  }
+  const band = decimalToPlainString(dec);
+  if (band === "0") {
+    // Positive but below the six-place quantum: quantizes to zero.
+    throw new Error(`invalid --band '${text}': must be greater than zero`);
+  }
+  return band;
+}
+
+// Parse a settling window to whole hours: "72", "72h", or "3d". Mirrors
+// parse_settle in tamper_signal/cli.py including the error messages.
+export function parseSettle(text) {
+  let raw = String(text).trim().toLowerCase();
+  let multiplier = 1;
+  if (raw.endsWith("h")) {
+    raw = raw.slice(0, -1).trim();
+  } else if (raw.endsWith("d")) {
+    raw = raw.slice(0, -1).trim();
+    multiplier = 24;
+  }
+  if (!/^[0-9]+$/.test(raw)) {
+    throw new Error(
+      `invalid --settle '${text}': expected a whole number of hours like 72, 72h, or 3d`
+    );
+  }
+  const hours = parseInt(raw, 10) * multiplier;
+  if (hours <= 0) {
+    throw new Error(`invalid --settle '${text}': must be a positive number of hours`);
+  }
+  return hours;
+}
+
+// Build the signed tolerance declaration from ingest options. Any option
+// creates a declaration (missing parts take the defaults); none means no
+// tolerance field at all, so a chain without a declaration verifies
+// byte-identically to one minted before declarations existed.
+function buildTolerance({ band, settle, bucketColumn }) {
+  if (band == null && settle == null && bucketColumn == null) {
+    return { tolerance: null, bucketName: null };
+  }
+  const tolerance = {
+    band: band == null ? DEFAULT_BAND : parseBand(band),
+    settle_hours: settle == null ? DEFAULT_SETTLE_HOURS : parseSettle(settle),
+  };
+  let bucketName = null;
+  if (bucketColumn != null) {
+    bucketName = normalizeHeader(bucketColumn);
+    tolerance.bucket_column = bucketName;
+  }
+  return { tolerance, bucketName };
+}
 
 function toRecords(data, context) {
   if (Array.isArray(data)) return data;
@@ -96,13 +182,23 @@ export function receiptStep(fn, { chainDir = "receipts/", keyPath = "keys/signin
 // chain starts fresh from the source, so re-running your stages no longer
 // throws ChainTailMismatch. Returns the manifest, the loaded records, and the
 // source's semantic hash (the new chain tail).
+// Tolerance: passing any of `band` ("5%", "0.05"), `settle` ("72h", "3d"),
+// or `bucketColumn` records a signed tolerance declaration in the manifest
+// (missing parts take the defaults); invalid values throw before anything is
+// written. No options means no tolerance field.
 export function ingestFile({
   file,
   declaredOrigin = "",
   chainDir = "receipts/",
   keyPath = "keys/signing.key",
+  band = null,
+  settle = null,
+  bucketColumn = null,
 } = {}) {
   if (!file) throw new TypeError("ingestFile requires a `file` path.");
+  // Parse the declaration before touching anything: an invalid value must
+  // throw with nothing written and the existing chain untouched.
+  const { tolerance, bucketName } = buildTolerance({ band, settle, bucketColumn });
   const raw = readFileSync(file);
   const records = loadRecords(file);
   const privateKey = loadPrivateKey(keyPath);
@@ -114,6 +210,8 @@ export function ingestFile({
     semanticHash: semanticHash(records),
     records,
     privateKey,
+    tolerance,
+    bucketColumn: bucketName,
   });
   writeReceipt(chainDir, SOURCE_RECEIPT_NAME, manifest);
   writeChain(chainDir, [SOURCE_RECEIPT_NAME], publicHexFromPrivate(privateKey));
@@ -132,8 +230,19 @@ export async function rebuildChain({
   declaredOrigin = "",
   chainDir = "receipts/",
   keyPath = "keys/signing.key",
+  band = null,
+  settle = null,
+  bucketColumn = null,
 } = {}) {
-  const { records } = ingestFile({ file, declaredOrigin, chainDir, keyPath });
+  const { records } = ingestFile({
+    file,
+    declaredOrigin,
+    chainDir,
+    keyPath,
+    band,
+    settle,
+    bucketColumn,
+  });
   let current = records;
   for (const stage of stages) {
     if (typeof stage !== "function") {

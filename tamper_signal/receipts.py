@@ -75,8 +75,20 @@ def build_source_manifest(
     records: list[dict[str, Any]],
     private_key: Ed25519PrivateKey,
     created_at: str | None = None,
+    tolerance: dict[str, Any] | None = None,
+    bucket_column: str | None = None,
 ) -> dict[str, Any]:
-    """Build and sign a source manifest (ingest receipt)."""
+    """Build and sign a source manifest (ingest receipt).
+
+    `tolerance` is the producer's declared continuity expectation
+    ({"band": "<plain decimal string>", "settle_hours": <int>, and optionally
+    "bucket_column": "<normalized name>"}). It joins the body before signing,
+    so the signature covers it; absent declaration means absent field. The
+    band is a decimal STRING because floats never enter signed bodies.
+
+    `bucket_column` threads to control_totals so period_buckets key off the
+    declared column (a non-qualifying name raises ValueError there).
+    """
     body = {
         "kind": "source_manifest",
         "spec_version": SPEC_VERSION,
@@ -88,8 +100,10 @@ def build_source_manifest(
             "declared_origin": declared_origin,
         },
         "semantic_hash": semantic_hash,
-        "control_totals": control_totals(records),
+        "control_totals": control_totals(records, bucket_column=bucket_column),
     }
+    if tolerance is not None:
+        body["tolerance"] = tolerance
     return _sign_body(body, private_key)
 
 

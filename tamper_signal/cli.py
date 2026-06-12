@@ -19,8 +19,10 @@ from collections.abc import Callable
 from pathlib import Path
 
 from .canonical import (
+    decimal_to_plain_string,
     evidence_hash,
     load_records,
+    normalize_header,
     semantic_hash,
 )
 from .keys import generate_keys, load_private_key, load_public_key_hex, public_hex_from_private
@@ -37,6 +39,65 @@ from .receipts import (
 from .totals import control_totals
 
 
+# Tolerance declaration defaults: a producer who states only a band gets the
+# default settling window, and vice versa (R5).
+DEFAULT_BAND = "0.05"
+DEFAULT_SETTLE_HOURS = 72
+
+
+def parse_band(text: str) -> str:
+    """Normalize a band declaration to its canonical plain decimal string.
+
+    Accepts percent forms ("5%", "5 %", "5.5%") and plain fractions ("0.05").
+    The canonical form is the plain decimal string the totals serializer
+    produces, so "5%", "0.05" and "0.050" all normalize to "0.05". Bands must
+    be greater than zero and at most 100%. The result is a STRING because
+    floats never enter signed bodies.
+    """
+    from decimal import Decimal, InvalidOperation
+
+    raw = text.strip()
+    is_percent = raw.endswith("%")
+    if is_percent:
+        raw = raw[:-1].strip()
+    try:
+        value = Decimal(raw)
+    except (InvalidOperation, ValueError):
+        raise ValueError(f"invalid --band '{text}': not a number (try 5% or 0.05)") from None
+    if not value.is_finite():
+        raise ValueError(f"invalid --band '{text}': not a number (try 5% or 0.05)")
+    if is_percent:
+        value = value / Decimal(100)
+    if value <= 0:
+        raise ValueError(f"invalid --band '{text}': must be greater than zero")
+    if value > 1:
+        raise ValueError(f"invalid --band '{text}': must not exceed 100%")
+    band = decimal_to_plain_string(value)
+    if band == "0":
+        # Positive but below the six-place quantum: quantizes to zero.
+        raise ValueError(f"invalid --band '{text}': must be greater than zero")
+    return band
+
+
+def parse_settle(text: str) -> int:
+    """Parse a settling window to whole hours: "72", "72h", or "3d"."""
+    raw = text.strip().lower()
+    multiplier = 1
+    if raw.endswith("h"):
+        raw = raw[:-1].strip()
+    elif raw.endswith("d"):
+        raw = raw[:-1].strip()
+        multiplier = 24
+    if not (raw.isascii() and raw.isdigit()):
+        raise ValueError(
+            f"invalid --settle '{text}': expected a whole number of hours like 72, 72h, or 3d"
+        )
+    hours = int(raw) * multiplier
+    if hours <= 0:
+        raise ValueError(f"invalid --settle '{text}': must be a positive number of hours")
+    return hours
+
+
 def cmd_keygen(args: argparse.Namespace) -> int:
     private_path, public_path = generate_keys(args.out)
     print(f"Public key written to {public_path}")
@@ -49,6 +110,24 @@ def cmd_keygen(args: argparse.Namespace) -> int:
 
 
 def cmd_ingest(args: argparse.Namespace) -> int:
+    # Parse the tolerance declaration before touching anything: an invalid
+    # flag must exit 1 with nothing written. Any flag creates a declaration;
+    # no flags means no tolerance field at all (verify behavior unchanged).
+    tolerance = None
+    bucket_column = None
+    if args.band or args.settle or args.bucket_column:
+        try:
+            tolerance = {
+                "band": parse_band(args.band) if args.band else DEFAULT_BAND,
+                "settle_hours": parse_settle(args.settle) if args.settle else DEFAULT_SETTLE_HOURS,
+            }
+        except ValueError as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+        if args.bucket_column:
+            bucket_column = normalize_header(args.bucket_column)
+            tolerance["bucket_column"] = bucket_column
+
     source_path = Path(args.file)
     raw = source_path.read_bytes()
     records = load_records(str(source_path), sheet=args.sheet)
@@ -59,15 +138,22 @@ def cmd_ingest(args: argparse.Namespace) -> int:
     private_key = load_private_key(args.key)
     public_hex = public_hex_from_private(private_key)
 
-    manifest = build_source_manifest(
-        filename=source_path.name,
-        evidence_hash=evidence_hash(raw),
-        byte_size=len(raw),
-        declared_origin=args.origin,
-        semantic_hash=semantic_hash(records),
-        records=records,
-        private_key=private_key,
-    )
+    try:
+        manifest = build_source_manifest(
+            filename=source_path.name,
+            evidence_hash=evidence_hash(raw),
+            byte_size=len(raw),
+            declared_origin=args.origin,
+            semantic_hash=semantic_hash(records),
+            records=records,
+            private_key=private_key,
+            tolerance=tolerance,
+            bucket_column=bucket_column,
+        )
+    except ValueError as exc:
+        # A declared --bucket-column that fails detection surfaces here.
+        print(str(exc), file=sys.stderr)
+        return 1
     write_receipt(args.out, SOURCE_RECEIPT_NAME, manifest)
     write_chain(args.out, [SOURCE_RECEIPT_NAME], public_hex)
 
@@ -76,6 +162,12 @@ def cmd_ingest(args: argparse.Namespace) -> int:
     print(f"  evidence_hash {manifest['source']['evidence_hash']}")
     print(f"  semantic_hash {manifest['semantic_hash']}")
     print(f"  rows {totals['row_count']}, columns {totals['column_count']}")
+    if tolerance is not None:
+        extra = f", bucket_column {bucket_column}" if bucket_column else ""
+        print(
+            f"  tolerance band {tolerance['band']}, "
+            f"settle_hours {tolerance['settle_hours']}{extra} (signed into the manifest)"
+        )
     print(f"  source manifest -> {Path(args.out) / SOURCE_RECEIPT_NAME}")
     return 0
 
@@ -542,6 +634,24 @@ def build_parser() -> argparse.ArgumentParser:
     p_ingest.add_argument("--key", default="keys/signing.key", help="Private key path")
     p_ingest.add_argument("--out", default="receipts/", help="Receipts directory")
     p_ingest.add_argument("--sheet", default=None, help="Worksheet name (xlsx only, optional)")
+    p_ingest.add_argument(
+        "--band",
+        default=None,
+        help='Declared tolerance band for cross-run drift, e.g. "5%%" or "0.05" '
+        "(signed into the manifest; --settle defaults to 72h)",
+    )
+    p_ingest.add_argument(
+        "--settle",
+        default=None,
+        help='Declared settling window, e.g. "72h" or "3d" '
+        '(signed into the manifest; --band defaults to "0.05")',
+    )
+    p_ingest.add_argument(
+        "--bucket-column",
+        default=None,
+        help="Column to key period buckets off (signed into the tolerance "
+        "declaration; must be a date-shaped column)",
+    )
     p_ingest.set_defaults(func=cmd_ingest)
 
     p_verify = sub.add_parser(
