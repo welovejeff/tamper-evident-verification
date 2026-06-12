@@ -1,14 +1,14 @@
 {
-  "spec_version": "1.1",
-  "public_key": "7574b43373a017bdf23b5dbfb7e819c9b2557f2c84bfd671efb3c59cb1f8da23",
+  "spec_version": "1.2",
+  "public_key": "e4b88d96ab080e67bb08952aa04f96541dd3e3ee0cfffc5d7ed611c54b4aba17",
   "receipts": [
     "000_source.json",
     "001_clean.json",
     "002_aggregate.json"
   ],
   "receipt_hashes": {
-    "000_source.json": "95903835dde23573166f36ab93fd46e18d590f7bbb6ff54add77bb4bb44cf6cf",
-    "001_clean.json": "739018e54ccda06f17a2c3e45de6094bc1e4ae2ae325d688a4aa53a23ea9776e",
-    "002_aggregate.json": "277d80d55cc12fb6b5ae842d0ab6f139b021bf391250b8e8440d136e041f3800"
+    "000_source.json": "be371fba4fea9f4ba21a01bb1e12252585599982160b5f48c4fcab9febb1541e",
+    "001_clean.json": "ddb9e090ec90cfe21bcc0dd9321f64af81b0505caabe06c5360152db63a3629b",
+    "002_aggregate.json": "b1ee5f302363632be983f9148749969c267d359070a48bad68ac0c1bcae1d621"
   }
 }

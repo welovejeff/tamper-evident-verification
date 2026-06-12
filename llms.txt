@@ -4,6 +4,8 @@
 
 Install: `pip install tamper-signal` (Python 3.11+, CLI `receipts`) or `npm install tamper-signal` (Node 18.17+, CLI `tamper-signal`). Chains are interchangeable across the two stacks.
 
+Period-over-period continuity: declare a signed tolerance at ingest (`--band`, `--settle`, `--bucket-column`) and recurring refreshes earn yellow caveats when recent data drifts past the band or settled data moves; `receipts diff` and `receipts log` read the auto-archived run history (weaker evidence than the chain).
+
 ## Docs
 
 - [Integration runbook for coding agents](https://raw.githubusercontent.com/welovejeff/tamper-evident-verification/main/AGENTS.md): the complete install-to-verified path; follow it in order

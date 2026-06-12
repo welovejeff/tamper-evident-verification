@@ -1,0 +1,48 @@
+{
+  "kind": "source_manifest",
+  "spec_version": "1.2",
+  "created_at": "2026-06-12T00:00:00Z",
+  "source": {
+    "filename": "export.csv",
+    "evidence_hash": "eebff359074b8e0f1fd0a33f1fe441b0612f64c709efd61ed89348bddfe41c9e",
+    "byte_size": 53,
+    "declared_origin": "judgment parity fixture"
+  },
+  "semantic_hash": "42b8e1fef91a41656ae9915ba73060d5ff537d07ad1cddb427a1df985970642c",
+  "control_totals": {
+    "row_count": 3,
+    "column_count": 2,
+    "numeric_sums": {
+      "spend": "140"
+    },
+    "date_ranges": {},
+    "null_counts": {},
+    "bucket_column": "day",
+    "period_buckets": {
+      "2026-05-01": {
+        "row_count": 2,
+        "numeric_sums": {
+          "spend": "31"
+        },
+        "null_counts": {}
+      },
+      "2026-06-11": {
+        "row_count": 1,
+        "numeric_sums": {
+          "spend": "109"
+        },
+        "null_counts": {}
+      }
+    }
+  },
+  "tolerance": {
+    "band": "0.05",
+    "settle_hours": 72,
+    "bucket_column": "day"
+  },
+  "signature": {
+    "alg": "ed25519",
+    "key_fingerprint": "f3cb642d7dac9688",
+    "value": "5051fa37e622d8d9c43531eee7ec6bc9a0c316790be5d157fb45907276af62c2c4fc840630df5eb3fa65deb0bb61ba8a617939a8663448ece0e5fec219854e09"
+  }
+}

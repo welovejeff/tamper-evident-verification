@@ -1,0 +1,33 @@
+{
+  "kind": "transform_receipt",
+  "spec_version": "1.1",
+  "created_at": "2026-06-10T23:24:57Z",
+  "transform": {
+    "name": "clean",
+    "code_hash": "d0ce5ce47e198f7b6cfc2f92643ff90f458aec500cfbd2646b47a935f7099ed1",
+    "code_file": "examples/transform_clean.py"
+  },
+  "input_semantic_hash": "6112c042990f87f98d2e2d4cc0a03327f71525049118a10971c475904bb2354c",
+  "output_semantic_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+  "output_control_totals": {
+    "row_count": 4987,
+    "column_count": 6,
+    "numeric_sums": {
+      "impressions": "127178627",
+      "clicks": "6359340",
+      "spend_usd": "2020185.07"
+    },
+    "date_ranges": {
+      "date": {
+        "min": "2026-05-01",
+        "max": "2026-05-31"
+      }
+    },
+    "null_counts": {}
+  },
+  "signature": {
+    "alg": "ed25519",
+    "key_fingerprint": "4eb2080aefa12a53",
+    "value": "67a7fbe85d2d5d80cf5b76b12bdf0982caf1c88d21a6931d682e7ab54bd21bf03f4283242f2a989d5bfda6a9a039d5028f69fb8c4e0c6e172a71e2d42333de07"
+  }
+}

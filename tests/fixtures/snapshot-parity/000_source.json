@@ -1,0 +1,48 @@
+{
+  "kind": "source_manifest",
+  "spec_version": "1.2",
+  "created_at": "2026-06-12T00:00:00Z",
+  "source": {
+    "filename": "export.csv",
+    "evidence_hash": "10a74bf2b5ed81677ae8e6b3015454770426ab6dd6068b1753e655c8853c641b",
+    "byte_size": 84,
+    "declared_origin": "snapshot parity fixture"
+  },
+  "semantic_hash": "199dc7553ad02c2f339a9e2da5992df37f33148f58a13106100dd03eeb15fde4",
+  "control_totals": {
+    "row_count": 4,
+    "column_count": 3,
+    "numeric_sums": {
+      "spend": "36"
+    },
+    "date_ranges": {},
+    "null_counts": {},
+    "bucket_column": "day",
+    "period_buckets": {
+      "2026-05-01": {
+        "row_count": 2,
+        "numeric_sums": {
+          "spend": "15"
+        },
+        "null_counts": {}
+      },
+      "2026-05-02": {
+        "row_count": 2,
+        "numeric_sums": {
+          "spend": "21"
+        },
+        "null_counts": {}
+      }
+    }
+  },
+  "tolerance": {
+    "band": "0.05",
+    "settle_hours": 72,
+    "bucket_column": "day"
+  },
+  "signature": {
+    "alg": "ed25519",
+    "key_fingerprint": "574458be7c7374c1",
+    "value": "d4d3f492f008fc6deed569b918860116069609c94116ecf552b69d207060b2258baed0cc2b212586ccfc98217240ec2b2628d7d8b5c30f206386d2b784a21c08"
+  }
+}

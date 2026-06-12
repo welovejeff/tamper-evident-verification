@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Ideation: what's next for Tamper Signal</title>
+<style>
+  :root {
+    --bg: #0b0f14; --panel: #11161d; --panel2: #141b24; --border: #1f2937;
+    --chrome: #161d26; --text: #e5e7eb; --dim: #8b98a5; --faint: #3d4854; --row: #18202b;
+    --green: #34d399; --red: #f87171; --amber: #fbbf24; --cyan: #67e8f9;
+    --mono: ui-monospace, 'SF Mono', Menlo, Monaco, 'Cascadia Code', monospace;
+    --sans: -apple-system, 'SF Pro Display', 'Segoe UI', Roboto, Helvetica, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); line-height: 1.6; font-size: 15.5px; }
+  .page { max-width: 940px; margin: 0 auto; padding: 0 22px 80px; }
+  a { color: var(--cyan); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code { font-family: var(--mono); font-size: 0.88em; background: var(--panel); border: 1px solid var(--border); border-radius: 5px; padding: 1px 6px; color: var(--dim); }
+  p { max-width: 72ch; }
+
+  /* header */
+  header.doc { padding: 56px 0 22px; border-bottom: 1px solid var(--border); }
+  .eyebrow { font: 11px var(--mono); color: var(--faint); letter-spacing: 2px; text-transform: uppercase; margin: 0 0 14px; }
+  h1 { font-size: clamp(28px, 5vw, 42px); letter-spacing: -1px; line-height: 1.1; margin: 0 0 16px; }
+  .lede { color: var(--dim); font-size: 18px; max-width: 64ch; margin: 0 0 22px; }
+  .meta { display: flex; flex-wrap: wrap; gap: 8px 10px; font: 12px var(--mono); }
+  .meta .m { border: 1px solid var(--border); border-radius: 999px; padding: 3px 11px; color: var(--dim); background: var(--panel); }
+  .meta .m b { color: var(--text); font-weight: 600; }
+
+  /* stats strip */
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; margin: 26px 0 0; }
+  .stat { border: 1px solid var(--border); border-radius: 12px; background: var(--panel); padding: 14px 16px; }
+  .stat .n { font: 22px/1 var(--mono); color: var(--text); }
+  .stat .l { font-size: 12px; color: var(--dim); margin-top: 6px; }
+
+  h2.section { font-size: 13px; font-family: var(--mono); letter-spacing: 2px; text-transform: uppercase; color: var(--faint); margin: 52px 0 18px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+
+  /* grounding */
+  .ground p { margin: 0 0 14px; color: #cdd5dd; }
+  .ground h3 { font-size: 15px; margin: 22px 0 8px; color: var(--text); }
+  .ground ul { margin: 0 0 14px; padding-left: 20px; color: #cdd5dd; max-width: 76ch; }
+  .ground li { margin: 0 0 7px; }
+  .axes-note { font: 13px var(--mono); color: var(--dim); border: 1px dashed var(--faint); border-radius: 10px; padding: 12px 16px; background: rgba(103,232,249,0.03); }
+
+  /* jump list */
+  .jump { list-style: none; margin: 0 0 26px; padding: 16px 18px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); }
+  .jump li { display: flex; gap: 12px; align-items: baseline; padding: 5px 0; font-size: 14.5px; }
+  .jump .rk { font: 12px var(--mono); color: var(--faint); width: 18px; flex: none; }
+  .jump a { color: var(--text); }
+  .jump .tag { margin-left: auto; font: 11px var(--mono); color: var(--dim); white-space: nowrap; }
+
+  /* idea cards */
+  article.idea { border: 1px solid var(--border); border-radius: 16px; background: var(--panel); padding: 24px 24px 22px; margin: 0 0 20px; scroll-margin-top: 20px; }
+  article.idea.lead { border-color: rgba(52,211,153,0.4); box-shadow: 0 0 0 1px rgba(52,211,153,0.08); }
+  article.idea .top { display: flex; gap: 14px; align-items: baseline; flex-wrap: wrap; }
+  .rank-chip { font: 12px var(--mono); color: var(--green); border: 1px solid rgba(52,211,153,0.3); background: rgba(52,211,153,0.06); border-radius: 8px; padding: 3px 9px; flex: none; }
+  article.idea h3 { font-size: 21px; letter-spacing: -0.3px; margin: 0; line-height: 1.2; }
+  .lead-flag { font: 11px var(--mono); letter-spacing: 1px; text-transform: uppercase; color: var(--green); border: 1px solid rgba(52,211,153,0.3); background: rgba(52,211,153,0.06); border-radius: 999px; padding: 3px 10px; }
+  .idea .pills { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 0; }
+  .pill { font: 11px var(--mono); letter-spacing: 0.4px; border-radius: 999px; padding: 3px 10px; border: 1px solid var(--border); color: var(--dim); background: var(--panel2); }
+  .pill.conf-hi { color: var(--green); border-color: rgba(52,211,153,0.32); }
+  .pill.conf-md { color: var(--amber); border-color: rgba(251,191,36,0.32); }
+  .pill.cx { color: var(--cyan); border-color: rgba(103,232,249,0.28); }
+  .pill.basis { color: #c4b5fd; border-color: rgba(196,181,253,0.3); }
+  .idea .field { margin: 16px 0 0; }
+  .idea .field .lab { font: 11px var(--mono); letter-spacing: 1px; text-transform: uppercase; color: var(--faint); display: block; margin: 0 0 5px; }
+  .idea .field p { margin: 0 0 10px; color: #cdd5dd; }
+  .idea .field p:last-child { margin: 0; }
+  .idea .field.basis p { color: var(--text); }
+  .idea .basis .btag { font-family: var(--mono); font-size: 0.85em; color: var(--green); }
+  .idea .field.down p { color: var(--dim); }
+  .subhead { font-size: 14px; color: var(--text); font-weight: 600; margin: 4px 0 2px; }
+  figure.viz { margin: 18px 0 4px; border: 1px solid var(--border); border-radius: 12px; background: var(--chrome); padding: 16px; overflow-x: auto; }
+  figure.viz svg { display: block; margin: 0 auto; max-width: 100%; height: auto; }
+  figure.viz figcaption { font: 12px var(--mono); color: var(--faint); margin-top: 10px; text-align: center; }
+  .viz-pair { display: grid; grid-template-columns: 1fr; gap: 0; }
+
+  /* rejection table */
+  .tbl-scroll { overflow-x: auto; }
+  table.rej { border-collapse: collapse; width: 100%; font-size: 14px; }
+  table.rej th, table.rej td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--border); }
+  table.rej th { font: 11px var(--mono); color: var(--faint); letter-spacing: 1px; text-transform: uppercase; }
+  table.rej td { color: #cdd5dd; }
+  table.rej td.idea-c { color: var(--text); white-space: nowrap; }
+  table.rej tr:hover td { background: rgba(255,255,255,0.015); }
+
+  footer.composition-signal { margin-top: 48px; padding-top: 20px; border-top: 1px solid var(--border); font: 12px var(--mono); color: var(--faint); }
+  footer.composition-signal code { background: none; border: none; padding: 0; color: var(--dim); }
+</style>
+</head>
+<body>
+<div class="page">
+
+<header class="doc">
+  <p class="eyebrow">Ideation</p>
+  <h1>What's next for Tamper Signal</h1>
+  <p class="lede">A whole-product sweep for what to build next that adds value to the user base. The core is hardened and shipped; recent momentum has been brand, blog, and docs. These six directions are where the product surface is thinnest relative to its leverage.</p>
+  <div class="meta">
+    <span class="m"><b>Date</b> 2026-06-11</span>
+    <span class="m"><b>Topic</b> whats-next</span>
+    <span class="m"><b>Focus</b> open / surprise-me, whole product</span>
+    <span class="m"><b>Mode</b> repo-grounded</span>
+  </div>
+  <div class="stats">
+    <div class="stat"><div class="n">48</div><div class="l">raw candidates</div></div>
+    <div class="stat"><div class="n">6</div><div class="l">survivor directions</div></div>
+    <div class="stat"><div class="n">6</div><div class="l">ideation frames</div></div>
+    <div class="stat"><div class="n">0</div><div class="l">open issues today</div></div>
+  </div>
+</header>
+
+<section class="ground">
+  <h2 class="section">Codebase Context</h2>
+  <p>Tamper Signal (v1.5.1) puts cryptographically signed receipts on each stage of a data pipeline: input-hash, code-hash, output-hash, plus human-readable control totals (row counts, sums, date ranges, null counts). Verification collapses the chain to a traffic light: green intact, yellow caveats, red broken at a named link with a totals delta. Files on disk, no database, no server. The honest claim is <em>continuity, not correctness</em>: it can prove nobody changed the data, not that the data was right.</p>
+  <h3>What ships today</h3>
+  <ul>
+    <li><b>Two stacks, interchangeable chains.</b> Python (<code>receipts</code> CLI + <code>receipt_step</code>) and npm (<code>tamper-signal</code> CLI + <code>receiptStep</code>/<code>loadCsv</code>/<code>rebuildChain</code>/<code>canonicalDocument</code>/<code>verifyChain</code>), byte-identical via golden vectors. Ed25519, JCS canonicalization.</li>
+    <li><b>Browser surfaces</b> re-verify in the viewer's browser via Web Crypto, no build step: badge, inline status light (with metric flagging via <code>data-receipt-column</code>), verified data tab, inspectable console, React wrapper, web component.</li>
+    <li><b>Framework attach helpers:</b> Flask, FastAPI, Express, Streamlit. CLI exit codes <em>are</em> the light. <code>--json</code> structured verdict. Key rotation, CI signing via <code>TAMPER_SIGNAL_KEY</code>, Sigstore transparency-log anchoring.</li>
+    <li><b>Site:</b> on-site docs, blog, live demo at tampersignal.com. Zero open issues.</li>
+  </ul>
+  <h3>Leverage points the grounding surfaced</h3>
+  <ul>
+    <li><b>The crypto core is hardened; the adoption and observability surface is thin.</b> Recent PRs (#24&ndash;#31) are all presentation/distribution.</li>
+    <li><b>Receipts accumulate every run, but the history is untapped</b> &mdash; no diff, no continuity-over-time, no drift view.</li>
+    <li><b>The actual vibe-coding surface (notebooks, AI assistants) has zero integration</b> &mdash; every transform is hand-wrapped.</li>
+    <li><b>Verify is a sameness check, but real reporting data legitimately drifts</b> as a period matures (late-arriving conversions, attribution backfill, more of the window accruing) &mdash; so strict hash identity is the wrong question for scheduled refreshes (hence <code>--warn-drift</code> ships off by default).</li>
+    <li><b>External tailwinds:</b> vibe-coding trust gap (AI code ~1.7&times; more logic errors), EU AI Act Article 10 data-provenance mandate in force Aug 2026, Sigstore now mainstream, C2PA-style file-native provenance rising. Closest cousin (PipeRider/Recce) is warehouse-bound; the file-native cryptographic niche is unoccupied.</li>
+  </ul>
+  <h2 class="section">Topic Axes</h2>
+  <p class="axes-note">Decomposition skipped &mdash; surprise-me mode. Frames discovered their own subjects; cross-frame convergence is noted per idea.</p>
+</section>
+
+<section>
+  <h2 class="section">Ranked Ideas</h2>
+  <ul class="jump">
+    <li><span class="rk">1</span><a href="#i1">Period-over-period continuity: memory, drift bands, and real anomaly callouts</a><span class="tag">Conf 90 · Cx M&ndash;H</span></li>
+    <li><span class="rk">2</span><a href="#i2">Agent-native MCP server: the AI verifies its own data work</a><span class="tag">Conf 80 · Cx M</span></li>
+    <li><span class="rk">3</span><a href="#i3">Zero-config auto-instrumentation: notebook magic + pandas shim</a><span class="tag">Conf 70 · Cx M</span></li>
+    <li><span class="rk">4</span><a href="#i4">Consumer trust layer: verify-by-URL, verify-a-stranger, TOFU</a><span class="tag">Conf 68 · Cx M</span></li>
+    <li><span class="rk">5</span><a href="#i5">Distribution flywheel: official GitHub Action + README badge</a><span class="tag">Conf 85 · Cx L</span></li>
+    <li><span class="rk">6</span><a href="#i6">Compliance &amp; interop substrate: in-toto/DSSE + evidence pack</a><span class="tag">Conf 62 · Cx H</span></li>
+  </ul>
+
+  <!-- IDEA 1 (merged: history/diff + tolerance bands) -->
+  <article class="idea lead" id="i1">
+    <div class="top"><span class="rank-chip">1</span><h3>Period-over-period continuity: memory, drift bands, and real anomaly callouts</h3><span class="lead-flag">lead push</span></div>
+    <div class="pills">
+      <span class="pill basis">basis: direct + reasoned</span>
+      <span class="pill conf-hi">confidence 90%</span>
+      <span class="pill cx">complexity Medium&ndash;High</span>
+    </div>
+    <div class="field"><span class="lab">Description</span>
+      <p>Real-world reporting data is <em>supposed</em> to move. A paid-media export, a social post's stats, or a Google Analytics pull all drift day over day and week over week as the reporting window matures: late conversions land, attribution backfills, more of the period accrues. Differences are normal, so the useful question is never "is this byte-for-byte identical to last time?" It is "did things stay on task / within a sensible threshold over time, and is anything a <em>genuine</em> anomaly?"</p>
+      <p>This is the original ideas 1 and 2 fused into one push, because neither is complete alone:</p>
+      <p class="subhead">a. A memory (history &amp; diff)</p>
+      <p><code>receipts diff runA/chain.json runB/chain.json</code> compares two runs and names what moved &mdash; which stage's code or hash changed, and the control-totals delta (rows, sums, null spikes). A <code>receipts log</code> view extends that into a trend across days, weeks, and quarters. The data is already on disk; only the comparison view is missing.</p>
+      <p class="subhead">b. A sense of normal (drift bands)</p>
+      <p>Let the producer bind expected ranges to control totals at sign time (row_count 10,000&nbsp;&plusmn;2%, revenue within bounds, null-rate &lt;1%). Refreshes that drift <em>within</em> the declared band stay green; only true outliers trip yellow ("a human should look"). Together, the band defines normal and the history shows whether each refresh tracked it.</p>
+    </div>
+    <figure class="viz">
+      <svg viewBox="0 0 600 150" role="img" aria-label="Run A versus Run B receipt chains, with the diff highlighting the stage that changed">
+        <text x="14" y="24" font-family="ui-monospace, monospace" font-size="11" fill="#8b98a5">run A</text>
+        <text x="14" y="104" font-family="ui-monospace, monospace" font-size="11" fill="#8b98a5">run B</text>
+        <g font-family="ui-monospace, monospace" font-size="11">
+          <rect x="80" y="10" width="120" height="34" rx="7" fill="#11161d" stroke="#34d399"/><text x="140" y="31" fill="#e5e7eb" text-anchor="middle">source</text>
+          <rect x="240" y="10" width="120" height="34" rx="7" fill="#11161d" stroke="#34d399"/><text x="300" y="31" fill="#e5e7eb" text-anchor="middle">clean</text>
+          <rect x="400" y="10" width="120" height="34" rx="7" fill="#11161d" stroke="#34d399"/><text x="460" y="31" fill="#e5e7eb" text-anchor="middle">aggregate</text>
+          <line x1="200" y1="27" x2="240" y2="27" stroke="#3d4854"/><line x1="360" y1="27" x2="400" y2="27" stroke="#3d4854"/>
+          <rect x="80" y="90" width="120" height="34" rx="7" fill="#11161d" stroke="#34d399"/><text x="140" y="111" fill="#e5e7eb" text-anchor="middle">source</text>
+          <rect x="240" y="90" width="120" height="34" rx="7" fill="#1a1410" stroke="#fbbf24"/><text x="300" y="111" fill="#e5e7eb" text-anchor="middle">clean</text>
+          <rect x="400" y="90" width="120" height="34" rx="7" fill="#11161d" stroke="#34d399"/><text x="460" y="111" fill="#e5e7eb" text-anchor="middle">aggregate</text>
+          <line x1="200" y1="107" x2="240" y2="107" stroke="#3d4854"/><line x1="360" y1="107" x2="400" y2="107" stroke="#3d4854"/>
+        </g>
+        <line x1="300" y1="44" x2="300" y2="90" stroke="#fbbf24" stroke-dasharray="3 3"/>
+        <text x="300" y="146" font-family="ui-monospace, monospace" font-size="10.5" fill="#fbbf24" text-anchor="middle" paint-order="stroke" stroke="#161d26" stroke-width="3">code-hash changed · row_count &minus;22</text>
+      </svg>
+      <figcaption>a. The diff gives the tool a memory: which stage moved, run over run.</figcaption>
+    </figure>
+    <figure class="viz">
+      <svg viewBox="0 0 600 160" role="img" aria-label="A daily metric drifting within a declared tolerance band, then breaching it on one day">
+        <rect x="60" y="44" width="500" height="44" fill="rgba(52,211,153,0.10)" stroke="rgba(52,211,153,0.4)" stroke-dasharray="4 3"/>
+        <text x="64" y="40" font-family="ui-monospace, monospace" font-size="10" fill="#34d399">declared band: 10,000 &plusmn;2%</text>
+        <polyline points="80,70 160,62 240,74 320,66 400,70 480,118 560,70" fill="none" stroke="#67e8f9" stroke-width="2"/>
+        <g fill="#67e8f9"><circle cx="80" cy="70" r="3"/><circle cx="160" cy="62" r="3"/><circle cx="240" cy="74" r="3"/><circle cx="320" cy="66" r="3"/><circle cx="400" cy="70" r="3"/><circle cx="560" cy="70" r="3"/></g>
+        <circle cx="480" cy="118" r="4" fill="#f87171"/>
+        <text x="480" y="140" font-family="ui-monospace, monospace" font-size="10.5" fill="#f87171" text-anchor="middle" paint-order="stroke" stroke="#161d26" stroke-width="3">breach &rarr; yellow, a human should look</text>
+        <text x="80" y="104" font-family="ui-monospace, monospace" font-size="9.5" fill="#3d4854">daily refreshes &rarr;</text>
+      </svg>
+      <figcaption>b. Normal drift stays green inside the band; only the real outlier trips the light.</figcaption>
+    </figure>
+    <div class="field basis"><span class="lab">Basis</span>
+      <p><span class="btag">direct:</span> receipts already store control totals per run, yet the history is unused and no <code>diff</code> primitive exists in <code>tamper_signal</code> or <code>node</code>; and <code>--warn-drift</code> already ships <em>off by default</em> precisely because filters, aggregations, and maturing data legitimately move totals &mdash; the product already knows this is the hard problem and currently punts it to a binary flag.</p>
+      <p><span class="btag">reasoned:</span> for scheduled refreshes, byte-identity is always false and therefore useless; the signal that actually carries information is "stayed within the band I declared, tracked over time." Five of six ideation frames converged on the history half, and the design-basis (engineering tolerance) analogy supplied the band half.</p>
+    </div>
+    <div class="field"><span class="lab">Rationale</span>
+      <p>The persona refreshes social, paid-media, and analytics exports where data maturation is the norm. A trust tool that fires on every normal day-over-day change gets muted, and a muted trust tool is worthless &mdash; so teaching Tamper Signal what normal drift looks like, and reserving the light for genuine anomalies, is what keeps the green/yellow/red verdict credible enough to leave switched on.</p>
+      <p>It is also the highest-leverage single build: the diff/history is the keystone that unlocks log, drift-over-time, and bisect-which-run-broke-it for free, while the bands are what make those views meaningful for recurring uploads. This is the user-endorsed lead push.</p>
+    </div>
+    <div class="field down"><span class="lab">Downsides</span>
+      <p>Two mechanisms is more scope than one, so it needs a tight MVP &mdash; likely <code>diff</code> plus a simple declared band on row_count and key sums first, the longitudinal log second. Bands edge toward "correctness" and must be fenced so they remain the producer's <em>declared expectation</em>, never a claim the data is right. Comparing and trending runs needs a stable run-identity / retention convention the tool does not define yet.</p>
+    </div>
+  </article>
+
+  <!-- IDEA 2 -->
+  <article class="idea" id="i2">
+    <div class="top"><span class="rank-chip">2</span><h3>Agent-native MCP server: the AI verifies its own data work</h3></div>
+    <div class="pills">
+      <span class="pill basis">basis: direct + external</span>
+      <span class="pill conf-hi">confidence 80%</span>
+      <span class="pill cx">complexity Medium</span>
+    </div>
+    <div class="field"><span class="lab">Description</span><p>Ship Tamper Signal as an MCP server exposing <code>receipt_step</code> and <code>verify_chain</code> as agent tools, plus a drop-in instruction snippet. The AI assistant that writes a transform also wraps and signs it; before it publishes a dashboard or hands numbers downstream, it calls verify and self-gates &mdash; refuse on red, escalate to a human on yellow. Instrumentation and verification stop being a human afterthought and become the path of least resistance for the agent already doing the work.</p></div>
+    <figure class="viz">
+      <svg viewBox="0 0 560 132" role="img" aria-label="An agent writes a transform, signs a receipt, verifies, and gates on the result">
+        <g font-family="ui-monospace, monospace" font-size="11">
+          <rect x="20" y="48" width="110" height="36" rx="8" fill="#11161d" stroke="#1f2937"/><text x="75" y="70" fill="#e5e7eb" text-anchor="middle">agent writes</text>
+          <rect x="165" y="48" width="110" height="36" rx="8" fill="#11161d" stroke="#1f2937"/><text x="220" y="70" fill="#e5e7eb" text-anchor="middle">sign receipt</text>
+          <rect x="310" y="48" width="110" height="36" rx="8" fill="#11161d" stroke="#67e8f9"/><text x="365" y="70" fill="#e5e7eb" text-anchor="middle">verify_chain</text>
+          <rect x="455" y="20" width="92" height="32" rx="8" fill="#0f1a15" stroke="#34d399"/><text x="501" y="40" fill="#34d399" text-anchor="middle">ship</text>
+          <rect x="455" y="80" width="92" height="32" rx="8" fill="#1a1010" stroke="#f87171"/><text x="501" y="100" fill="#f87171" text-anchor="middle">halt / ask</text>
+          <line x1="130" y1="66" x2="165" y2="66" stroke="#3d4854"/><line x1="275" y1="66" x2="310" y2="66" stroke="#3d4854"/>
+          <line x1="420" y1="60" x2="455" y2="38" stroke="#34d399"/><line x1="420" y1="72" x2="455" y2="94" stroke="#f87171"/>
+        </g>
+      </svg>
+      <figcaption>The thing writing the pipeline becomes the thing that signs and gates it.</figcaption>
+    </figure>
+    <div class="field basis"><span class="lab">Basis</span><p><span class="btag">direct:</span> <code>--json</code> already emits a structured verdict "for CI and coding agents," and <code>AGENTS.md</code> is written as an agent runbook ("Pointing a coding agent at this repo?"). The gating primitive exists; the MCP surface is the missing wrapper. <span class="btag">external:</span> MCP is the mainstream way agents call tools, and the central tailwind is that AI-generated pipelines are the fastest-growing source of silent failure.</p></div>
+    <div class="field"><span class="lab">Rationale</span><p>The persona's core failure mode is an AI assistant quietly producing wrong numbers. Letting the agent verify its own output before a human ever sees it closes the loop at the exact point of failure, and it matches this repo's existing agent-native-parity ethos. Three frames converged on it.</p></div>
+    <div class="field down"><span class="lab">Downsides</span><p>An agent self-attesting is weaker than an independent check &mdash; it proves "I signed what I produced," not that the agent's logic was sound. Needs framing so it complements, not replaces, human/CI verification.</p></div>
+  </article>
+
+  <!-- IDEA 3 -->
+  <article class="idea" id="i3">
+    <div class="top"><span class="rank-chip">3</span><h3>Zero-config auto-instrumentation: notebook magic + pandas shim</h3></div>
+    <div class="pills">
+      <span class="pill basis">basis: direct + external</span>
+      <span class="pill conf-md">confidence 70%</span>
+      <span class="pill cx">complexity Medium</span>
+    </div>
+    <div class="field"><span class="lab">Description</span><p>Meet the vibe-coder where the work happens. A <code>%%receipt</code> Jupyter/Colab cell magic treats each marked cell as a stage, hashing cell source + the DataFrame it produces, no decorator and no <code>chain_dir</code> argument. And an <code>import tamper_signal.auto</code> shim monkeypatches the common pandas I/O boundaries (<code>read_excel</code>/<code>read_csv</code> &rarr; ingest; <code>to_excel</code>/<code>to_csv</code> &rarr; output receipt) so an AI-generated script produces a chain from a single pasted import line.</p></div>
+    <div class="field basis"><span class="lab">Basis</span><p><span class="btag">direct:</span> <code>receipt_step</code> already supports pandas DataFrames, so the canonicalization is solved &mdash; only the auto-capture wrapper is new; grounding names the notebook/AI surface as having zero integration. <span class="btag">external:</span> Ruff, pre-commit, and Elementary all won by driving setup to near zero (one hook, one package line, instant local feedback).</p></div>
+    <div class="field"><span class="lab">Rationale</span><p>Hand-wrapping every stage is the single biggest adoption tax; a six-stage pipeline is six manual edits today, and the users who most need this adopted Tamper Signal <em>because</em> their AI-generated pipeline is a black box to them. Collapsing "install &rarr; wrap each transform" into "install &rarr; one import" is the difference between a tool people try and one they keep.</p></div>
+    <div class="field down"><span class="lab">Downsides</span><p>Notebooks re-run cells out of order, which makes receipt semantics genuinely tricky (what is "the chain" when cell 3 ran twice?). Monkeypatching pandas I/O is fragile across versions and can surprise users. Both need careful, honest scoping.</p></div>
+  </article>
+
+  <!-- IDEA 4 -->
+  <article class="idea" id="i4">
+    <div class="top"><span class="rank-chip">4</span><h3>Consumer trust layer: verify-by-URL, verify-a-stranger, trust-on-first-use</h3></div>
+    <div class="pills">
+      <span class="pill basis">basis: direct + reasoned</span>
+      <span class="pill conf-md">confidence 68%</span>
+      <span class="pill cx">complexity Medium</span>
+    </div>
+    <div class="field"><span class="lab">Description</span><p>Reframe the consumer of the verdict from the pipeline owner to the dashboard <em>viewer</em> &mdash; the boss, client, or auditor who actually needs to trust the number. Three moves compound: <code>receipts inspect</code> for checking data you <em>didn't</em> produce (surface the signer identity, no pre-shared key required); a trust-on-first-use signer keybook (SSH <code>known_hosts</code> model) that pins a signer and loudly flags a key substitution; and <code>receipts publish</code> &rarr; a shareable <code>tampersignal.com/v/&lt;hash&gt;</code> link that re-verifies live in the recipient's own browser.</p></div>
+    <figure class="viz">
+      <svg viewBox="0 0 560 116" role="img" aria-label="Producer signs a chain that travels with the data to a consumer who verifies it independently">
+        <g font-family="ui-monospace, monospace" font-size="11">
+          <rect x="20" y="40" width="120" height="40" rx="8" fill="#11161d" stroke="#1f2937"/><text x="80" y="60" fill="#e5e7eb" text-anchor="middle">producer</text><text x="80" y="74" fill="#8b98a5" text-anchor="middle" font-size="9.5">signs chain</text>
+          <rect x="220" y="40" width="120" height="40" rx="8" fill="#161d26" stroke="#67e8f9"/><text x="280" y="60" fill="#e5e7eb" text-anchor="middle">data + receipt</text><text x="280" y="74" fill="#8b98a5" text-anchor="middle" font-size="9.5">travels together</text>
+          <rect x="420" y="40" width="120" height="40" rx="8" fill="#0f1a15" stroke="#34d399"/><text x="480" y="60" fill="#e5e7eb" text-anchor="middle">consumer</text><text x="480" y="74" fill="#34d399" text-anchor="middle" font-size="9.5">verifies independently</text>
+          <line x1="140" y1="60" x2="220" y2="60" stroke="#3d4854"/><line x1="340" y1="60" x2="420" y2="60" stroke="#3d4854"/>
+        </g>
+        <text x="280" y="104" font-family="ui-monospace, monospace" font-size="10" fill="#8b98a5" text-anchor="middle">no shared key, no call back to the producer</text>
+      </svg>
+      <figcaption>Turns a single-player tool into a two-party protocol the recipient can run.</figcaption>
+    </figure>
+    <div class="field basis"><span class="lab">Basis</span><p><span class="btag">direct:</span> Sigstore anchoring already attaches an OIDC identity to a chain, and tampersignal.com already re-verifies a committed chain in-browser &mdash; verify-by-URL is the live demo generalized. <span class="btag">reasoned:</span> nothing architecturally requires the verifier to be the producer; the receipt is self-contained, so the producer-only verification surface is a UX assumption, not a cryptographic one.</p></div>
+    <div class="field"><span class="lab">Rationale</span><p>For an agency handing a dashboard to a client, the highest-value moment isn't "I know my pipeline is clean" &mdash; it's "my client can prove it themselves," without a key exchange or a call back to me. That is the wedge from "tool I run on my own pipeline" to "trust mark a market shares," and it feeds the badge growth loop.</p></div>
+    <div class="field down"><span class="lab">Downsides</span><p>Hosted verify-by-URL adds an (optional) service surface that must keep verification client-side to preserve the no-server-in-the-trust-path moat. Identity/trust UX is easy to get subtly wrong (the whole point is not crying wolf or rubber-stamping).</p></div>
+  </article>
+
+  <!-- IDEA 5 -->
+  <article class="idea" id="i5">
+    <div class="top"><span class="rank-chip">5</span><h3>Distribution flywheel: official GitHub Action + README status badge</h3></div>
+    <div class="pills">
+      <span class="pill basis">basis: external + direct</span>
+      <span class="pill conf-hi">confidence 85%</span>
+      <span class="pill cx">complexity Low</span>
+    </div>
+    <div class="field"><span class="lab">Description</span><p>Package the verify step as a one-line marketplace Action (<code>welovejeff/tamper-signal-verify@v1</code>) that sets the check status from the exit code and posts the run-over-run totals diff (idea&nbsp;1) as a PR comment. Pair it with a drop-in README badge &mdash; generated locally or in CI from the <code>--json</code> verdict, no server &mdash; that renders the latest verdict or continuity score: "pipeline intact &middot; 142-run streak." The badge is the only feature whose value compounds per <em>user</em> rather than per run.</p></div>
+    <div class="field basis"><span class="lab">Basis</span><p><span class="btag">external:</span> the Ruff / pre-commit / Elementary adoption arc is explicit in the grounding &mdash; install &rarr; local feedback &rarr; CI step &rarr; README badge as social proof that recruits the next team. <span class="btag">direct:</span> exit codes already <em>are</em> the light, <code>--json</code> ships, and CI signing exists, so the primitives are all there; what's missing is the packaged Action and badge, and recent momentum is already on distribution.</p></div>
+    <div class="field"><span class="lab">Rationale</span><p>This is the cheapest high-certainty win on the list and the natural next step after the docs/blog push: it completes the adoption arc and makes a broken chain un-mergeable rather than something a human hopes to check. Every README badge is a passive ad that pulls in the next user.</p></div>
+    <div class="field down"><span class="lab">Downsides</span><p>A marketplace Action commits the project to a versioned public CI contract to maintain. A badge that can show green on a stale chain would be worse than none &mdash; it has to be honest about staleness.</p></div>
+  </article>
+
+  <!-- IDEA 6 -->
+  <article class="idea" id="i6">
+    <div class="top"><span class="rank-chip">6</span><h3>Compliance &amp; interop substrate: in-toto/DSSE export + EU AI Act evidence pack</h3></div>
+    <div class="pills">
+      <span class="pill basis">basis: external + direct</span>
+      <span class="pill conf-md">confidence 62%</span>
+      <span class="pill cx">complexity High</span>
+    </div>
+    <div class="field"><span class="lab">Description</span><p>Treat "continuity, not correctness" as the moat, not a disclaimer: position Tamper Signal as the lightweight, file-native data-pipeline complement to SLSA/in-toto (which cover software supply chain). Add an export mode that emits each receipt as a DSSE-wrapped in-toto attestation so existing Sigstore/SLSA/policy tooling can consume it, plus a one-command "evidence pack" (chain + public keys + anchors + a human-readable PDF/JSON of the verdict and control-total deltas) framed as an EU AI Act Article 10 record-keeping artifact.</p></div>
+    <div class="field basis"><span class="lab">Basis</span><p><span class="btag">external:</span> in-toto and DSSE are established open standards with mainstream SLSA verifier tooling; EU AI Act Article 10 (in force Aug 2026) mandates documenting data origin, processing steps, and quality measures &mdash; a receipt chain is exactly that artifact, and no lightweight tool fills the role. <span class="btag">direct:</span> Sigstore anchoring already ships and the <code>--json</code> verdict is the seed of the structured export.</p></div>
+    <div class="field"><span class="lab">Rationale</span><p>Adopting a standard envelope is a single decision that plugs receipts into a large pre-existing universe of consumers (transparency logs, policy engines, auditors) you never have to build for. It routes the product toward compliance buyers who have budget and a dated mandate, and gives a crisp category ("SLSA for your data pipeline") without educating the market from scratch.</p></div>
+    <div class="field down"><span class="lab">Downsides</span><p>The heaviest item here and the furthest from today's persona &mdash; risks pulling the product toward enterprise ceremony before the small-team loop is fully won. Best treated as a strategic bet to validate (a candidate for <code>ce-strategy</code>) rather than the immediate next build.</p></div>
+  </article>
+</section>
+
+<section>
+  <h2 class="section">Rejection Summary</h2>
+  <div class="tbl-scroll">
+    <table class="rej">
+      <thead><tr><th>#</th><th>Idea</th><th>Reason cut</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td class="idea-c">JS-native xlsx ingest</td><td>Real adoption blocker but tactical and narrow; folds into the auto-instrumentation direction (#3).</td></tr>
+        <tr><td>2</td><td class="idea-c"><code>receipts doctor --fix</code></td><td>Useful polish, below the step-function floor for a "what's next" sweep; ship opportunistically.</td></tr>
+        <tr><td>3</td><td class="idea-c">Coverage-gap "name the missing stage"</td><td>Too small standalone; folds into the continuity push (#1) and its typed-yellow work.</td></tr>
+        <tr><td>4</td><td class="idea-c"><code>receipts watch</code> daemon</td><td>Good, but its strongest form (alerting) needs the hosted option; overlaps the continuity push (#1) and the consumer layer (#4).</td></tr>
+        <tr><td>5</td><td class="idea-c">Self-healing <code>receipts rebuild</code> (Python)</td><td>Already exists in JS as <code>rebuildChain</code>; Python parity is maintenance, not a headline.</td></tr>
+        <tr><td>6</td><td class="idea-c">Zero key-management (keyless ephemeral signing)</td><td>Partly addressed by shipped Sigstore anchoring; folds into agent-native (#2).</td></tr>
+        <tr><td>7</td><td class="idea-c">Blast-radius / contact-tracing on red</td><td>Elegant, but needs a cross-pipeline dependency graph that doesn't exist; expensive relative to value now.</td></tr>
+        <tr><td>8</td><td class="idea-c">Aviation black-box ring buffer</td><td>Same intent as the drift-over-time view; folds into the continuity push (#1).</td></tr>
+        <tr><td>9</td><td class="idea-c">Archival fixity / scheduled re-verification</td><td>Folds into the consumer layer's hosted re-verify (#4) and the compliance pack (#6).</td></tr>
+        <tr><td>10</td><td class="idea-c">Commit-reveal pre-registration receipt</td><td>Niche; better as a brainstorm variant of the drift-band half of (#1).</td></tr>
+        <tr><td>11</td><td class="idea-c">Signed exception receipts (notifiable event)</td><td>Compelling for audit, but folds into the compliance/evidence direction (#6).</td></tr>
+        <tr><td>12</td><td class="idea-c">Fleet continuity monitor (recursive)</td><td>An org-scale view that depends on the history primitives first; revisit as an extension of (#1).</td></tr>
+        <tr><td>13</td><td class="idea-c">Domain expansion: LLM-eval / scientific / financial-close / GxP</td><td>Positioning bets that reuse the same mechanism, not product features &mdash; better handled as a <code>ce-strategy</code> exercise. LLM-eval provenance is the strongest if a wedge is wanted.</td></tr>
+        <tr><td>14</td><td class="idea-c">More framework recipes (Django, Next, SvelteKit)</td><td>Incremental and valuable but not a step-function; dbt/Airflow are the highest-value pair and fold into distribution (#5).</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<footer class="composition-signal">Composed 2026-06-11 by ce-ideate from an open "what's next / what adds value to our user base" prompt (surprise-me, whole product). 48 candidates across 6 frames; 6 survivor directions (original ideas 1 and 2 merged into the lead continuity push on review).</footer>
+
+</div>
+</body>
+</html>

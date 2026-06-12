@@ -1,0 +1,368 @@
+{
+  "comment": "Shared band vectors for cross-run judgment (U6). Consumed by tests/test_judgment.py and node/test/judgment.test.js: each case builds a current chain and history snapshots, runs judge_cross_run / judgeCrossRun, and asserts the typed caveats and the verdict color. All times are UTC; buckets are per-UTC-day keyed off a 'day' column; numeric values are decimal strings (never floats). Zone rule: a bucket is settled at the prior observation iff prior_snapshot.created_at > bucket_end (24:00 UTC) + settle_hours.",
+  "cases": [
+    {
+      "name": "ae1_settling_drift_within_band_green",
+      "band": "0.05",
+      "settle_hours": 72,
+      "history": [
+        {
+          "created_at": "2026-06-02T01:00:00Z",
+          "buckets": {
+            "2026-06-01": {"row_count": 10, "numeric_sums": {"spend": "100"}, "null_counts": {}}
+          }
+        }
+      ],
+      "current": {
+        "created_at": "2026-06-03T01:00:00Z",
+        "buckets": {
+          "2026-06-01": {"row_count": 10, "numeric_sums": {"spend": "104.8"}, "null_counts": {}}
+        }
+      },
+      "now": "2026-06-03T01:00:00Z",
+      "expect": {"caveat_types": [], "green": true}
+    },
+    {
+      "name": "ae2_settling_band_breach_up",
+      "band": "0.05",
+      "settle_hours": 72,
+      "history": [
+        {
+          "created_at": "2026-06-02T01:00:00Z",
+          "buckets": {
+            "2026-06-01": {"row_count": 10, "numeric_sums": {"spend": "100"}, "null_counts": {}}
+          }
+        }
+      ],
+      "current": {
+        "created_at": "2026-06-03T01:00:00Z",
+        "buckets": {
+          "2026-06-01": {"row_count": 10, "numeric_sums": {"spend": "109"}, "null_counts": {}}
+        }
+      },
+      "now": "2026-06-03T01:00:00Z",
+      "expect": {"caveat_types": ["band_breach"], "green": false}
+    },
+    {
+      "name": "settling_band_breach_down",
+      "band": "0.05",
+      "settle_hours": 72,
+      "history": [
+        {
+          "created_at": "2026-06-02T01:00:00Z",
+          "buckets": {
+            "2026-06-01": {"row_count": 10, "numeric_sums": {"spend": "100"}, "null_counts": {}}
+          }
+        }
+      ],
+      "current": {
+        "created_at": "2026-06-03T01:00:00Z",
+        "buckets": {
+          "2026-06-01": {"row_count": 10, "numeric_sums": {"spend": "91"}, "null_counts": {}}
+        }
+      },
+      "now": "2026-06-03T01:00:00Z",
+      "expect": {"caveat_types": ["band_breach"], "green": false}
+    },
+    {
+      "name": "ae7_exactly_at_band_green",
+      "band": "0.05",
+      "settle_hours": 72,
+      "history": [
+        {
+          "created_at": "2026-06-02T01:00:00Z",
+          "buckets": {
+            "2026-06-01": {"row_count": 10, "numeric_sums": {"spend": "100"}, "null_counts": {}}
+          }
+        }
+      ],
+      "current": {
+        "created_at": "2026-06-03T01:00:00Z",
+        "buckets": {
+          "2026-06-01": {"row_count": 10, "numeric_sums": {"spend": "105"}, "null_counts": {}}
+        }
+      },
+      "now": "2026-06-03T01:00:00Z",
+      "expect": {"caveat_types": [], "green": true}
+    },
+    {
+      "name": "ae3_settled_row_count_moves",
+      "band": "0.05",
+      "settle_hours": 72,
+      "history": [
+        {
+          "created_at": "2026-05-22T00:00:00Z",
+          "buckets": {
+            "2026-05-01": {"row_count": 50, "numeric_sums": {"spend": "500"}, "null_counts": {}}
+          }
+        }
+      ],
+      "current": {
+        "created_at": "2026-05-23T00:00:00Z",
+        "buckets": {
+          "2026-05-01": {"row_count": 51, "numeric_sums": {"spend": "500"}, "null_counts": {}}
+        }
+      },
+      "now": "2026-05-23T00:00:00Z",
+      "expect": {"caveat_types": ["settled_movement"], "green": false}
+    },
+    {
+      "name": "ae9_boundary_straddle_green",
+      "band": "0.05",
+      "settle_hours": 72,
+      "history": [
+        {
+          "created_at": "2026-06-04T00:00:00Z",
+          "buckets": {
+            "2026-06-01": {"row_count": 10, "numeric_sums": {"spend": "100"}, "null_counts": {}}
+          }
+        }
+      ],
+      "current": {
+        "created_at": "2026-06-06T00:00:00Z",
+        "buckets": {
+          "2026-06-01": {"row_count": 10, "numeric_sums": {"spend": "104"}, "null_counts": {}}
+        }
+      },
+      "now": "2026-06-06T00:00:00Z",
+      "expect": {"caveat_types": [], "green": true}
+    },
+    {
+      "name": "ae8_rolling_window_trailing_drop_silent",
+      "band": "0.05",
+      "settle_hours": 72,
+      "history": [
+        {
+          "created_at": "2026-06-10T00:00:00Z",
+          "buckets": {
+            "2026-05-01": {"row_count": 1, "numeric_sums": {"spend": "10"}, "null_counts": {}},
+            "2026-05-02": {"row_count": 2, "numeric_sums": {"spend": "20"}, "null_counts": {}}
+          }
+        }
+      ],
+      "current": {
+        "created_at": "2026-06-11T00:00:00Z",
+        "buckets": {
+          "2026-05-02": {"row_count": 2, "numeric_sums": {"spend": "20"}, "null_counts": {}},
+          "2026-05-03": {"row_count": 3, "numeric_sums": {"spend": "30"}, "null_counts": {}}
+        }
+      },
+      "now": "2026-06-11T00:00:00Z",
+      "expect": {"caveat_types": [], "green": true}
+    },
+    {
+      "name": "interior_bucket_removed",
+      "band": "0.05",
+      "settle_hours": 72,
+      "history": [
+        {
+          "created_at": "2026-06-10T00:00:00Z",
+          "buckets": {
+            "2026-05-01": {"row_count": 1, "numeric_sums": {"spend": "10"}, "null_counts": {}},
+            "2026-05-02": {"row_count": 2, "numeric_sums": {"spend": "20"}, "null_counts": {}},
+            "2026-05-03": {"row_count": 3, "numeric_sums": {"spend": "30"}, "null_counts": {}}
+          }
+        }
+      ],
+      "current": {
+        "created_at": "2026-06-11T00:00:00Z",
+        "buckets": {
+          "2026-05-01": {"row_count": 1, "numeric_sums": {"spend": "10"}, "null_counts": {}},
+          "2026-05-03": {"row_count": 3, "numeric_sums": {"spend": "30"}, "null_counts": {}}
+        }
+      },
+      "now": "2026-06-11T00:00:00Z",
+      "expect": {"caveat_types": ["bucket_removed"], "green": false}
+    },
+    {
+      "name": "zero_baseline_breach",
+      "band": "0.05",
+      "settle_hours": 72,
+      "history": [
+        {
+          "created_at": "2026-06-02T01:00:00Z",
+          "buckets": {
+            "2026-06-01": {"row_count": 1, "numeric_sums": {"spend": "0"}, "null_counts": {}}
+          }
+        }
+      ],
+      "current": {
+        "created_at": "2026-06-03T01:00:00Z",
+        "buckets": {
+          "2026-06-01": {"row_count": 1, "numeric_sums": {"spend": "48"}, "null_counts": {}}
+        }
+      },
+      "now": "2026-06-03T01:00:00Z",
+      "expect": {"caveat_types": ["band_breach"], "green": false}
+    },
+    {
+      "name": "zero_to_zero_green",
+      "band": "0.05",
+      "settle_hours": 72,
+      "history": [
+        {
+          "created_at": "2026-06-02T01:00:00Z",
+          "buckets": {
+            "2026-06-01": {"row_count": 1, "numeric_sums": {"spend": "0"}, "null_counts": {}}
+          }
+        }
+      ],
+      "current": {
+        "created_at": "2026-06-03T01:00:00Z",
+        "buckets": {
+          "2026-06-01": {"row_count": 1, "numeric_sums": {"spend": "0"}, "null_counts": {}}
+        }
+      },
+      "now": "2026-06-03T01:00:00Z",
+      "expect": {"caveat_types": [], "green": true}
+    },
+    {
+      "name": "cumulative_ratchet_breach",
+      "band": "0.05",
+      "settle_hours": 72,
+      "history": [
+        {
+          "created_at": "2026-06-01T12:00:00Z",
+          "buckets": {
+            "2026-06-01": {"row_count": 10, "numeric_sums": {"spend": "100"}, "null_counts": {}}
+          }
+        },
+        {
+          "created_at": "2026-06-02T12:00:00Z",
+          "buckets": {
+            "2026-06-01": {"row_count": 10, "numeric_sums": {"spend": "104.9"}, "null_counts": {}}
+          }
+        },
+        {
+          "created_at": "2026-06-03T12:00:00Z",
+          "buckets": {
+            "2026-06-01": {"row_count": 10, "numeric_sums": {"spend": "110"}, "null_counts": {}}
+          }
+        }
+      ],
+      "current": {
+        "created_at": "2026-06-04T12:00:00Z",
+        "buckets": {
+          "2026-06-01": {"row_count": 10, "numeric_sums": {"spend": "115.4"}, "null_counts": {}}
+        }
+      },
+      "now": "2026-06-04T12:00:00Z",
+      "expect": {"caveat_types": ["band_breach"], "green": false}
+    },
+    {
+      "name": "breached_baseline_guard",
+      "band": "0.05",
+      "settle_hours": 72,
+      "history": [
+        {
+          "created_at": "2026-06-02T01:00:00Z",
+          "buckets": {
+            "2026-06-01": {"row_count": 10, "numeric_sums": {"spend": "100"}, "null_counts": {}}
+          }
+        },
+        {
+          "created_at": "2026-06-03T01:00:00Z",
+          "buckets": {
+            "2026-06-01": {"row_count": 10, "numeric_sums": {"spend": "109"}, "null_counts": {}}
+          },
+          "breached": {"2026-06-01": ["spend"]}
+        }
+      ],
+      "current": {
+        "created_at": "2026-06-04T01:00:00Z",
+        "buckets": {
+          "2026-06-01": {"row_count": 10, "numeric_sums": {"spend": "109"}, "null_counts": {}}
+        }
+      },
+      "now": "2026-06-04T01:00:00Z",
+      "expect": {"caveat_types": ["band_breach"], "green": false}
+    },
+    {
+      "name": "settled_unchanged_green",
+      "band": "0.05",
+      "settle_hours": 72,
+      "history": [
+        {
+          "created_at": "2026-05-22T00:00:00Z",
+          "buckets": {
+            "2026-05-01": {"row_count": 50, "numeric_sums": {"spend": "500"}, "null_counts": {}}
+          }
+        }
+      ],
+      "current": {
+        "created_at": "2026-05-23T00:00:00Z",
+        "buckets": {
+          "2026-05-01": {"row_count": 50, "numeric_sums": {"spend": "500"}, "null_counts": {}}
+        }
+      },
+      "now": "2026-05-23T00:00:00Z",
+      "expect": {"caveat_types": [], "green": true}
+    },
+    {
+      "name": "wide_cadence_frozen_on_reobservation",
+      "comment": "Prior observation was still settling, but this run lands well past the deadline (more than one settle window beyond it). The bucket is frozen, so a +4 move that would pass the settling band flags as settled_movement. deadline = 2026-05-05T00:00 + 72h; current 2026-05-10 > deadline + 72h.",
+      "band": "0.05",
+      "settle_hours": 72,
+      "history": [
+        {
+          "created_at": "2026-05-03T00:00:00Z",
+          "buckets": {
+            "2026-05-01": {"row_count": 10, "numeric_sums": {"spend": "100"}, "null_counts": {}}
+          }
+        }
+      ],
+      "current": {
+        "created_at": "2026-05-10T00:00:00Z",
+        "buckets": {
+          "2026-05-01": {"row_count": 10, "numeric_sums": {"spend": "104"}, "null_counts": {}}
+        }
+      },
+      "now": "2026-05-10T00:00:00Z",
+      "expect": {"caveat_types": ["settled_movement"], "green": false}
+    },
+    {
+      "name": "boundary_tick_prior_exactly_at_deadline_green",
+      "comment": "Prior observation created exactly at the deadline (2026-05-02T00:00 + 72h = 2026-05-05T00:00). settled_at_prior uses a strict >, so the bucket is still settling; current is inside one settle window past the deadline, so it stays in the settling zone and a +4 move (within band) is green.",
+      "band": "0.05",
+      "settle_hours": 72,
+      "history": [
+        {
+          "created_at": "2026-05-05T00:00:00Z",
+          "buckets": {
+            "2026-05-01": {"row_count": 10, "numeric_sums": {"spend": "100"}, "null_counts": {}}
+          }
+        }
+      ],
+      "current": {
+        "created_at": "2026-05-06T00:00:00Z",
+        "buckets": {
+          "2026-05-01": {"row_count": 10, "numeric_sums": {"spend": "104"}, "null_counts": {}}
+        }
+      },
+      "now": "2026-05-06T00:00:00Z",
+      "expect": {"caveat_types": [], "green": true}
+    },
+    {
+      "name": "integer_float_leaf_reads_as_decimal",
+      "comment": "A numeric leaf that arrives as an integer-valued JSON float (12.0) must read as the same decimal as 12 / '12' in BOTH stacks. Here the settled baseline spend is the float 12.0 and the current value is the string '12', so both stacks read no movement and stay green; a divergent reader would flag one side.",
+      "band": "0.05",
+      "settle_hours": 72,
+      "history": [
+        {
+          "created_at": "2026-05-22T00:00:00Z",
+          "buckets": {
+            "2026-05-01": {"row_count": 10, "numeric_sums": {"spend": 12.0}, "null_counts": {}}
+          }
+        }
+      ],
+      "current": {
+        "created_at": "2026-05-23T00:00:00Z",
+        "buckets": {
+          "2026-05-01": {"row_count": 10, "numeric_sums": {"spend": "12"}, "null_counts": {}}
+        }
+      },
+      "now": "2026-05-23T00:00:00Z",
+      "expect": {"caveat_types": [], "green": true}
+    }
+  ]
+}

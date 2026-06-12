@@ -87,6 +87,8 @@
           <tr><td><code>receipts init</code></td><td>Scaffold keys, a <code>receipts/</code> directory, and <code>.gitignore</code> safety. Idempotent.</td></tr>
           <tr><td><code>receipts ingest &lt;file&gt;</code></td><td>Pin a source file: record evidence and semantic hashes plus control totals, sign the source receipt. Writes <code>000_source.json</code> and <code>chain.json</code>.</td></tr>
           <tr><td><code>receipts verify &lt;chain&gt;</code></td><td>Walk the chain and emit the light. Add <code>--data</code> to also check a current file against the final receipt.</td></tr>
+          <tr><td><code>receipts diff</code></td><td>Compare two runs: per-stage code-hash changes and a structured totals delta, including which period buckets moved. Read-only; exit 0 with or without differences.</td></tr>
+          <tr><td><code>receipts log</code></td><td>Render archived run history as a per-metric trend across runs, one row per period. Read-only; exit 0.</td></tr>
           <tr><td><code>receipts doctor</code></td><td>Integration self-check with actionable fixes: Python version, key present and untracked, <code>.gitignore</code> coverage, chain verifies. Exit 0 = healthy.</td></tr>
           <tr><td><code>receipts export</code></td><td>Write <code>receipts/table.json</code>, the canonical attested table for the data tab. Refuses if the data does not match the final receipt.</td></tr>
           <tr><td><code>receipts serve</code></td><td>Serve <code>receipts/</code> on localhost with CORS, for development.</td></tr>
@@ -104,6 +106,9 @@
           <tr><td><code>--origin "&lt;text&gt;"</code></td><td>ingest</td><td>Free-text label for the source, shown to humans in the signal UI.</td></tr>
           <tr><td><code>--key &lt;path&gt;</code></td><td>ingest</td><td>Private signing key. Overridden by the <code>TAMPER_SIGNAL_KEY</code> environment variable when set.</td></tr>
           <tr><td><code>--out &lt;dir&gt;</code></td><td>ingest</td><td>Receipts directory to write into.</td></tr>
+          <tr><td><code>--band &lt;pct&gt;</code></td><td>ingest</td><td>Tolerance band for cross-run drift, e.g. <code>5%</code> or <code>0.05</code>. Signed into the manifest; defaults the settling window to 72h.</td></tr>
+          <tr><td><code>--settle &lt;hours&gt;</code></td><td>ingest</td><td>Settling window, e.g. <code>72h</code> or <code>3d</code>. Recent buckets may drift within the band; settled buckets may not. Defaults the band to 0.05.</td></tr>
+          <tr><td><code>--bucket-column &lt;name&gt;</code></td><td>ingest</td><td>Date column to key per-period buckets off. Omit it and a single date-shaped column is detected automatically.</td></tr>
           <tr><td><code>--pub &lt;path&gt;</code></td><td>verify</td><td>Public key to trust. Repeats: any listed key verifies, which is how key rotation works.</td></tr>
           <tr><td><code>--data &lt;file&gt;</code></td><td>verify</td><td>Check the file the dashboard reads against the final receipt.</td></tr>
           <tr><td><code>--warn-drift</code></td><td>verify</td><td>Flag any control-total movement across links as a yellow caveat. Off by default, because filters and aggregations legitimately move totals.</td></tr>
@@ -132,6 +137,8 @@
           <tr><td><code>receipts init</code></td><td><code>tamper-signal keygen</code> (the <code>receipts/</code> dir is created on first ingest)</td></tr>
           <tr><td><code>receipts ingest</code></td><td><code>tamper-signal ingest</code></td></tr>
           <tr><td><code>receipts verify</code></td><td><code>tamper-signal verify</code></td></tr>
+          <tr><td><code>receipts diff</code></td><td><code>tamper-signal diff</code></td></tr>
+          <tr><td><code>receipts log</code></td><td><code>tamper-signal log</code></td></tr>
           <tr><td><code>receipts export</code></td><td><code>tamper-signal export</code></td></tr>
           <tr><td><code>receipts serve</code></td><td>your bundler's static server, or <code>tamper-signal/express</code></td></tr>
           <tr><td><code>receipts doctor</code></td><td><code>tamper-signal verify</code> (exit 0 = healthy)</td></tr>
@@ -145,12 +152,13 @@
     <pre><code>{
   <span class="s">"verdict"</span>: <span class="s">"green"</span>,            <span class="c">// green | yellow | red</span>
   <span class="s">"exit_code"</span>: 0,
-  <span class="s">"spec_version"</span>: <span class="s">"1.1"</span>,
+  <span class="s">"spec_version"</span>: <span class="s">"1.2"</span>,
   <span class="s">"receipts"</span>: 3,
   <span class="s">"transforms"</span>: 2,
   <span class="s">"stages"</span>: [<span class="s">"source"</span>, <span class="s">"clean"</span>, <span class="s">"aggregate"</span>],
   <span class="s">"final_row_count"</span>: 304,
   <span class="s">"caveats"</span>: [],
+  <span class="s">"caveat_details"</span>: [],      <span class="c">// typed period-over-period findings; [] when none</span>
   <span class="s">"broken_link"</span>: {           <span class="c">// null when green</span>
     <span class="s">"link"</span>: [1, 2],
     <span class="s">"stage"</span>: <span class="s">"aggregate"</span>,
@@ -163,6 +171,10 @@
   <span class="s">"report"</span>: [<span class="s">"human-legible lines"</span>],
   <span class="s">"anchor"</span>: []               <span class="c">// only when --anchor passed</span>
 }</code></pre>
+    <div class="callout note">
+      <span class="co-label">Period-over-period caveats</span>
+      <p>When a tolerance is declared at ingest, a recurring refresh can earn extra yellow caveats, each with a typed entry in <code>caveat_details</code>: <strong>band breach</strong> (a recent bucket drifted beyond the declared band), <strong>settled movement</strong> (a bucket older than the settling window changed at all), <strong>bucket removed</strong> (an interior period present last run is gone this run), and <strong>bucket loss</strong> (the bucket column is no longer detected, so period judgment is unavailable). Each entry names the metric, the bucket count, and the worst bucket with before, after, and delta. These are still yellow, never red.</p>
+    </div>
 
     <div class="doc-next">
       <a class="dn-l" href="/docs/quickstart.html">

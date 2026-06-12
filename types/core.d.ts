@@ -11,6 +11,15 @@ export type Verdict = "green" | "yellow" | "red" | "unverifiable";
 /** Signal state including the transient pre-result "checking". */
 export type SignalState = Verdict | "checking";
 
+/** One per-UTC-day bucket inside period_buckets (spec 1.2). */
+export interface PeriodBucket {
+  row_count: number;
+  /** column -> exact decimal sum for this bucket (every numeric column). */
+  numeric_sums: Record<string, string>;
+  /** column -> null count; only columns with at least one null here. */
+  null_counts: Record<string, number>;
+}
+
 /** Human-legible control totals attached to every receipt. */
 export interface ControlTotals {
   row_count: number;
@@ -21,11 +30,24 @@ export interface ControlTotals {
   date_ranges: Record<string, { min: string; max: string }>;
   /** column -> count of null/blank cells. */
   null_counts: Record<string, number>;
+  /** Present when a bucket column resolved (spec 1.2). */
+  bucket_column?: string;
+  /** UTC day (or "_unbucketed") -> per-period totals (spec 1.2). */
+  period_buckets?: Record<string, PeriodBucket>;
 }
 
 export interface ReceiptSignature {
   key_fingerprint?: string;
   [key: string]: unknown;
+}
+
+/** The producer's signed continuity expectation (spec 1.2, ingest flags). */
+export interface ToleranceDeclaration {
+  /** Plain decimal string, e.g. "0.05" (floats never enter signed bodies). */
+  band: string;
+  settle_hours: number;
+  /** Present when the producer declared the bucket column explicitly. */
+  bucket_column?: string;
 }
 
 export interface SourceManifest {
@@ -40,6 +62,8 @@ export interface SourceManifest {
   };
   semantic_hash: string;
   control_totals: ControlTotals;
+  /** Present only when declared at ingest; covered by the signature. */
+  tolerance?: ToleranceDeclaration;
   signature?: ReceiptSignature;
 }
 
@@ -55,6 +79,50 @@ export interface TransformReceipt {
 }
 
 export type Receipt = SourceManifest | TransformReceipt;
+
+/** One stage entry inside a run snapshot. */
+export interface SnapshotStage {
+  name: string;
+  /** The receipt kind, or null when the receipt carried none. */
+  kind: string | null;
+  /** Transform receipts only, when the receipt recorded one. */
+  code_hash?: string;
+  code_file?: string;
+  totals: ControlTotals;
+}
+
+/**
+ * A compact, content-addressed record of one verified run, archived to
+ * `<chain dir>/history/<body-hash>.json` by CLI verifies with a non-red
+ * final verdict (and by rebuildChain). Signed when a private key was
+ * available, unsigned otherwise; unsigned snapshots are weaker evidence.
+ */
+export interface RunSnapshot {
+  kind: "run_snapshot";
+  spec_version: string;
+  created_at: string;
+  /** The sha256 chain.json records for the LAST receipt file of the run. */
+  chain_tail_hash: string;
+  source: {
+    filename: string;
+    declared_origin: string;
+    /** Sorted normalized column names visible in the source control totals. */
+    columns: string[];
+  };
+  /**
+   * Display-only copy of the manifest declaration; cross-run judgment reads
+   * the band from the SIGNED source manifest in the chain, never from here.
+   */
+  tolerance?: ToleranceDeclaration;
+  stages: SnapshotStage[];
+  /**
+   * Baseline-advancement guard from cross-run judgment: bucket key (or the
+   * "whole-table" sentinel) -> the metric ids this run's judgment flagged as
+   * band breaches or settled movement. Absent means nothing breached.
+   */
+  breached?: Record<string, string[]>;
+  signature?: ReceiptSignature;
+}
 
 /**
  * The canonical table document (table.json): normalized headers and canonical

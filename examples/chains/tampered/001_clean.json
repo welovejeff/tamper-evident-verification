@@ -1,7 +1,7 @@
 {
   "kind": "transform_receipt",
-  "spec_version": "1.1",
-  "created_at": "2026-06-10T23:24:57Z",
+  "spec_version": "1.2",
+  "created_at": "2026-06-12T16:04:24Z",
   "transform": {
     "name": "clean",
     "code_hash": "d0ce5ce47e198f7b6cfc2f92643ff90f458aec500cfbd2646b47a935f7099ed1",
@@ -23,11 +23,293 @@
         "max": "2026-05-31"
       }
     },
-    "null_counts": {}
+    "null_counts": {},
+    "bucket_column": "date",
+    "period_buckets": {
+      "2026-05-01": {
+        "row_count": 145,
+        "numeric_sums": {
+          "impressions": "3397994",
+          "clicks": "166067",
+          "spend_usd": "60901.85"
+        },
+        "null_counts": {}
+      },
+      "2026-05-02": {
+        "row_count": 130,
+        "numeric_sums": {
+          "impressions": "3211749",
+          "clicks": "160216",
+          "spend_usd": "49748.72"
+        },
+        "null_counts": {}
+      },
+      "2026-05-03": {
+        "row_count": 165,
+        "numeric_sums": {
+          "impressions": "4369115",
+          "clicks": "226348",
+          "spend_usd": "72612.5"
+        },
+        "null_counts": {}
+      },
+      "2026-05-04": {
+        "row_count": 155,
+        "numeric_sums": {
+          "impressions": "4207282",
+          "clicks": "206349",
+          "spend_usd": "63528.32"
+        },
+        "null_counts": {}
+      },
+      "2026-05-05": {
+        "row_count": 164,
+        "numeric_sums": {
+          "impressions": "4527428",
+          "clicks": "236314",
+          "spend_usd": "71327.89"
+        },
+        "null_counts": {}
+      },
+      "2026-05-06": {
+        "row_count": 135,
+        "numeric_sums": {
+          "impressions": "3533826",
+          "clicks": "158783",
+          "spend_usd": "58645.77"
+        },
+        "null_counts": {}
+      },
+      "2026-05-07": {
+        "row_count": 162,
+        "numeric_sums": {
+          "impressions": "4260044",
+          "clicks": "203902",
+          "spend_usd": "63186.57"
+        },
+        "null_counts": {}
+      },
+      "2026-05-08": {
+        "row_count": 150,
+        "numeric_sums": {
+          "impressions": "3619311",
+          "clicks": "184618",
+          "spend_usd": "64050.06"
+        },
+        "null_counts": {}
+      },
+      "2026-05-09": {
+        "row_count": 146,
+        "numeric_sums": {
+          "impressions": "3775781",
+          "clicks": "188961",
+          "spend_usd": "55680.93"
+        },
+        "null_counts": {}
+      },
+      "2026-05-10": {
+        "row_count": 164,
+        "numeric_sums": {
+          "impressions": "4071970",
+          "clicks": "201748",
+          "spend_usd": "67470.74"
+        },
+        "null_counts": {}
+      },
+      "2026-05-11": {
+        "row_count": 188,
+        "numeric_sums": {
+          "impressions": "5228048",
+          "clicks": "271040",
+          "spend_usd": "77656.37"
+        },
+        "null_counts": {}
+      },
+      "2026-05-12": {
+        "row_count": 153,
+        "numeric_sums": {
+          "impressions": "3723368",
+          "clicks": "170236",
+          "spend_usd": "62864.57"
+        },
+        "null_counts": {}
+      },
+      "2026-05-13": {
+        "row_count": 161,
+        "numeric_sums": {
+          "impressions": "4061608",
+          "clicks": "195771",
+          "spend_usd": "60864.27"
+        },
+        "null_counts": {}
+      },
+      "2026-05-14": {
+        "row_count": 141,
+        "numeric_sums": {
+          "impressions": "3425926",
+          "clicks": "170390",
+          "spend_usd": "58493.28"
+        },
+        "null_counts": {}
+      },
+      "2026-05-15": {
+        "row_count": 202,
+        "numeric_sums": {
+          "impressions": "4831125",
+          "clicks": "240449",
+          "spend_usd": "82203.67"
+        },
+        "null_counts": {}
+      },
+      "2026-05-16": {
+        "row_count": 154,
+        "numeric_sums": {
+          "impressions": "3939483",
+          "clicks": "194379",
+          "spend_usd": "65084.42"
+        },
+        "null_counts": {}
+      },
+      "2026-05-17": {
+        "row_count": 174,
+        "numeric_sums": {
+          "impressions": "4441024",
+          "clicks": "219027",
+          "spend_usd": "73702.32"
+        },
+        "null_counts": {}
+      },
+      "2026-05-18": {
+        "row_count": 174,
+        "numeric_sums": {
+          "impressions": "4608598",
+          "clicks": "249483",
+          "spend_usd": "69017.58"
+        },
+        "null_counts": {}
+      },
+      "2026-05-19": {
+        "row_count": 171,
+        "numeric_sums": {
+          "impressions": "4517067",
+          "clicks": "229983",
+          "spend_usd": "69102.72"
+        },
+        "null_counts": {}
+      },
+      "2026-05-20": {
+        "row_count": 138,
+        "numeric_sums": {
+          "impressions": "3598454",
+          "clicks": "160737",
+          "spend_usd": "52694.7"
+        },
+        "null_counts": {}
+      },
+      "2026-05-21": {
+        "row_count": 167,
+        "numeric_sums": {
+          "impressions": "4561344",
+          "clicks": "233909",
+          "spend_usd": "64620.13"
+        },
+        "null_counts": {}
+      },
+      "2026-05-22": {
+        "row_count": 191,
+        "numeric_sums": {
+          "impressions": "4722679",
+          "clicks": "238752",
+          "spend_usd": "78733.24"
+        },
+        "null_counts": {}
+      },
+      "2026-05-23": {
+        "row_count": 158,
+        "numeric_sums": {
+          "impressions": "4267680",
+          "clicks": "205262",
+          "spend_usd": "63423.92"
+        },
+        "null_counts": {}
+      },
+      "2026-05-24": {
+        "row_count": 135,
+        "numeric_sums": {
+          "impressions": "3439297",
+          "clicks": "177545",
+          "spend_usd": "51811.13"
+        },
+        "null_counts": {}
+      },
+      "2026-05-25": {
+        "row_count": 169,
+        "numeric_sums": {
+          "impressions": "4350375",
+          "clicks": "237786",
+          "spend_usd": "65304.11"
+        },
+        "null_counts": {}
+      },
+      "2026-05-26": {
+        "row_count": 164,
+        "numeric_sums": {
+          "impressions": "4305918",
+          "clicks": "226857",
+          "spend_usd": "64887.5"
+        },
+        "null_counts": {}
+      },
+      "2026-05-27": {
+        "row_count": 173,
+        "numeric_sums": {
+          "impressions": "4106728",
+          "clicks": "211133",
+          "spend_usd": "63407.19"
+        },
+        "null_counts": {}
+      },
+      "2026-05-28": {
+        "row_count": 153,
+        "numeric_sums": {
+          "impressions": "3516396",
+          "clicks": "185845",
+          "spend_usd": "61599.03"
+        },
+        "null_counts": {}
+      },
+      "2026-05-29": {
+        "row_count": 166,
+        "numeric_sums": {
+          "impressions": "4227738",
+          "clicks": "214216",
+          "spend_usd": "68108.43"
+        },
+        "null_counts": {}
+      },
+      "2026-05-30": {
+        "row_count": 170,
+        "numeric_sums": {
+          "impressions": "4219541",
+          "clicks": "201687",
+          "spend_usd": "70425.43"
+        },
+        "null_counts": {}
+      },
+      "2026-05-31": {
+        "row_count": 169,
+        "numeric_sums": {
+          "impressions": "4111730",
+          "clicks": "191547",
+          "spend_usd": "69126.11"
+        },
+        "null_counts": {}
+      }
+    }
   },
   "signature": {
     "alg": "ed25519",
-    "key_fingerprint": "4eb2080aefa12a53",
-    "value": "67a7fbe85d2d5d80cf5b76b12bdf0982caf1c88d21a6931d682e7ab54bd21bf03f4283242f2a989d5bfda6a9a039d5028f69fb8c4e0c6e172a71e2d42333de07"
+    "key_fingerprint": "8e46b6dbff8b17cf",
+    "value": "fe2240e2b8dfcb3efba82aa269b4a95c9433ca7aef338e995bf102b12a4d9812aa34b58a44562f6e58c7a15c67ee2f3a95c943ed47e3e154b1a0fb50ff8bed0d"
   }
 }

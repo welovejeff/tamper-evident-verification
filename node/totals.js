@@ -3,6 +3,7 @@
 // (BigInt) and serialize through the same quantizer as cell normalization.
 
 import {
+  codePointCompare,
   coerceDecimal,
   decimalToPlainString,
   normalizeCell,
@@ -11,6 +12,73 @@ import {
 } from "./canonical.js";
 
 const TYPE_THRESHOLD = 0.9;
+
+// ISO shapes recognized for BUCKETING ONLY (period_buckets). Canonicalization
+// (canonical.js) is untouched: a date-shaped string still canonicalizes as a
+// string, so semantic hashes do not move. The shapes are strict, mirroring
+// tamper_signal/totals.py:
+//   date:     YYYY-MM-DD
+//   datetime: YYYY-MM-DD then "T" or " ", HH:MM, optional :SS, optional .fff,
+//             optional "Z" or +HH:MM/-HH:MM offset.
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const ISO_DATETIME_RE =
+  /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(?:(Z)|([+-])(\d{2}):(\d{2}))?$/;
+
+// Bucket key for rows whose bucket-column value is null or unparseable.
+export const UNBUCKETED_KEY = "_unbucketed";
+
+// Calendar validation mirroring Python's date.fromisoformat: real months,
+// real days (leap years included), year >= 1.
+function isRealDate(year, month, day) {
+  if (year < 1 || month < 1 || month > 12 || day < 1) return false;
+  const leap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+  const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return day <= days[month - 1];
+}
+
+// Canonical UTC day key (YYYY-MM-DD) for a normalized cell, or null.
+//
+// Typed Dates arrive already normalized by normalizeCell, which applies
+// canonical.js rules: UTC formatting and midnight collapse to the bare date.
+// Date-shaped strings (which stay strings under canonicalization) are parsed
+// here under the SAME rules: naive datetimes are assumed UTC, aware ones
+// convert to UTC, and the key is the date component after that normalization.
+// Strings that match a shape but do not parse as a real date (e.g. month 13)
+// return null, mirroring Python's ValueError path.
+function bucketKeyFor(normalized) {
+  if (typeof normalized !== "string") return null;
+  if (ISO_DATE_RE.test(normalized)) {
+    const year = Number(normalized.slice(0, 4));
+    const month = Number(normalized.slice(5, 7));
+    const day = Number(normalized.slice(8, 10));
+    return isRealDate(year, month, day) ? normalized : null;
+  }
+  const m = ISO_DATETIME_RE.exec(normalized);
+  if (!m) return null;
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  const hour = Number(m[4]);
+  const minute = Number(m[5]);
+  const second = m[6] === undefined ? 0 : Number(m[6]);
+  if (!isRealDate(year, month, day)) return null;
+  if (hour > 23 || minute > 59 || second > 59) return null;
+  let offsetMinutes = 0;
+  if (m[8] !== undefined) {
+    const offHour = Number(m[9]);
+    const offMinute = Number(m[10]);
+    // Python's timezone rejects offsets of 24 hours or more.
+    if (offHour > 23 || offMinute > 59) return null;
+    offsetMinutes = (m[8] === "-" ? -1 : 1) * (offHour * 60 + offMinute);
+  }
+  // Build the instant via a scaffold leap year so years below 100 are not
+  // remapped by Date.UTC, then shift to UTC by subtracting the offset.
+  const instant = new Date(Date.UTC(2000, month - 1, day, hour, minute, second));
+  instant.setUTCFullYear(year);
+  const utc = new Date(instant.getTime() - offsetMinutes * 60000);
+  const pad = (n, w = 2) => String(n).padStart(w, "0");
+  return `${pad(utc.getUTCFullYear(), 4)}-${pad(utc.getUTCMonth() + 1)}-${pad(utc.getUTCDate())}`;
+}
 
 // Normalize record keys once and capture first-seen column order. Shared by
 // controlTotals and groupedNumericColumns so the two can never disagree on what
@@ -33,12 +101,60 @@ function normalizedRecords(records) {
   return { columns, normRecords };
 }
 
-export function controlTotals(records) {
+// Aggregate per-UTC-day buckets keyed off bucketColumn, mirroring Python's
+// _period_buckets. Column classification happened ONCE on the whole table
+// (the caller passes numericColumns from it), so per-bucket numeric_sums
+// always sum to the whole-table sums. Rows whose bucket value is null or
+// unparseable land under UNBUCKETED_KEY. All sums stay exact decimals
+// ({v, exp} BigInt pairs) until serialization.
+function periodBuckets(normRecords, bucketColumn, columns, numericColumns) {
+  const rowCounts = new Map();
+  const sums = new Map();
+  const nulls = new Map();
+
+  for (const record of normRecords) {
+    let key = bucketKeyFor(normalizeCell(record[bucketColumn] ?? null));
+    if (key === null) key = UNBUCKETED_KEY;
+    rowCounts.set(key, (rowCounts.get(key) ?? 0) + 1);
+    if (!sums.has(key)) {
+      sums.set(key, new Map(numericColumns.map((c) => [c, { v: 0n, exp: 0 }])));
+      nulls.set(key, {});
+    }
+    const bucketSums = sums.get(key);
+    const bucketNulls = nulls.get(key);
+    for (const column of numericColumns) {
+      const d = coerceDecimal(record[column] ?? null);
+      if (d !== null) bucketSums.set(column, sumDecimals([bucketSums.get(column), d]));
+    }
+    for (const column of columns) {
+      if (normalizeCell(record[column] ?? null) === null) {
+        bucketNulls[column] = (bucketNulls[column] ?? 0) + 1;
+      }
+    }
+  }
+
+  const out = {};
+  for (const key of [...rowCounts.keys()].sort(codePointCompare)) {
+    const numericSums = {};
+    for (const column of numericColumns) {
+      numericSums[column] = decimalToPlainString(sums.get(key).get(column));
+    }
+    out[key] = {
+      row_count: rowCounts.get(key),
+      numeric_sums: numericSums,
+      null_counts: nulls.get(key),
+    };
+  }
+  return out;
+}
+
+export function controlTotals(records, { bucketColumn = null } = {}) {
   const { columns, normRecords } = normalizedRecords(records);
 
   const nullCounts = {};
   const numericSums = {};
   const dateRanges = {};
+  const bucketCandidates = [];
 
   for (const column of columns) {
     const nonNull = [];
@@ -50,6 +166,11 @@ export function controlTotals(records) {
     }
     if (nulls > 0) nullCounts[column] = nulls;
     if (!nonNull.length) continue;
+
+    // Bucket-column detection (bucketing only; canonicalization untouched):
+    // typed Dates and ISO-shaped date strings both count.
+    const dateShaped = nonNull.filter((v) => bucketKeyFor(normalizeCell(v)) !== null).length;
+    if (dateShaped / nonNull.length >= TYPE_THRESHOLD) bucketCandidates.push(column);
 
     const decimals = nonNull.map(coerceDecimal).filter((d) => d !== null);
     if (decimals.length / nonNull.length >= TYPE_THRESHOLD) {
@@ -72,13 +193,49 @@ export function controlTotals(records) {
     }
   }
 
-  return {
+  const totals = {
     row_count: records.length,
     column_count: columns.length,
     numeric_sums: numericSums,
     date_ranges: dateRanges,
     null_counts: nullCounts,
   };
+
+  // Resolve the bucket column, mirroring Python's control_totals: an explicit
+  // override must qualify (throw otherwise); without one, exactly one
+  // qualifying column buckets automatically; with several or none, no buckets.
+  let resolved = null;
+  if (bucketColumn !== null && bucketColumn !== undefined) {
+    // A declared column always wins, even when it spans a single day: the
+    // author asked for it explicitly.
+    resolved = normalizeHeader(bucketColumn);
+    if (!bucketCandidates.includes(resolved)) {
+      throw new Error(
+        `bucket column '${resolved}' does not qualify: fewer than 90% of ` +
+          "its non-null values are dates or ISO-shaped date strings"
+      );
+    }
+  } else if (bucketCandidates.length === 1) {
+    // Auto-selection guard: a real period axis spans multiple days, so a
+    // qualifying column only auto-buckets when it yields at least two distinct
+    // bucket dates. A constant or ID-shaped date column (one distinct day) is
+    // far more likely a coincidence than a period axis; the author can still
+    // force it with --bucket-column. Mirrors tamper_signal/totals.py.
+    const candidate = bucketCandidates[0];
+    const distinctDays = new Set();
+    for (const record of normRecords) {
+      const key = bucketKeyFor(normalizeCell(record[candidate] ?? null));
+      if (key !== null) distinctDays.add(key);
+    }
+    if (distinctDays.size >= 2) resolved = candidate;
+  }
+
+  if (resolved !== null) {
+    totals.bucket_column = resolved;
+    totals.period_buckets = periodBuckets(normRecords, resolved, columns, Object.keys(numericSums));
+  }
+
+  return totals;
 }
 
 // Thousands-grouped numbers ("289,084", "1,198,372", "1 198 372") are an
@@ -132,6 +289,108 @@ export function groupedNumericColumns(records) {
 }
 
 const sortedUnion = (a, b) => [...new Set([...Object.keys(a), ...Object.keys(b)])].sort();
+
+const dictAt = (totals, key) => {
+  const value = totals[key];
+  return value !== null && typeof value === "object" && !Array.isArray(value) ? value : {};
+};
+
+const isInt = (value) => typeof value === "number" && Number.isInteger(value);
+
+// Structural equality matching Python's dict/list ==, for attacker-controlled
+// totals sub-objects (date ranges, bucket entries) regardless of key order.
+function deepEqual(x, y) {
+  if (x === y) return true;
+  if (x === null || y === null || typeof x !== "object" || typeof y !== "object") return false;
+  if (Array.isArray(x) !== Array.isArray(y)) return false;
+  if (Array.isArray(x)) {
+    return x.length === y.length && x.every((v, i) => deepEqual(v, y[i]));
+  }
+  const keys = Object.keys(x);
+  if (keys.length !== Object.keys(y).length) return false;
+  return keys.every((k) => k in y && deepEqual(x[k], y[k]));
+}
+
+// Structured, machine-readable delta between two control totals: the Node
+// port of tamper_signal/totals.py structured_totals_delta. Feeds
+// `tamper-signal diff`. Only keys that CHANGED appear; an empty object means
+// no movement. Key insertion order is fixed and shared with Python so
+// serialized output matches across stacks. The existing totalsDelta strings
+// stay untouched (they feed verify's red report and the documented JSON).
+export function structuredTotalsDelta(a, b) {
+  const delta = {};
+
+  for (const key of ["row_count", "column_count"]) {
+    const before = a[key];
+    const after = b[key];
+    if (before !== after) {
+      const entry = { before: before ?? null, after: after ?? null };
+      if (isInt(before) && isInt(after)) entry.delta = after - before;
+      delta[key] = entry;
+    }
+  }
+
+  const upSums = dictAt(a, "numeric_sums");
+  const downSums = dictAt(b, "numeric_sums");
+  const sums = {};
+  for (const column of [...new Set([...Object.keys(upSums), ...Object.keys(downSums)])].sort(codePointCompare)) {
+    const before = upSums[column];
+    const after = downSums[column];
+    if (before === after) continue;
+    const entry = { before: before ?? null, after: after ?? null };
+    if (typeof before === "string" && typeof after === "string") {
+      const beforeDec = coerceDecimal(before);
+      const afterDec = coerceDecimal(after);
+      if (beforeDec && afterDec) {
+        // Sums in receipt JSON are attacker-controlled; unparseable values
+        // report before/after without a computed delta, never a crash.
+        entry.delta = decimalToPlainString(sumDecimals([afterDec, { v: -beforeDec.v, exp: beforeDec.exp }]));
+      }
+    }
+    sums[column] = entry;
+  }
+  if (Object.keys(sums).length) delta.numeric_sums = sums;
+
+  const upNulls = dictAt(a, "null_counts");
+  const downNulls = dictAt(b, "null_counts");
+  const nulls = {};
+  for (const column of [...new Set([...Object.keys(upNulls), ...Object.keys(downNulls)])].sort(codePointCompare)) {
+    const before = upNulls[column] ?? 0;
+    const after = downNulls[column] ?? 0;
+    if (before === after) continue;
+    const entry = { before, after };
+    if (isInt(before) && isInt(after)) entry.delta = after - before;
+    nulls[column] = entry;
+  }
+  if (Object.keys(nulls).length) delta.null_counts = nulls;
+
+  const upRanges = dictAt(a, "date_ranges");
+  const downRanges = dictAt(b, "date_ranges");
+  const ranges = {};
+  for (const column of [...new Set([...Object.keys(upRanges), ...Object.keys(downRanges)])].sort(codePointCompare)) {
+    const before = upRanges[column];
+    const after = downRanges[column];
+    if (deepEqual(before ?? null, after ?? null)) continue;
+    ranges[column] = {
+      before: before !== null && typeof before === "object" && !Array.isArray(before) ? before : null,
+      after: after !== null && typeof after === "object" && !Array.isArray(after) ? after : null,
+    };
+  }
+  if (Object.keys(ranges).length) delta.date_ranges = ranges;
+
+  const hasBuckets = (t) =>
+    t.period_buckets !== null && typeof t.period_buckets === "object" && !Array.isArray(t.period_buckets);
+  if (hasBuckets(a) || hasBuckets(b)) {
+    const upBuckets = hasBuckets(a) ? a.period_buckets : {};
+    const downBuckets = hasBuckets(b) ? b.period_buckets : {};
+    const moved = [...new Set([...Object.keys(upBuckets), ...Object.keys(downBuckets)])]
+      .filter((key) => !deepEqual(upBuckets[key] ?? null, downBuckets[key] ?? null))
+      .sort(codePointCompare);
+    if (moved.length) delta.period_buckets_changed = moved;
+  }
+
+  return delta;
+}
 
 // Human-legible lines describing only what changed, mirroring totals_delta
 // (including the computed numeric diff, which badge.js omits).

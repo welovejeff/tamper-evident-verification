@@ -1,11 +1,11 @@
 {
   "kind": "source_manifest",
-  "spec_version": "1.1",
-  "created_at": "2026-06-10T23:24:57Z",
+  "spec_version": "1.2",
+  "created_at": "2026-06-12T16:04:24Z",
   "source": {
     "filename": "sample_export.xlsx",
-    "evidence_hash": "402ae9682341625d1013fa3b81ae956cbc3490c76612adbced2c5716a2627f7e",
-    "byte_size": 180561,
+    "evidence_hash": "dc845d8a5ab6e0cebc146b8906f024cbe368b9089e321b230d5c3cbd7bd178ad",
+    "byte_size": 180560,
     "declared_origin": "Sample social export, May 2026"
   },
   "semantic_hash": "6112c042990f87f98d2e2d4cc0a03327f71525049118a10971c475904bb2354c",
@@ -25,11 +25,317 @@
     },
     "null_counts": {
       "campaign_name": 13
+    },
+    "bucket_column": "date",
+    "period_buckets": {
+      "2026-05-01": {
+        "row_count": 145,
+        "numeric_sums": {
+          "impressions": "3397994",
+          "clicks": "166067",
+          "spend_usd": "60901.85"
+        },
+        "null_counts": {}
+      },
+      "2026-05-02": {
+        "row_count": 130,
+        "numeric_sums": {
+          "impressions": "3211749",
+          "clicks": "160216",
+          "spend_usd": "49748.72"
+        },
+        "null_counts": {}
+      },
+      "2026-05-03": {
+        "row_count": 165,
+        "numeric_sums": {
+          "impressions": "4369115",
+          "clicks": "226348",
+          "spend_usd": "72612.5"
+        },
+        "null_counts": {}
+      },
+      "2026-05-04": {
+        "row_count": 155,
+        "numeric_sums": {
+          "impressions": "4207282",
+          "clicks": "206349",
+          "spend_usd": "63528.32"
+        },
+        "null_counts": {}
+      },
+      "2026-05-05": {
+        "row_count": 165,
+        "numeric_sums": {
+          "impressions": "4575034",
+          "clicks": "239876",
+          "spend_usd": "71544.18"
+        },
+        "null_counts": {
+          "campaign_name": 1
+        }
+      },
+      "2026-05-06": {
+        "row_count": 135,
+        "numeric_sums": {
+          "impressions": "3533826",
+          "clicks": "158783",
+          "spend_usd": "58645.77"
+        },
+        "null_counts": {}
+      },
+      "2026-05-07": {
+        "row_count": 163,
+        "numeric_sums": {
+          "impressions": "4291475",
+          "clicks": "206104",
+          "spend_usd": "63283.15"
+        },
+        "null_counts": {
+          "campaign_name": 1
+        }
+      },
+      "2026-05-08": {
+        "row_count": 150,
+        "numeric_sums": {
+          "impressions": "3619311",
+          "clicks": "184618",
+          "spend_usd": "64050.06"
+        },
+        "null_counts": {}
+      },
+      "2026-05-09": {
+        "row_count": 147,
+        "numeric_sums": {
+          "impressions": "3802896",
+          "clicks": "190721",
+          "spend_usd": "56305.03"
+        },
+        "null_counts": {
+          "campaign_name": 1
+        }
+      },
+      "2026-05-10": {
+        "row_count": 165,
+        "numeric_sums": {
+          "impressions": "4073666",
+          "clicks": "201841",
+          "spend_usd": "67812.69"
+        },
+        "null_counts": {
+          "campaign_name": 1
+        }
+      },
+      "2026-05-11": {
+        "row_count": 188,
+        "numeric_sums": {
+          "impressions": "5228048",
+          "clicks": "271040",
+          "spend_usd": "77656.37"
+        },
+        "null_counts": {}
+      },
+      "2026-05-12": {
+        "row_count": 153,
+        "numeric_sums": {
+          "impressions": "3723368",
+          "clicks": "170236",
+          "spend_usd": "62864.57"
+        },
+        "null_counts": {}
+      },
+      "2026-05-13": {
+        "row_count": 162,
+        "numeric_sums": {
+          "impressions": "4089231",
+          "clicks": "196887",
+          "spend_usd": "61297.57"
+        },
+        "null_counts": {
+          "campaign_name": 1
+        }
+      },
+      "2026-05-14": {
+        "row_count": 142,
+        "numeric_sums": {
+          "impressions": "3438327",
+          "clicks": "171064",
+          "spend_usd": "58530.7"
+        },
+        "null_counts": {
+          "campaign_name": 1
+        }
+      },
+      "2026-05-15": {
+        "row_count": 202,
+        "numeric_sums": {
+          "impressions": "4831125",
+          "clicks": "240449",
+          "spend_usd": "82203.67"
+        },
+        "null_counts": {}
+      },
+      "2026-05-16": {
+        "row_count": 155,
+        "numeric_sums": {
+          "impressions": "3975498",
+          "clicks": "195285",
+          "spend_usd": "65673.55"
+        },
+        "null_counts": {
+          "campaign_name": 1
+        }
+      },
+      "2026-05-17": {
+        "row_count": 174,
+        "numeric_sums": {
+          "impressions": "4441024",
+          "clicks": "219027",
+          "spend_usd": "73702.32"
+        },
+        "null_counts": {}
+      },
+      "2026-05-18": {
+        "row_count": 174,
+        "numeric_sums": {
+          "impressions": "4608598",
+          "clicks": "249483",
+          "spend_usd": "69017.58"
+        },
+        "null_counts": {}
+      },
+      "2026-05-19": {
+        "row_count": 172,
+        "numeric_sums": {
+          "impressions": "4564375",
+          "clicks": "233377",
+          "spend_usd": "69678.75"
+        },
+        "null_counts": {
+          "campaign_name": 1
+        }
+      },
+      "2026-05-20": {
+        "row_count": 138,
+        "numeric_sums": {
+          "impressions": "3598454",
+          "clicks": "160737",
+          "spend_usd": "52694.7"
+        },
+        "null_counts": {}
+      },
+      "2026-05-21": {
+        "row_count": 168,
+        "numeric_sums": {
+          "impressions": "4599254",
+          "clicks": "236575",
+          "spend_usd": "64724.85"
+        },
+        "null_counts": {
+          "campaign_name": 1
+        }
+      },
+      "2026-05-22": {
+        "row_count": 191,
+        "numeric_sums": {
+          "impressions": "4722679",
+          "clicks": "238752",
+          "spend_usd": "78733.24"
+        },
+        "null_counts": {}
+      },
+      "2026-05-23": {
+        "row_count": 159,
+        "numeric_sums": {
+          "impressions": "4271745",
+          "clicks": "205288",
+          "spend_usd": "63566.58"
+        },
+        "null_counts": {
+          "campaign_name": 1
+        }
+      },
+      "2026-05-24": {
+        "row_count": 135,
+        "numeric_sums": {
+          "impressions": "3439297",
+          "clicks": "177545",
+          "spend_usd": "51811.13"
+        },
+        "null_counts": {}
+      },
+      "2026-05-25": {
+        "row_count": 171,
+        "numeric_sums": {
+          "impressions": "4393112",
+          "clicks": "238287",
+          "spend_usd": "65848.53"
+        },
+        "null_counts": {
+          "campaign_name": 2
+        }
+      },
+      "2026-05-26": {
+        "row_count": 164,
+        "numeric_sums": {
+          "impressions": "4305918",
+          "clicks": "226857",
+          "spend_usd": "64887.5"
+        },
+        "null_counts": {}
+      },
+      "2026-05-27": {
+        "row_count": 173,
+        "numeric_sums": {
+          "impressions": "4106728",
+          "clicks": "211133",
+          "spend_usd": "63407.19"
+        },
+        "null_counts": {}
+      },
+      "2026-05-28": {
+        "row_count": 153,
+        "numeric_sums": {
+          "impressions": "3516396",
+          "clicks": "185845",
+          "spend_usd": "61599.03"
+        },
+        "null_counts": {}
+      },
+      "2026-05-29": {
+        "row_count": 166,
+        "numeric_sums": {
+          "impressions": "4227738",
+          "clicks": "214216",
+          "spend_usd": "68108.43"
+        },
+        "null_counts": {}
+      },
+      "2026-05-30": {
+        "row_count": 170,
+        "numeric_sums": {
+          "impressions": "4219541",
+          "clicks": "201687",
+          "spend_usd": "70425.43"
+        },
+        "null_counts": {}
+      },
+      "2026-05-31": {
+        "row_count": 170,
+        "numeric_sums": {
+          "impressions": "4120468",
+          "clicks": "192230",
+          "spend_usd": "69205.46"
+        },
+        "null_counts": {
+          "campaign_name": 1
+        }
+      }
     }
   },
   "signature": {
     "alg": "ed25519",
-    "key_fingerprint": "4eb2080aefa12a53",
-    "value": "5faaafe1c0093e72501b7616395bc997e07b4f6fcb460662e7177c77c796422aa65fc462864302760fbb8a76e1fa05215637b971f19186f8c71ea4f8f7b42903"
+    "key_fingerprint": "8e46b6dbff8b17cf",
+    "value": "c0b8de32446cac82d68c1a36671159c16d8d898e1c46d123b2afa85d9f91826223b34fbe11376e83ef2ba870492a860504a9d10f6ae05e41a7bba1b06201560c"
   }
 }

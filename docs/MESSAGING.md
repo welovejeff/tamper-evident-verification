@@ -68,6 +68,27 @@ Supporting second lines, for expanded badge states and CLI output:
 - Yellow: `Chain verifies, with caveats. Here's what we couldn't check.`
 - Red: `Broken at link 1 -> 2 (transform_aggregate). row_count 48212 -> 48190 (-22).`
 
+Yellow caveat taxonomy: alongside the existing yellow caveats (coverage gap,
+unrecognized signing key, opt-in totals drift, missing or unverifiable anchor),
+a declared tolerance adds four period-over-period caveats. Each locates exactly,
+never blames, stays lowercase, and uses no em dashes:
+
+- **band breach**: a recent bucket drifted beyond the declared band. *"totals
+  drift beyond declared band: amount breached in 1 bucket, worst 2026-06-12
+  (+1899.8%)"*
+- **settled movement**: a bucket older than the settling window changed at all.
+  *"settled period moved: amount changed in 1 settled bucket, worst 2026-05-02
+  (+100)"*
+- **bucket removed (interior)**: a period present in the previous run, sitting
+  between this run's first and last bucket, is absent now. *"period buckets
+  removed: 1 interior bucket present in the previous run is absent from this
+  run, worst 2026-05-02"*
+- **bucket loss**: the bucket column is no longer detected, so period judgment
+  cannot run. *"bucket column no longer detected; period judgment unavailable"*
+
+All four are yellow, never red: a number moving more than declared is a thing
+for a human to look at, not a broken chain.
+
 Rules: yellow never blames, it asks for eyes. Red never panics, it points. The
 red state is the product's best moment, not its worst: we found the break and we
 can show you where. Copy near red states should feel like a good error message,

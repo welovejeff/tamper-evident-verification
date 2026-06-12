@@ -1,5 +1,5 @@
 {
-  "generated_by": "python tamper_signal.canonical (spec 1.1); regenerate with the script in this file's git history",
+  "generated_by": "python scripts/make_vectors.py (spec 1.2); run from the repo root to regenerate",
   "vectors": [
     {
       "name": "mixed types, shuffled rows, numeric text, dates",
@@ -110,6 +110,168 @@
       ],
       "canonical": "{\"headers\":[\"a\",\"b\",\"c\",\"d\"],\"rows\":[[\"0\",\"0.000002\",\"0\",\"0\"]]}",
       "semantic_hash": "154bbdb4556dd3f8ad90a68c9c3c07c0a32c602c357da87db9bda04198e28325"
+    },
+    {
+      "name": "bucketing: typed-date column with numeric sums",
+      "records": [
+        {
+          "day": {
+            "__date__": "2026-05-01"
+          },
+          "amount": "10.50",
+          "category": "a"
+        },
+        {
+          "day": {
+            "__date__": "2026-05-01"
+          },
+          "amount": 5,
+          "category": "b"
+        },
+        {
+          "day": {
+            "__date__": "2026-05-02"
+          },
+          "amount": 20,
+          "category": null
+        },
+        {
+          "day": null,
+          "amount": 1,
+          "category": "c"
+        }
+      ],
+      "canonical": "{\"headers\":[\"amount\",\"category\",\"day\"],\"rows\":[[\"1\",\"c\",null],[\"10.5\",\"a\",\"2026-05-01\"],[\"20\",null,\"2026-05-02\"],[\"5\",\"b\",\"2026-05-01\"]]}",
+      "semantic_hash": "99d7ebe86903e77da7ece756b061cdd1f0eddf65b18771272614408bff0f26e4",
+      "bucket_column": "day",
+      "period_buckets": {
+        "2026-05-01": {
+          "row_count": 2,
+          "numeric_sums": {
+            "amount": "15.5"
+          },
+          "null_counts": {}
+        },
+        "2026-05-02": {
+          "row_count": 1,
+          "numeric_sums": {
+            "amount": "20"
+          },
+          "null_counts": {
+            "category": 1
+          }
+        },
+        "_unbucketed": {
+          "row_count": 1,
+          "numeric_sums": {
+            "amount": "1"
+          },
+          "null_counts": {
+            "day": 1
+          }
+        }
+      }
+    },
+    {
+      "name": "bucketing: same data as ISO strings matches typed dates",
+      "records": [
+        {
+          "day": "2026-05-01",
+          "amount": "10.50",
+          "category": "a"
+        },
+        {
+          "day": "2026-05-01",
+          "amount": 5,
+          "category": "b"
+        },
+        {
+          "day": "2026-05-02",
+          "amount": 20,
+          "category": null
+        },
+        {
+          "day": null,
+          "amount": 1,
+          "category": "c"
+        }
+      ],
+      "canonical": "{\"headers\":[\"amount\",\"category\",\"day\"],\"rows\":[[\"1\",\"c\",null],[\"10.5\",\"a\",\"2026-05-01\"],[\"20\",null,\"2026-05-02\"],[\"5\",\"b\",\"2026-05-01\"]]}",
+      "semantic_hash": "99d7ebe86903e77da7ece756b061cdd1f0eddf65b18771272614408bff0f26e4",
+      "bucket_column": "day",
+      "period_buckets": {
+        "2026-05-01": {
+          "row_count": 2,
+          "numeric_sums": {
+            "amount": "15.5"
+          },
+          "null_counts": {}
+        },
+        "2026-05-02": {
+          "row_count": 1,
+          "numeric_sums": {
+            "amount": "20"
+          },
+          "null_counts": {
+            "category": 1
+          }
+        },
+        "_unbucketed": {
+          "row_count": 1,
+          "numeric_sums": {
+            "amount": "1"
+          },
+          "null_counts": {
+            "day": 1
+          }
+        }
+      }
+    },
+    {
+      "name": "bucketing: midnight datetime collapses into its bare-date bucket",
+      "records": [
+        {
+          "day": {
+            "__date__": "2026-05-02"
+          },
+          "amount": 1
+        },
+        {
+          "day": {
+            "__datetime__": "2026-05-02T00:00:00Z"
+          },
+          "amount": 2
+        },
+        {
+          "day": "2026-05-02 00:00",
+          "amount": 3
+        },
+        {
+          "day": {
+            "__datetime__": "2026-05-01T23:30:00Z"
+          },
+          "amount": 4
+        }
+      ],
+      "canonical": "{\"headers\":[\"amount\",\"day\"],\"rows\":[[\"1\",\"2026-05-02\"],[\"2\",\"2026-05-02\"],[\"3\",\"2026-05-02 00:00\"],[\"4\",\"2026-05-01T23:30:00Z\"]]}",
+      "semantic_hash": "6fa4f3deb587c5bd0a2f41a69e718d2795973e0803988743c6c9f2e24b3cc31e",
+      "bucket_column": "day",
+      "period_buckets": {
+        "2026-05-01": {
+          "row_count": 1,
+          "numeric_sums": {
+            "amount": "4"
+          },
+          "null_counts": {}
+        },
+        "2026-05-02": {
+          "row_count": 3,
+          "numeric_sums": {
+            "amount": "6"
+          },
+          "null_counts": {}
+        }
+      }
     }
   ]
 }

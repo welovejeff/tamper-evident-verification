@@ -4,6 +4,8 @@ Commands:
   receipts keygen --out keys/
   receipts ingest <file.xlsx> --origin "..." --key keys/signing.key --out receipts/
   receipts verify receipts/chain.json --pub keys/signing.pub [--data <current.xlsx>] [--json]
+  receipts diff [A] [B] [--chain receipts/] [--json]
+  receipts log [--chain receipts/] [--granularity day|week|month|quarter] [--metric <name>] [--json]
   receipts init
   receipts doctor [--url http://localhost:8787/chain.json]
   receipts serve
@@ -19,22 +21,32 @@ from collections.abc import Callable
 from pathlib import Path
 
 from .canonical import (
-    evidence_hash,
+    decimal_to_plain_string,
     load_records,
     semantic_hash,
 )
 from .keys import generate_keys, load_private_key, load_public_key_hex, public_hex_from_private
 from .receipts import (
+    CHAIN_FILENAME,
     SOURCE_RECEIPT_NAME,
-    build_source_manifest,
     read_chain,
     read_receipt,
     receipt_file_hashes,
     verify_chain,
-    write_chain,
-    write_receipt,
 )
 from .totals import control_totals
+from .wrapper import (
+    DEFAULT_BAND,
+    DEFAULT_SETTLE_HOURS,
+    ingest_file,
+    parse_band,
+    parse_settle,
+)
+
+# parse_band, parse_settle, DEFAULT_BAND, and DEFAULT_SETTLE_HOURS live in
+# wrapper.py now (alongside the programmatic ingest_file), but stay importable
+# from tamper_signal.cli for callers and tests that referenced them here.
+__all__ = ["DEFAULT_BAND", "DEFAULT_SETTLE_HOURS", "parse_band", "parse_settle", "main"]
 
 
 def cmd_keygen(args: argparse.Namespace) -> int:
@@ -48,36 +60,193 @@ def cmd_keygen(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_ingest(args: argparse.Namespace) -> int:
-    source_path = Path(args.file)
-    raw = source_path.read_bytes()
-    records = load_records(str(source_path), sheet=args.sheet)
+def _is_unsnapshotted_reset(chain_dir: str) -> bool:
+    """True when ingest is about to reset a chain whose run never reached
+    history (no snapshot records the outgoing chain's tail hash): the totals
+    of that run are about to become unrecoverable. Never raises (a malformed
+    old chain reads as never-snapshotted, since it certainly was never
+    snapshotted as-is). Computed from the OUTGOING chain BEFORE ingest_file
+    overwrites it; the caller emits the warning only after ingest succeeds.
+    """
+    chain_path = Path(chain_dir) / CHAIN_FILENAME
+    if not chain_path.exists():
+        return False
+    from .history import chain_tail_hash, history_has_tail
 
+    try:
+        old_chain = read_chain(str(chain_path))
+        tail = chain_tail_hash(chain_dir, old_chain)
+        keys = [k for k in [old_chain.get("public_key")] if isinstance(k, str) and k]
+        return not history_has_tail(chain_dir, tail, trusted_keys=keys)
+    except Exception:  # noqa: BLE001 - a chain we cannot read was never archived
+        return True
+
+
+def cmd_ingest(args: argparse.Namespace) -> int:
     if os.environ.get("TAMPER_SIGNAL_KEY"):
         # The env var silently outranks --key; say so where it matters.
         print("Signing with TAMPER_SIGNAL_KEY from the environment (overrides --key)", file=sys.stderr)
-    private_key = load_private_key(args.key)
-    public_hex = public_hex_from_private(private_key)
 
-    manifest = build_source_manifest(
-        filename=source_path.name,
-        evidence_hash=evidence_hash(raw),
-        byte_size=len(raw),
-        declared_origin=args.origin,
-        semantic_hash=semantic_hash(records),
-        records=records,
-        private_key=private_key,
-    )
-    write_receipt(args.out, SOURCE_RECEIPT_NAME, manifest)
-    write_chain(args.out, [SOURCE_RECEIPT_NAME], public_hex)
+    # Compute the unsnapshotted-reset condition from the OUTGOING chain before
+    # ingest_file overwrites chain.json; emit the warning only after ingest
+    # validation passes (below), so an invalid flag exits 1 with no warning.
+    unsnapshotted_reset = _is_unsnapshotted_reset(args.out)
 
+    # ingest_file parses the tolerance declaration, builds and signs the source
+    # manifest, and RESETS chain.json to it -- the same call a Python pipeline
+    # uses to declare tolerance programmatically. Invalid band/settle values
+    # and a non-qualifying --bucket-column raise ValueError before anything is
+    # written; surface them as a clean error and exit 1.
+    try:
+        result = ingest_file(
+            args.file,
+            origin=args.origin,
+            chain_dir=args.out,
+            key_path=args.key,
+            band=args.band,
+            settle=args.settle,
+            bucket_column=args.bucket_column,
+            sheet=args.sheet,
+        )
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+
+    if unsnapshotted_reset:
+        print(
+            "warning: previous run was never verified; its totals will not enter history",
+            file=sys.stderr,
+        )
+
+    manifest = result["manifest"]
+    tolerance = manifest.get("tolerance")
     totals = manifest["control_totals"]
-    print(f"Ingested {source_path.name}")
+    print(f"Ingested {manifest['source']['filename']}")
     print(f"  evidence_hash {manifest['source']['evidence_hash']}")
     print(f"  semantic_hash {manifest['semantic_hash']}")
     print(f"  rows {totals['row_count']}, columns {totals['column_count']}")
+    if tolerance is not None:
+        bucket_column = tolerance.get("bucket_column")
+        extra = f", bucket_column {bucket_column}" if bucket_column else ""
+        print(
+            f"  tolerance band {tolerance['band']}, "
+            f"settle_hours {tolerance['settle_hours']}{extra} (signed into the manifest)"
+        )
     print(f"  source manifest -> {Path(args.out) / SOURCE_RECEIPT_NAME}")
     return 0
+
+
+def _resolve_snapshot_key():
+    """The private key snapshots sign with, or None for unsigned snapshots.
+
+    Same precedence as ingest: TAMPER_SIGNAL_KEY from the environment wins,
+    else the default keys/signing.key when it exists. Verify takes no --key
+    flag (verification needs no private key), so an absent key just means the
+    snapshot is written unsigned.
+    """
+    default_key = Path("keys/signing.key")
+    if not os.environ.get("TAMPER_SIGNAL_KEY") and not default_key.exists():
+        return None
+    return load_private_key(str(default_key))
+
+
+def _archive_after_verify(
+    chain_dir: str,
+    chain: dict,
+    receipts: list,
+    trusted_keys: list[str],
+    breached: dict | None = None,
+) -> None:
+    """Archive a run snapshot after a non-red final verdict.
+
+    Never raises and never changes the verdict or exit code: any failure
+    (key load, history scan, signing, write) degrades to a stderr notice.
+    Notices go to stderr ONLY so the --json stdout payload stays untouched.
+    `breached` is the baseline-advancement guard from this run's judgment.
+    """
+    from .history import archive_run_snapshot
+
+    def notice(message: str) -> None:
+        print(message, file=sys.stderr)
+
+    try:
+        key = _resolve_snapshot_key()
+    except Exception as exc:  # noqa: BLE001 - degrade to unsigned, never fail verify
+        notice(f"could not load a signing key for the run snapshot: {exc}")
+        key = None
+    if key is not None:
+        # Snapshots this machine signs must count as valid on the next run
+        # even when the signing key differs from the chain key, or the
+        # idempotence check would re-write a snapshot on every verify.
+        trusted_keys = trusted_keys + [public_hex_from_private(key)]
+    try:
+        archive_run_snapshot(
+            chain_dir,
+            chain,
+            receipts,
+            key=key,
+            trusted_keys=trusted_keys,
+            on_notice=notice,
+            breached=breached,
+        )
+    except Exception as exc:  # noqa: BLE001 - archiving must never fail the verify
+        notice(f"could not archive run snapshot: {exc}")
+
+
+def _judge_after_verify(
+    chain_dir: str,
+    chain: dict,
+    receipts: list,
+    trusted_keys: list[str],
+) -> dict:
+    """Run cross-run judgment for a non-red verify; never raises.
+
+    Returns judge_cross_run's shape ({caveats, details, notices, breached}).
+    With no tolerance declaration in the source manifest this is a no-op with
+    zero output (AE13: verification stays exact and silent). Any failure
+    degrades to an empty judgment with a notice, never a verdict change.
+    """
+    from .history import empty_judgment, judge_cross_run, load_snapshots
+
+    source = receipts[0] if receipts and isinstance(receipts[0], dict) else {}
+    if not isinstance(source.get("tolerance"), dict):
+        return empty_judgment()
+    notices: list[str] = []
+    try:
+        try:
+            key = _resolve_snapshot_key()
+        except Exception:  # noqa: BLE001 - judging without the machine key is fine
+            key = None
+        keys = [k for k in trusted_keys if k]
+        if key is not None:
+            keys.append(public_hex_from_private(key))
+        items = load_snapshots(chain_dir, trusted_keys=keys, on_notice=notices.append)
+        judgment = judge_cross_run(receipts, chain, [i["snapshot"] for i in items])
+    except Exception as exc:  # noqa: BLE001 - judgment must never fail the verify
+        empty = empty_judgment()
+        empty["notices"] = notices + [f"cross-run judgment skipped: {exc}"]
+        return empty
+    judgment["notices"] = notices + judgment["notices"]
+    return judgment
+
+
+def _fold_judgment_caveats(result, caveats: list[str]) -> None:
+    """Fold judgment caveats into a ChainResult so the verdict property,
+    summary lines, and exit mapping work untouched. A green report becomes
+    the standard yellow report; a yellow report gains the new caveat lines
+    before its closing "A human should look." line (existing machinery, never
+    duplicated)."""
+    new_lines = [f"  - {caveat}" for caveat in caveats]
+    if result.caveats:
+        result.lines[-1:-1] = new_lines
+    else:
+        header = result.lines[-1] if result.lines else ""
+        summary = header.removeprefix("✓ CHAIN INTACT: ")
+        if result.lines:
+            result.lines[-1] = f"⚠ CHAIN VERIFIES, WITH CAVEATS: {summary}"
+        result.lines.extend(new_lines)
+        result.lines.append("  A human should look.")
+    result.caveats.extend(caveats)
 
 
 def cmd_verify(args: argparse.Namespace) -> int:
@@ -138,6 +307,19 @@ def cmd_verify(args: argparse.Namespace) -> int:
         recorded_hashes=recorded_hashes,
         actual_hashes=actual_hashes,
     )
+    # Cross-run judgment (U6) runs AFTER the within-run verdict and BEFORE
+    # the anchor fold and exit-code finalization: a red verify never judges,
+    # and judgment caveats are yellow, never red (R12). It lives in the CLI
+    # layer so verify_chain stays pure and the browser verifier untouched.
+    judgment = {"caveats": [], "details": [], "notices": [], "breached": {}}
+    if result.verdict != "red":
+        judgment = _judge_after_verify(
+            chain_dir, chain, receipts, _as_key_list(public_hex) + [chain_key or ""]
+        )
+        if judgment["caveats"]:
+            _fold_judgment_caveats(result, judgment["caveats"])
+        for line in judgment["notices"]:
+            print(line, file=sys.stderr)
     # Exit codes are the traffic light: 0 green, 1 red, 2 yellow.
     code = {"green": 0, "red": 1, "yellow": 2}[result.verdict]
     if args.json:
@@ -156,6 +338,10 @@ def cmd_verify(args: argparse.Namespace) -> int:
             "stages": [stage_name_of(r) for r in receipts],
             "final_row_count": (totals_of(receipts[-1]).get("row_count") if receipts else None),
             "caveats": result.caveats,
+            # Additive (R18): typed cross-run detail. Always present, [] when
+            # judgment found nothing or never ran, so consumers can rely on
+            # the key. Anchor caveats deliberately have no details entry.
+            "caveat_details": judgment["details"],
             "broken_link": result.broken_link_detail,
             "data_mismatch": result.data_mismatch,
             "receipt_mismatch": result.receipt_mismatch,
@@ -195,7 +381,23 @@ def cmd_verify(args: argparse.Namespace) -> int:
                 allow_staging=args.anchor_staging,
                 covers_receipts=recorded_hashes is not None,
             )
+    # Archive the run snapshot AFTER the anchor fold settled the final exit
+    # code: a red run (including an anchor mismatch) never poisons history.
+    if code != 1:
+        trusted = [key for key in _as_key_list(public_hex) + [chain_key] if key]
+        _archive_after_verify(
+            chain_dir, chain, receipts, trusted, breached=judgment["breached"] or None
+        )
     return code
+
+
+def _as_key_list(public_hex) -> list[str]:
+    """Normalize the verify key argument (str or list) to a list."""
+    if public_hex is None:
+        return []
+    if isinstance(public_hex, str):
+        return [public_hex]
+    return list(public_hex)
 
 
 GITIGNORE_LINES = ["keys/", "*.key"]
@@ -357,21 +559,50 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     return 1 if failures else 0
 
 
-def cmd_serve(args: argparse.Namespace) -> int:
-    """Serve the receipts directory on localhost with CORS for local dev."""
-    import http.server
-    import socketserver
-    from functools import partial
+def _serve_handler_class(directory: str):
+    """The request handler `receipts serve` uses, bound to a directory.
 
-    directory = str(Path(args.dir).resolve())
+    CORS is open and caching is off for every response. Anything under
+    history/ is 404'd: run snapshots are CLI-local memory, not published
+    receipts (and they leak run cadence and per-day totals).
+    """
+    import http.server
+
+    from .history import HISTORY_DIRNAME
+
+    history_dir = (Path(directory) / HISTORY_DIRNAME).resolve()
 
     class Handler(http.server.SimpleHTTPRequestHandler):
+        def __init__(self, *handler_args, **handler_kwargs) -> None:
+            super().__init__(*handler_args, directory=directory, **handler_kwargs)
+
         def end_headers(self) -> None:
             self.send_header("Access-Control-Allow-Origin", "*")
             self.send_header("Cache-Control", "no-store")
             super().end_headers()
 
-    handler = partial(Handler, directory=directory)
+        def send_head(self):  # covers GET and HEAD
+            # Resolve the translated filesystem path so neither /history/...
+            # nor a traversal spelling of it can reach the snapshot files.
+            try:
+                target = Path(self.translate_path(self.path)).resolve()
+            except (OSError, ValueError):
+                self.send_error(404, "Not found")
+                return None
+            if target == history_dir or history_dir in target.parents:
+                self.send_error(404, "Not found")
+                return None
+            return super().send_head()
+
+    return Handler
+
+
+def cmd_serve(args: argparse.Namespace) -> int:
+    """Serve the receipts directory on localhost with CORS for local dev."""
+    import socketserver
+
+    directory = str(Path(args.dir).resolve())
+    handler = _serve_handler_class(directory)
     print(f"Serving {directory} at http://localhost:{args.port}/chain.json")
     print("CORS is open and caching is off: local development only. Ctrl+C to stop.")
     try:
@@ -422,6 +653,559 @@ def cmd_export(args: argparse.Namespace) -> int:
     print(f"  rows {len(document['rows'])}, columns {len(document['headers'])}")
     print(f"  semantic_hash {data_hash} (matches final receipt)")
     return 0
+
+
+def _chain_dir_of(ref: str) -> str:
+    """Normalize a --chain value: accept a chain dir or a chain.json path."""
+    path = Path(ref)
+    if path.name == CHAIN_FILENAME:
+        return str(path.parent)
+    return ref
+
+
+def _diff_side_from_chain_dir(chain_dir: str, ref: str) -> dict:
+    """Adapter: a live chain directory in the snapshot's diff shape.
+
+    Raises ValueError with a clean message on any load failure (missing
+    chain.json, unreadable receipts); `receipts diff` treats those as usage
+    errors (exit 1).
+    """
+    from .history import chain_tail_hash, run_source, run_stages
+
+    chain_path = Path(chain_dir) / CHAIN_FILENAME
+    if not chain_path.is_file():
+        raise ValueError(f"no {CHAIN_FILENAME} in {chain_dir or '.'}")
+    try:
+        chain = read_chain(str(chain_path))
+    except (OSError, ValueError) as exc:
+        raise ValueError(f"cannot read {chain_path}: {exc}") from exc
+    if not isinstance(chain, dict):
+        raise ValueError(f"{chain_path} is not a chain file")
+    receipts = [read_receipt(chain_dir, name) for name in chain.get("receipts", [])]
+    try:
+        tail = chain_tail_hash(chain_dir, chain)
+    except (OSError, ValueError):
+        # A chain with no receipts still diffs (it just cannot anchor the
+        # default-mode "differs from current tail" selection).
+        tail = None
+    return {
+        "ref": ref,
+        "created_at": None,
+        "source": run_source(receipts),
+        "stages": run_stages(receipts),
+        "tail": tail,
+        "unsigned": False,
+        "public_key": chain.get("public_key") if isinstance(chain.get("public_key"), str) else None,
+    }
+
+
+def _diff_side_from_snapshot(snapshot: dict, ref: str, *, signed: bool | None = None) -> dict:
+    """Adapter: an archived run snapshot in the diff shape."""
+    stages = snapshot.get("stages")
+    source = snapshot.get("source")
+    created = snapshot.get("created_at")
+    if signed is None:
+        signed = isinstance(snapshot.get("signature"), dict)
+    return {
+        "ref": ref,
+        "created_at": created if isinstance(created, str) else None,
+        "source": source if isinstance(source, dict) else {},
+        "stages": stages if isinstance(stages, list) else [],
+        "tail": snapshot.get("chain_tail_hash"),
+        "unsigned": not signed,
+        "public_key": None,
+    }
+
+
+def _load_diff_side(ref: str) -> dict:
+    """Load one explicit diff argument: a chain directory, a chain.json path,
+    or a run-snapshot file. Raises ValueError on anything unloadable."""
+    import json as _json
+
+    path = Path(ref)
+    if path.is_dir():
+        return _diff_side_from_chain_dir(str(path), ref)
+    if not path.is_file():
+        raise ValueError(f"no such file or directory: {ref}")
+    try:
+        payload = _json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, _json.JSONDecodeError) as exc:
+        raise ValueError(f"cannot read {ref}: {exc}") from exc
+    if isinstance(payload, dict) and payload.get("kind") == "run_snapshot":
+        return _diff_side_from_snapshot(payload, ref)
+    if isinstance(payload, dict) and isinstance(payload.get("receipts"), list):
+        return _diff_side_from_chain_dir(str(path.parent), ref)
+    raise ValueError(f"{ref} is neither a chain directory, a chain.json, nor a run snapshot")
+
+
+def _render_stage_delta(delta: dict) -> list[str]:
+    """Human lines (ASCII only) for one stage's structured totals delta."""
+    lines: list[str] = []
+    for key in ("row_count", "column_count"):
+        entry = delta.get(key)
+        if entry:
+            suffix = f" ({entry['delta']:+d})" if "delta" in entry else ""
+            lines.append(f"{key} {entry['before']} -> {entry['after']}{suffix}")
+    for column, entry in (delta.get("numeric_sums") or {}).items():
+        before = entry["before"] if entry["before"] is not None else "(added)"
+        after = entry["after"] if entry["after"] is not None else "(removed)"
+        suffix = f" ({entry['delta']})" if "delta" in entry else ""
+        lines.append(f"{column} {before} -> {after}{suffix}")
+    for column, entry in (delta.get("null_counts") or {}).items():
+        suffix = f" ({entry['delta']:+d})" if "delta" in entry else ""
+        lines.append(f"null_counts[{column}] {entry['before']} -> {entry['after']}{suffix}")
+
+    def _range(value) -> str:
+        if isinstance(value, dict):
+            return f"{value.get('min')}..{value.get('max')}"
+        return "(none)"
+
+    for column, entry in (delta.get("date_ranges") or {}).items():
+        lines.append(f"date_ranges[{column}] {_range(entry['before'])} -> {_range(entry['after'])}")
+    moved = delta.get("period_buckets_changed")
+    if moved:
+        lines.append(f"period_buckets changed: {', '.join(moved)}")
+    return lines
+
+
+def cmd_diff(args: argparse.Namespace) -> int:
+    """Compare two runs: per-stage code-hash changes plus a structured totals
+    delta (including date ranges). Read-only: never writes anything. Exit 0
+    whether or not differences are found; 1 on usage/load errors."""
+    import json as _json
+
+    from .totals import structured_totals_delta
+
+    runs = args.runs or []
+    if len(runs) > 2:
+        print("diff takes at most two runs (chain directories or snapshot files)", file=sys.stderr)
+        return 1
+
+    chain_dir = _chain_dir_of(args.chain)
+    try:
+        if len(runs) == 2:
+            side_a = _load_diff_side(runs[0])
+            side_b = _load_diff_side(runs[1])
+        elif len(runs) == 1:
+            # One arg: that run (the "before") vs the current chain.
+            side_a = _load_diff_side(runs[0])
+            side_b = _diff_side_from_chain_dir(chain_dir, chain_dir)
+        else:
+            # Zero args (hardened default): current chain vs the most recent
+            # valid snapshot whose tail DIFFERS from the current chain's, so
+            # a freshly archived snapshot of this very run never self-compares.
+            from .history import load_snapshots
+
+            side_b = _diff_side_from_chain_dir(chain_dir, chain_dir)
+            trusted = [k for k in [side_b["public_key"]] if k]
+            items = load_snapshots(
+                chain_dir,
+                trusted_keys=trusted,
+                on_notice=lambda message: print(message, file=sys.stderr),
+            )
+            prior = next(
+                (
+                    item
+                    for item in items
+                    if item["snapshot"].get("chain_tail_hash") != side_b["tail"]
+                ),
+                None,
+            )
+            if prior is None:
+                print("no prior run archived to compare against")
+                return 0
+            side_a = _diff_side_from_snapshot(
+                prior["snapshot"], prior["path"], signed=prior["signed"]
+            )
+    except ValueError as exc:
+        print(f"diff: {exc}", file=sys.stderr)
+        return 1
+
+    source_a = side_a["source"]
+    source_b = side_b["source"]
+    identity_mismatch = source_a.get("filename") != source_b.get("filename") or source_a.get(
+        "columns"
+    ) != source_b.get("columns")
+
+    # Stage alignment is BY NAME, order-independent; first receipt wins a
+    # duplicated name. Output order: A's stages, then B-only stages appended.
+    stages_a = {
+        s.get("name"): s for s in reversed(side_a["stages"]) if isinstance(s, dict)
+    }
+    stages_b = {
+        s.get("name"): s for s in reversed(side_b["stages"]) if isinstance(s, dict)
+    }
+    order: list = []
+    seen: set = set()
+    for stage in list(side_a["stages"]) + list(side_b["stages"]):
+        if isinstance(stage, dict) and stage.get("name") not in seen:
+            seen.add(stage.get("name"))
+            order.append(stage.get("name"))
+
+    stage_rows: list[dict] = []
+    for name in order:
+        stage_a = stages_a.get(name)
+        stage_b = stages_b.get(name)
+        if stage_a is not None and stage_b is not None:
+            code_before = stage_a.get("code_hash") if isinstance(stage_a.get("code_hash"), str) else ""
+            code_after = stage_b.get("code_hash") if isinstance(stage_b.get("code_hash"), str) else ""
+            code_changed = code_before != code_after
+            totals_a = stage_a.get("totals") if isinstance(stage_a.get("totals"), dict) else {}
+            totals_b = stage_b.get("totals") if isinstance(stage_b.get("totals"), dict) else {}
+            row: dict = {
+                "name": name,
+                "status": "matched",
+                "code_changed": code_changed,
+                "totals": structured_totals_delta(totals_a, totals_b),
+            }
+            if code_changed:
+                row["code_hash"] = {"before8": code_before[:8], "after8": code_after[:8]}
+                code_file = stage_b.get("code_file") or stage_a.get("code_file")
+                if isinstance(code_file, str) and code_file:
+                    row["code_file"] = code_file
+            stage_rows.append(row)
+        else:
+            stage_rows.append(
+                {
+                    "name": name,
+                    "status": "removed" if stage_a is not None else "added",
+                    "code_changed": False,
+                    "totals": None,
+                }
+            )
+
+    if args.json:
+        payload = {
+            "a": {
+                "ref": side_a["ref"],
+                "created_at": side_a["created_at"],
+                "unsigned": side_a["unsigned"],
+            },
+            "b": {
+                "ref": side_b["ref"],
+                "created_at": side_b["created_at"],
+                "unsigned": side_b["unsigned"],
+            },
+            "stages": stage_rows,
+            "identity_mismatch": identity_mismatch,
+        }
+        print(_json.dumps(payload, indent=2))
+        return 0
+
+    for side in (side_a, side_b):
+        if side["unsigned"]:
+            print(f"note: snapshot {Path(side['ref']).name} is unsigned; weaker evidence")
+    if identity_mismatch:
+        name_a = source_a.get("filename") or "(unknown)"
+        name_b = source_b.get("filename") or "(unknown)"
+        print(f"note: sources differ ({name_a} vs {name_b}); comparing anyway")
+    created_a = f" (created {side_a['created_at']})" if side_a["created_at"] else ""
+    created_b = f" (created {side_b['created_at']})" if side_b["created_at"] else ""
+    print(f"a: {side_a['ref']}{created_a}")
+    print(f"b: {side_b['ref']}{created_b}")
+
+    any_difference = False
+    for row in stage_rows:
+        if row["status"] != "matched":
+            any_difference = True
+            print(f"stage {row['name']}: {row['status']}")
+            continue
+        lines: list[str] = []
+        if row["code_changed"]:
+            hashes = row["code_hash"]
+            where = f" ({row['code_file']})" if "code_file" in row else ""
+            before8 = hashes["before8"] or "(none)"
+            after8 = hashes["after8"] or "(none)"
+            lines.append(f"code_hash {before8} -> {after8}{where}")
+        lines.extend(_render_stage_delta(row["totals"]))
+        if lines:
+            any_difference = True
+            print(f"stage {row['name']}")
+            for line in lines:
+                print(f"  {line}")
+    if not any_difference:
+        print("no differences")
+    return 0
+
+
+def _final_stage_totals(snapshot: dict) -> dict:
+    """The last stage's totals in a snapshot (the FINAL stage `log` trends)."""
+    stages = snapshot.get("stages")
+    if isinstance(stages, list):
+        for stage in reversed(stages):
+            if isinstance(stage, dict):
+                totals = stage.get("totals")
+                return totals if isinstance(totals, dict) else {}
+    return {}
+
+
+def _log_metric_value(totals: dict, metric: str) -> str | None:
+    """A metric's display string from final-stage totals, or None when absent.
+
+    Metric ids: "row_count" or a numeric_sums column name. row_count renders
+    as its integer string; numeric sums are already plain decimal strings.
+    """
+    if metric == "row_count":
+        value = totals.get("row_count")
+        if isinstance(value, int) and not isinstance(value, bool):
+            return str(value)
+        return None
+    sums = totals.get("numeric_sums")
+    value = sums.get(metric) if isinstance(sums, dict) else None
+    return value if isinstance(value, str) else None
+
+
+def _default_log_metrics(snapshots: list[dict]) -> list[str]:
+    """Default selection: row_count plus the union of every snapshot's
+    final-stage numeric_sums column names (sorted), so a metric that appears
+    in only some runs is still trended ("-" where it is missing)."""
+    sums: set[str] = set()
+    for snapshot in snapshots:
+        totals = _final_stage_totals(snapshot)
+        s = totals.get("numeric_sums")
+        if isinstance(s, dict):
+            sums.update(str(k) for k in s)
+    return ["row_count"] + sorted(sums)
+
+
+def _log_breached_metrics(snapshot: dict) -> set[str]:
+    """The metric ids this snapshot's judgment flagged anywhere (any bucket).
+
+    The breached map is keyed by bucket; `log` trends final-stage whole-table
+    metrics, so a metric is marked breached for the run if it breached in ANY
+    bucket. row_count and numeric-sum names match the log metric ids directly;
+    null_counts[...] ids never appear as log metrics and are ignored.
+    """
+    breached = snapshot.get("breached")
+    names: set[str] = set()
+    if isinstance(breached, dict):
+        for metrics in breached.values():
+            if isinstance(metrics, list):
+                names.update(m for m in metrics if isinstance(m, str))
+    return names
+
+
+def _build_log_periods(items: list[dict], granularity: str, metrics: list[str]) -> tuple[list[dict], int]:
+    """Collapse validated snapshot items into per-period rows (oldest first).
+
+    Multiple runs in the same period collapse LAST-WINS by created_at (ties
+    break on body_hash for determinism, matching load_snapshots' ordering).
+    Returns (rows, collapsed) where collapsed counts the runs hidden by the
+    collapse (total runs minus rendered rows). Each row carries the period key,
+    the run count, the chosen snapshot's tail/created_at/unsigned, and per-metric
+    value strings plus the breached-metric set.
+    """
+    from .history import period_key
+
+    # Group by period key. Within a period, keep the winner (the latest run by
+    # the same ordering load_snapshots uses) and count the runs collapsed.
+    groups: dict[str, dict] = {}
+    for item in items:
+        snapshot = item["snapshot"]
+        key = period_key(item["created_at"], granularity)
+        sort_key = (item["created_at"], item["body_hash"])
+        group = groups.get(key)
+        if group is None:
+            groups[key] = {"item": item, "sort_key": sort_key, "count": 1}
+        else:
+            group["count"] += 1
+            if sort_key > group["sort_key"]:
+                group["item"] = item
+                group["sort_key"] = sort_key
+
+    rows: list[dict] = []
+    collapsed = 0
+    for key in sorted(groups):  # period keys sort chronologically as strings
+        group = groups[key]
+        collapsed += group["count"] - 1
+        item = group["item"]
+        snapshot = item["snapshot"]
+        totals = _final_stage_totals(snapshot)
+        breached = _log_breached_metrics(snapshot)
+        values = {metric: _log_metric_value(totals, metric) for metric in metrics}
+        rows.append(
+            {
+                "period": key,
+                "runs": group["count"],
+                "created_at": item["created_at"],
+                "tail": snapshot.get("chain_tail_hash") or "",
+                "unsigned": not item["signed"],
+                "values": values,
+                "breached": breached,
+            }
+        )
+    return rows, collapsed
+
+
+def _render_log_table(rows: list[dict], metrics: list[str]) -> list[str]:
+    """ASCII, aligned, chronological table. Each metric column shows the value,
+    a "!" suffix when the run breached that metric, and a delta vs the previous
+    rendered row in parentheses (first row has no delta). A missing metric
+    renders "-". An "unsigned" column shows "u" for unsigned snapshots."""
+    headers = ["period", "runs", "tail", "unsigned"] + metrics
+    table: list[list[str]] = []
+    for index, row in enumerate(rows):
+        cells = [
+            row["period"],
+            str(row["runs"]),
+            (row["tail"][:8] if row["tail"] else "-"),
+            ("u" if row["unsigned"] else ""),
+        ]
+        for metric in metrics:
+            value = row["values"].get(metric)
+            if value is None:
+                cells.append("-")
+                continue
+            text = value + ("!" if metric in row["breached"] else "")
+            prior = _previous_log_value(rows, index, metric)
+            if prior is not None:
+                delta = _log_delta(prior, value)
+                if delta is not None:
+                    text += f" ({delta})"
+            cells.append(text)
+        table.append(cells)
+
+    widths = [len(h) for h in headers]
+    for cells in table:
+        for i, cell in enumerate(cells):
+            widths[i] = max(widths[i], len(cell))
+
+    def fmt(cells: list[str]) -> str:
+        return "  ".join(cell.ljust(widths[i]) for i, cell in enumerate(cells)).rstrip()
+
+    lines = [fmt(headers)]
+    lines.extend(fmt(cells) for cells in table)
+    return lines
+
+
+def _previous_log_value(rows: list[dict], index: int, metric: str) -> str | None:
+    """The most recent earlier row's value for this metric, skipping rows where
+    the metric was missing, or None when no earlier row has it. The delta a row
+    shows is against this value, so a one-off gap does not erase the trend."""
+    for back in range(index - 1, -1, -1):
+        candidate = rows[back]["values"].get(metric)
+        if candidate is not None:
+            return candidate
+    return None
+
+
+def _log_delta(before: str, after: str) -> str | None:
+    """Signed delta string between two metric values, or None when either is
+    not a finite decimal. Integers render without a decimal point ("+22");
+    fractional deltas keep their plain decimal form ("+1.5")."""
+    from decimal import Decimal, InvalidOperation
+
+    try:
+        diff = Decimal(after) - Decimal(before)
+    except InvalidOperation:
+        return None
+    if not diff.is_finite():
+        return None
+    sign = "-" if diff < 0 else "+"
+    return sign + decimal_to_plain_string(abs(diff))
+
+
+def cmd_log(args: argparse.Namespace) -> int:
+    """Render archived run history as a per-metric trend across runs.
+
+    Read-only scan of <chain dir>/history/ via load_snapshots. Empty history
+    prints a notice and exits 0; a single run renders one row with no deltas.
+    The default metric selection is row_count plus every final-stage numeric
+    sum; --metric filters it. --granularity collapses multiple runs in the
+    same period last-wins. ASCII only; --json emits the structured trend
+    (oldest first)."""
+    import json as _json
+
+    from .history import LOG_GRANULARITIES, load_snapshots
+
+    granularity = args.granularity
+    if granularity not in LOG_GRANULARITIES:
+        print(
+            f"log: unknown --granularity '{granularity}' "
+            f"(choose from {', '.join(LOG_GRANULARITIES)})",
+            file=sys.stderr,
+        )
+        return 1
+
+    chain_dir = _chain_dir_of(args.chain)
+    chain_path = Path(chain_dir) / CHAIN_FILENAME
+    trusted: list[str] = []
+    if args.pub:
+        trusted = [load_public_key_hex(path) for path in args.pub]
+    elif chain_path.is_file():
+        # Default to the chain's embedded key so signed snapshots verify.
+        try:
+            chain = read_chain(str(chain_path))
+            key = chain.get("public_key")
+            if isinstance(key, str) and key:
+                trusted = [key]
+        except (OSError, ValueError):
+            trusted = []
+
+    items = load_snapshots(
+        chain_dir,
+        trusted_keys=trusted,
+        on_notice=lambda message: print(message, file=sys.stderr),
+    )
+    if not items:
+        print("no run history yet")
+        return 0
+
+    # load_snapshots returns newest-first; `log` renders oldest-first.
+    items = list(reversed(items))
+    snapshots = [item["snapshot"] for item in items]
+    if args.metric:
+        metrics = list(dict.fromkeys(args.metric))  # de-dupe, keep order
+    else:
+        metrics = _default_log_metrics(snapshots)
+
+    rows, collapsed = _build_log_periods(items, granularity, metrics)
+
+    if args.json:
+        payload = {
+            "granularity": granularity,
+            # Total runs collapsed away by the granularity (rendered rows hide
+            # this many same-period runs). Ordered chronological (oldest first).
+            "collapsed": collapsed,
+            "runs": [
+                {
+                    "period": row["period"],
+                    "created_at": row["created_at"],
+                    "tail": (row["tail"][:8] if row["tail"] else None),
+                    "unsigned": row["unsigned"],
+                    "metrics": _log_json_metrics(rows, index, metrics),
+                    "breached": sorted(m for m in metrics if m in row["breached"]),
+                }
+                for index, row in enumerate(rows)
+            ],
+        }
+        print(_json.dumps(payload, indent=2))
+        return 0
+
+    for line in _render_log_table(rows, metrics):
+        print(line)
+    print("u = unsigned snapshot (weaker evidence); ! = breached in that run")
+    return 0
+
+
+def _log_json_metrics(rows: list[dict], index: int, metrics: list[str]) -> dict:
+    """Per-metric {value, delta?} for one JSON row. value is the display string
+    (or "-" when absent); delta is the signed delta vs the previous rendered
+    row that had a value (omitted on the first such row)."""
+    out: dict[str, dict] = {}
+    for metric in metrics:
+        value = rows[index]["values"].get(metric)
+        if value is None:
+            out[metric] = {"value": "-"}
+            continue
+        entry = {"value": value}
+        prior = _previous_log_value(rows, index, metric)
+        if prior is not None:
+            delta = _log_delta(prior, value)
+            if delta is not None:
+                entry["delta"] = delta
+        out[metric] = entry
+    return out
 
 
 def cmd_anchor(args: argparse.Namespace) -> int:
@@ -542,6 +1326,24 @@ def build_parser() -> argparse.ArgumentParser:
     p_ingest.add_argument("--key", default="keys/signing.key", help="Private key path")
     p_ingest.add_argument("--out", default="receipts/", help="Receipts directory")
     p_ingest.add_argument("--sheet", default=None, help="Worksheet name (xlsx only, optional)")
+    p_ingest.add_argument(
+        "--band",
+        default=None,
+        help='Declared tolerance band for cross-run drift, e.g. "5%%" or "0.05" '
+        "(signed into the manifest; --settle defaults to 72h)",
+    )
+    p_ingest.add_argument(
+        "--settle",
+        default=None,
+        help='Declared settling window, e.g. "72h" or "3d" '
+        '(signed into the manifest; --band defaults to "0.05")',
+    )
+    p_ingest.add_argument(
+        "--bucket-column",
+        default=None,
+        help="Column to key period buckets off (signed into the tolerance "
+        "declaration; must be a date-shaped column)",
+    )
     p_ingest.set_defaults(func=cmd_ingest)
 
     p_verify = sub.add_parser(
@@ -608,6 +1410,67 @@ def build_parser() -> argparse.ArgumentParser:
     p_export.add_argument("--out", default=None, help="Output path (default: <chain dir>/table.json)")
     p_export.add_argument("--sheet", default=None, help="Worksheet name (xlsx only, optional)")
     p_export.set_defaults(func=cmd_export)
+
+    p_diff = sub.add_parser(
+        "diff",
+        help="Compare two runs: per-stage code-hash changes and totals deltas "
+        "(read-only; exit 0 with or without differences)",
+    )
+    p_diff.add_argument(
+        "runs",
+        nargs="*",
+        help="Up to two runs: chain directories or run-snapshot files. "
+        "Zero args: current chain vs the latest differing archived snapshot. "
+        "One arg: that run vs the current chain.",
+    )
+    p_diff.add_argument(
+        "--chain",
+        default="receipts/",
+        help="Current chain directory (or chain.json path) used when fewer "
+        "than two runs are given",
+    )
+    p_diff.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit the structured diff as JSON instead of the text report",
+    )
+    p_diff.set_defaults(func=cmd_diff)
+
+    p_log = sub.add_parser(
+        "log",
+        help="Render archived run history as a per-metric trend across runs "
+        "(read-only; exit 0)",
+    )
+    p_log.add_argument(
+        "--chain",
+        default="receipts/",
+        help="Chain directory (or chain.json path) whose history/ to read",
+    )
+    p_log.add_argument(
+        "--granularity",
+        default="day",
+        help="Collapse runs per period: day, week, month, or quarter (default day)",
+    )
+    p_log.add_argument(
+        "--metric",
+        action="append",
+        default=None,
+        help="Metric to trend (row_count or a numeric_sums column); repeat to "
+        "add more. Default: row_count plus every final-stage numeric sum",
+    )
+    p_log.add_argument(
+        "--pub",
+        action="append",
+        default=None,
+        help="Trusted public key (.pub) path for snapshot signatures; repeat "
+        "for key rotation",
+    )
+    p_log.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit the structured trend as JSON instead of the text table",
+    )
+    p_log.set_defaults(func=cmd_log)
 
     p_anchor = sub.add_parser(
         "anchor",

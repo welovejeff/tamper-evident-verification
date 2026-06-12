@@ -10,11 +10,21 @@ import { canonicalJsonBytes } from "./canonical.js";
 import { keyFingerprint, publicHexFromPrivate, sign, verify } from "./keys.js";
 import { controlTotals, totalsDelta } from "./totals.js";
 
-export const SPEC_VERSION = "1.1";
+// 1.1: numeric-looking text canonicalizes as the number it parses to (cell
+// normalization), so format round-trips that stringify numbers keep the
+// semantic hash stable. Chains recorded under 1.0 still verify.
+// 1.2: control totals gain optional per-period buckets. When exactly one
+// column is date-shaped (>= 90% of its non-null values are typed Dates or
+// ISO-shaped date strings, a bucketing-only rule), totals carry
+// "bucket_column" and "period_buckets": per-UTC-day row_count, numeric_sums
+// and null_counts, with unbucketable rows under "_unbucketed".
+// Canonicalization is unchanged, so semantic hashes do not move; chains
+// recorded under 1.0 and 1.1 still verify.
+export const SPEC_VERSION = "1.2";
 export const CHAIN_FILENAME = "chain.json";
 export const SOURCE_RECEIPT_NAME = "000_source.json";
 
-const nowIso = () => new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
+export const nowIso = () => new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
 
 export function codeHashOf(fn) {
   // Node has no inspect.getsource; the function's own toString() is the
@@ -23,7 +33,9 @@ export function codeHashOf(fn) {
   return createHash("sha256").update(String(fn), "utf-8").digest("hex");
 }
 
-function signBody(body, privateKey) {
+// Exported for history.js (run snapshots sign with the same block receipts
+// carry); not part of the package surface (node/index.js does not re-export).
+export function signBody(body, privateKey) {
   const message = canonicalJsonBytes(body);
   const publicHex = publicHexFromPrivate(privateKey);
   return {
@@ -36,6 +48,13 @@ function signBody(body, privateKey) {
   };
 }
 
+// `tolerance` is the producer's declared continuity expectation
+// ({band: "<plain decimal string>", settle_hours: <int>, and optionally
+// bucket_column: "<normalized name>"}). It joins the body before signing, so
+// the signature covers it; absent declaration means absent field. The band is
+// a decimal STRING because floats never enter signed bodies. `bucketColumn`
+// threads to controlTotals so period_buckets key off the declared column (a
+// non-qualifying name throws there).
 export function buildSourceManifest({
   filename,
   evidenceHash,
@@ -45,23 +64,24 @@ export function buildSourceManifest({
   records,
   privateKey,
   createdAt,
+  tolerance = null,
+  bucketColumn = null,
 }) {
-  return signBody(
-    {
-      kind: "source_manifest",
-      spec_version: SPEC_VERSION,
-      created_at: createdAt ?? nowIso(),
-      source: {
-        filename,
-        evidence_hash: evidenceHash,
-        byte_size: byteSize,
-        declared_origin: declaredOrigin,
-      },
-      semantic_hash: semanticHash,
-      control_totals: controlTotals(records),
+  const body = {
+    kind: "source_manifest",
+    spec_version: SPEC_VERSION,
+    created_at: createdAt ?? nowIso(),
+    source: {
+      filename,
+      evidence_hash: evidenceHash,
+      byte_size: byteSize,
+      declared_origin: declaredOrigin,
     },
-    privateKey
-  );
+    semantic_hash: semanticHash,
+    control_totals: controlTotals(records, { bucketColumn }),
+  };
+  if (tolerance !== null) body.tolerance = tolerance;
+  return signBody(body, privateKey);
 }
 
 export function buildTransformReceipt({
