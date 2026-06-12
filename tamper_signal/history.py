@@ -215,6 +215,38 @@ def _parse_created_at(value: Any) -> dt.datetime | None:
     return parsed.astimezone(dt.timezone.utc)
 
 
+# Granularities `receipts log` collapses run history into, derived from a
+# snapshot's created_at in UTC. Day, month, and quarter key off the calendar
+# date; week keys off the ISO-8601 week-numbering year (so 2024-12-30, a
+# Monday, lands in 2025-W01, not 2024). Both stacks derive these identically;
+# node/history.js periodKey is pinned against the same expectations.
+LOG_GRANULARITIES = ("day", "week", "month", "quarter")
+
+
+def period_key(created_at_iso: str, granularity: str) -> str:
+    """The period bucket key for one snapshot's created_at (UTC).
+
+    day -> YYYY-MM-DD, week -> ISO week YYYY-Www, month -> YYYY-MM,
+    quarter -> YYYY-Qn. Raises ValueError for an unparseable timestamp or an
+    unknown granularity so the CLI can surface a clean error.
+    """
+    parsed = _parse_created_at(created_at_iso)
+    if parsed is None:
+        raise ValueError(f"unparseable created_at: {created_at_iso!r}")
+    day = parsed.date()
+    if granularity == "day":
+        return day.isoformat()
+    if granularity == "month":
+        return f"{day.year:04d}-{day.month:02d}"
+    if granularity == "quarter":
+        quarter = (day.month - 1) // 3 + 1
+        return f"{day.year:04d}-Q{quarter}"
+    if granularity == "week":
+        iso_year, iso_week, _iso_weekday = day.isocalendar()
+        return f"{iso_year:04d}-W{iso_week:02d}"
+    raise ValueError(f"unknown granularity: {granularity!r}")
+
+
 def load_snapshots(
     chain_dir: str,
     *,

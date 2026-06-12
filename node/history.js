@@ -184,6 +184,54 @@ function parseCreatedAt(value) {
   return Number.isNaN(ms) ? null : ms;
 }
 
+// Granularities `tamper-signal log` collapses run history into, derived from a
+// snapshot's created_at in UTC. Mirrors history.py LOG_GRANULARITIES.
+export const LOG_GRANULARITIES = ["day", "week", "month", "quarter"];
+
+const pad2 = (n) => String(n).padStart(2, "0");
+const pad4 = (n) => String(n).padStart(4, "0");
+
+// ISO-8601 week-numbering (year, week) for a UTC date. Mirrors Python's
+// date.isocalendar() so 2024-12-30 (a Monday) yields [2025, 1]. The algorithm:
+// the ISO week containing a date's Thursday determines its week-numbering year,
+// and week 1 is the week containing Jan 4. Computed entirely in UTC.
+function isoWeek(year, month, day) {
+  const date = new Date(Date.UTC(year, month - 1, day));
+  // ISO weekday: Monday=1 .. Sunday=7 (JS getUTCDay is Sunday=0).
+  const isoDow = date.getUTCDay() === 0 ? 7 : date.getUTCDay();
+  // The Thursday of this date's week fixes the week-numbering year.
+  const thursday = new Date(date);
+  thursday.setUTCDate(date.getUTCDate() + (4 - isoDow));
+  const isoYear = thursday.getUTCFullYear();
+  const firstThursday = new Date(Date.UTC(isoYear, 0, 4));
+  const firstIsoDow = firstThursday.getUTCDay() === 0 ? 7 : firstThursday.getUTCDay();
+  const week1Monday = new Date(firstThursday);
+  week1Monday.setUTCDate(firstThursday.getUTCDate() - (firstIsoDow - 1));
+  const week = Math.floor((thursday - week1Monday) / (7 * 86400000)) + 1;
+  return [isoYear, week];
+}
+
+// The period bucket key for one snapshot's created_at (UTC). day -> YYYY-MM-DD,
+// week -> ISO week YYYY-Www, month -> YYYY-MM, quarter -> YYYY-Qn. Throws for
+// an unparseable timestamp or an unknown granularity. Byte-for-byte parity with
+// tamper_signal/history.py period_key.
+export function periodKey(createdAtIso, granularity) {
+  const ms = parseCreatedAt(createdAtIso);
+  if (ms === null) throw new Error(`unparseable created_at: ${createdAtIso}`);
+  const date = new Date(ms);
+  const year = date.getUTCFullYear();
+  const month = date.getUTCMonth() + 1;
+  const day = date.getUTCDate();
+  if (granularity === "day") return `${pad4(year)}-${pad2(month)}-${pad2(day)}`;
+  if (granularity === "month") return `${pad4(year)}-${pad2(month)}`;
+  if (granularity === "quarter") return `${pad4(year)}-Q${Math.floor((month - 1) / 3) + 1}`;
+  if (granularity === "week") {
+    const [isoYear, week] = isoWeek(year, month, day);
+    return `${pad4(isoYear)}-W${pad2(week)}`;
+  }
+  throw new Error(`unknown granularity: ${granularity}`);
+}
+
 // Load and validate run snapshots, newest first. Returns one item per usable
 // snapshot: { filename, path, snapshot, created_at, body_hash, signed,
 // verified }. `verified` is true only for signed snapshots whose signature

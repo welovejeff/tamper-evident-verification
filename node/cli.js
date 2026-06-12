@@ -17,13 +17,16 @@ import process from "node:process";
 
 import { canonicalDocument, canonicalJsonBytes, semanticHash } from "./canonical.js";
 import {
+  LOG_GRANULARITIES,
   archiveRunSnapshot,
   chainTailHash,
   judgeCrossRun,
   loadSnapshots,
+  periodKey,
   runSource,
   runStages,
 } from "./history.js";
+import { decimalToPlainString, parseDecimal } from "./canonical.js";
 import { generateKeys, loadPrivateKey, loadPublicKeyHex, publicHexFromPrivate } from "./keys.js";
 import { loadRecords } from "./load.js";
 import {
@@ -63,6 +66,14 @@ commands:
                                              run to the current chain.
                                              Read-only; exit 0 with or without
                                              differences
+  log [--chain receipts/] [--granularity day|week|month|quarter]
+      [--metric <name> ...] [--pub key.pub ...] [--json]
+                                             render archived run history as a
+                                             per-metric trend across runs. One
+                                             row per period (same-period runs
+                                             collapse last-wins); each metric
+                                             shows its value and the delta vs
+                                             the previous row. Read-only; exit 0
   export <chain.json> --data <file> [--out receipts/table.json]
                                              write the canonical table document
                                              (refuses unless --data matches the
@@ -603,6 +614,263 @@ function cmdDiff(args) {
   return 0;
 }
 
+// --- log --------------------------------------------------------------------
+// Mirrors the Python `receipts log` (tamper_signal/cli.py cmd_log): render
+// archived run history as a per-metric trend across runs at day/week/month/
+// quarter granularity. Read-only; exit 0 (1 only on a bad --granularity).
+// ASCII output only. Collapse and period keys agree byte-for-byte with Python.
+
+// The last stage's totals in a snapshot (the FINAL stage `log` trends).
+function finalStageTotals(snapshot) {
+  const stages = snapshot.stages;
+  if (Array.isArray(stages)) {
+    for (let i = stages.length - 1; i >= 0; i--) {
+      const stage = stages[i];
+      if (isObject(stage)) return isObject(stage.totals) ? stage.totals : {};
+    }
+  }
+  return {};
+}
+
+// A metric's display string from final-stage totals, or null when absent.
+// Metric ids: "row_count" or a numeric_sums column name.
+function logMetricValue(totals, metric) {
+  if (metric === "row_count") {
+    const value = totals.row_count;
+    return typeof value === "number" && Number.isInteger(value) ? String(value) : null;
+  }
+  const sums = totals.numeric_sums;
+  const value = isObject(sums) ? sums[metric] : undefined;
+  return typeof value === "string" ? value : null;
+}
+
+// Default selection: row_count plus the union of every snapshot's final-stage
+// numeric_sums column names (sorted), so a metric in only some runs is still
+// trended ("-" where it is missing).
+function defaultLogMetrics(snapshots) {
+  const sums = new Set();
+  for (const snapshot of snapshots) {
+    const s = finalStageTotals(snapshot).numeric_sums;
+    if (isObject(s)) for (const k of Object.keys(s)) sums.add(String(k));
+  }
+  return ["row_count", ...[...sums].sort()];
+}
+
+// The metric ids this snapshot's judgment flagged anywhere (any bucket). The
+// breached map is keyed by bucket; `log` trends final-stage whole-table
+// metrics, so a metric is marked breached for the run if it breached in ANY
+// bucket. null_counts[...] ids never appear as log metrics and are ignored.
+function logBreachedMetrics(snapshot) {
+  const names = new Set();
+  const breached = snapshot.breached;
+  if (isObject(breached)) {
+    for (const metrics of Object.values(breached)) {
+      if (Array.isArray(metrics)) for (const m of metrics) if (typeof m === "string") names.add(m);
+    }
+  }
+  return names;
+}
+
+// Collapse validated snapshot items into per-period rows (oldest first).
+// Multiple runs in the same period collapse LAST-WINS by created_at (ties
+// break on body_hash, matching loadSnapshots' ordering). Returns
+// { rows, collapsed } where collapsed counts the runs hidden by the collapse.
+function buildLogPeriods(items, granularity, metrics) {
+  const groups = new Map();
+  for (const item of items) {
+    const key = periodKey(item.created_at, granularity);
+    const sortKey = `${item.created_at} ${item.body_hash}`;
+    const group = groups.get(key);
+    if (group === undefined) {
+      groups.set(key, { item, sortKey, count: 1 });
+    } else {
+      group.count += 1;
+      if (sortKey > group.sortKey) {
+        group.item = item;
+        group.sortKey = sortKey;
+      }
+    }
+  }
+
+  const rows = [];
+  let collapsed = 0;
+  for (const key of [...groups.keys()].sort()) {
+    const group = groups.get(key);
+    collapsed += group.count - 1;
+    const snapshot = group.item.snapshot;
+    const totals = finalStageTotals(snapshot);
+    const breached = logBreachedMetrics(snapshot);
+    const values = {};
+    for (const metric of metrics) values[metric] = logMetricValue(totals, metric);
+    rows.push({
+      period: key,
+      runs: group.count,
+      created_at: group.item.created_at,
+      tail: snapshot.chain_tail_hash || "",
+      unsigned: !group.item.signed,
+      values,
+      breached,
+    });
+  }
+  return { rows, collapsed };
+}
+
+// The most recent earlier row's value for this metric, skipping rows where the
+// metric was missing, or null when no earlier row has it.
+function previousLogValue(rows, index, metric) {
+  for (let back = index - 1; back >= 0; back--) {
+    const candidate = rows[back].values[metric];
+    if (candidate !== null && candidate !== undefined) return candidate;
+  }
+  return null;
+}
+
+// Signed delta string between two metric values, or null when either is not a
+// finite decimal. Integers render without a decimal point ("+22"). Exact
+// BigInt math (align mantissas, subtract) to match Python's Decimal.
+function logDelta(before, after) {
+  const a = parseDecimal(before);
+  const b = parseDecimal(after);
+  if (a === null || b === null) return null;
+  const exp = Math.min(a.exp, b.exp);
+  const diff = b.v * 10n ** BigInt(b.exp - exp) - a.v * 10n ** BigInt(a.exp - exp);
+  const sign = diff < 0n ? "-" : "+";
+  const magnitude = diff < 0n ? { v: -diff, exp } : { v: diff, exp };
+  return sign + decimalToPlainString(magnitude);
+}
+
+// ASCII, aligned, chronological table. Each metric column shows the value, a
+// "!" suffix when the run breached that metric, and a delta vs the previous
+// rendered row (first row no delta). A missing metric renders "-". An
+// "unsigned" column shows "u" for unsigned snapshots.
+function renderLogTable(rows, metrics) {
+  const headers = ["period", "runs", "tail", "unsigned", ...metrics];
+  const table = [];
+  for (let index = 0; index < rows.length; index++) {
+    const row = rows[index];
+    const cells = [row.period, String(row.runs), row.tail ? row.tail.slice(0, 8) : "-", row.unsigned ? "u" : ""];
+    for (const metric of metrics) {
+      const value = row.values[metric];
+      if (value === null || value === undefined) {
+        cells.push("-");
+        continue;
+      }
+      let text = value + (row.breached.has(metric) ? "!" : "");
+      const prior = previousLogValue(rows, index, metric);
+      if (prior !== null) {
+        const delta = logDelta(prior, value);
+        if (delta !== null) text += ` (${delta})`;
+      }
+      cells.push(text);
+    }
+    table.push(cells);
+  }
+
+  const widths = headers.map((h) => h.length);
+  for (const cells of table) {
+    for (let i = 0; i < cells.length; i++) widths[i] = Math.max(widths[i], cells[i].length);
+  }
+  const fmt = (cells) => cells.map((cell, i) => cell.padEnd(widths[i])).join("  ").replace(/\s+$/, "");
+  return [fmt(headers), ...table.map(fmt)];
+}
+
+// Per-metric {value, delta?} for one JSON row. value is the display string (or
+// "-" when absent); delta is the signed delta vs the previous rendered row
+// that had a value (omitted on the first such row).
+function logJsonMetrics(rows, index, metrics) {
+  const out = {};
+  for (const metric of metrics) {
+    const value = rows[index].values[metric];
+    if (value === null || value === undefined) {
+      out[metric] = { value: "-" };
+      continue;
+    }
+    const entry = { value };
+    const prior = previousLogValue(rows, index, metric);
+    if (prior !== null) {
+      const delta = logDelta(prior, value);
+      if (delta !== null) entry.delta = delta;
+    }
+    out[metric] = entry;
+  }
+  return out;
+}
+
+function cmdLog(args) {
+  const { values } = parseArgs({
+    args,
+    options: {
+      chain: { type: "string", default: "receipts/" },
+      granularity: { type: "string", default: "day" },
+      metric: { type: "string", multiple: true },
+      pub: { type: "string", multiple: true },
+      json: { type: "boolean", default: false },
+    },
+  });
+
+  const granularity = values.granularity;
+  if (!LOG_GRANULARITIES.includes(granularity)) {
+    console.error(
+      `log: unknown --granularity '${granularity}' (choose from ${LOG_GRANULARITIES.join(", ")})`
+    );
+    return 1;
+  }
+
+  const chainDir = chainDirOf(values.chain);
+  const chainPath = join(chainDir, "chain.json");
+  let trusted = [];
+  if (values.pub?.length) {
+    trusted = values.pub.map(loadPublicKeyHex);
+  } else if (existsSync(chainPath)) {
+    // Default to the chain's embedded key so signed snapshots verify.
+    try {
+      const chain = readChain(chainPath);
+      if (typeof chain.public_key === "string" && chain.public_key) trusted = [chain.public_key];
+    } catch {
+      trusted = [];
+    }
+  }
+
+  let items = loadSnapshots(chainDir, {
+    trustedKeys: trusted,
+    onNotice: (message) => console.error(message),
+  });
+  if (!items.length) {
+    console.log("no run history yet");
+    return 0;
+  }
+
+  // loadSnapshots returns newest-first; `log` renders oldest-first.
+  items = [...items].reverse();
+  const snapshots = items.map((item) => item.snapshot);
+  const metrics = values.metric?.length ? [...new Set(values.metric)] : defaultLogMetrics(snapshots);
+
+  const { rows, collapsed } = buildLogPeriods(items, granularity, metrics);
+
+  if (values.json) {
+    const payload = {
+      granularity,
+      // Total runs collapsed away by the granularity. Ordered chronological
+      // (oldest first), matching the Python CLI byte-for-byte.
+      collapsed,
+      runs: rows.map((row, index) => ({
+        period: row.period,
+        created_at: row.created_at,
+        tail: row.tail ? row.tail.slice(0, 8) : null,
+        unsigned: row.unsigned,
+        metrics: logJsonMetrics(rows, index, metrics),
+        breached: metrics.filter((m) => row.breached.has(m)).sort(),
+      })),
+    };
+    console.log(JSON.stringify(payload, null, 2));
+    return 0;
+  }
+
+  for (const line of renderLogTable(rows, metrics)) console.log(line);
+  console.log("u = unsigned snapshot (weaker evidence); ! = breached in that run");
+  return 0;
+}
+
 function cmdExport(args) {
   const { values, positionals } = parseArgs({
     args,
@@ -661,7 +929,7 @@ function cmdExport(args) {
 }
 
 const [, , command, ...rest] = process.argv;
-const commands = { keygen: cmdKeygen, ingest: cmdIngest, verify: cmdVerify, diff: cmdDiff, export: cmdExport };
+const commands = { keygen: cmdKeygen, ingest: cmdIngest, verify: cmdVerify, diff: cmdDiff, log: cmdLog, export: cmdExport };
 if (!command || !(command in commands)) {
   console.error(USAGE);
   process.exit(command ? 1 : 0);

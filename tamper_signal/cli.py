@@ -5,6 +5,7 @@ Commands:
   receipts ingest <file.xlsx> --origin "..." --key keys/signing.key --out receipts/
   receipts verify receipts/chain.json --pub keys/signing.pub [--data <current.xlsx>] [--json]
   receipts diff [A] [B] [--chain receipts/] [--json]
+  receipts log [--chain receipts/] [--granularity day|week|month|quarter] [--metric <name>] [--json]
   receipts init
   receipts doctor [--url http://localhost:8787/chain.json]
   receipts serve
@@ -993,6 +994,286 @@ def cmd_diff(args: argparse.Namespace) -> int:
     return 0
 
 
+def _final_stage_totals(snapshot: dict) -> dict:
+    """The last stage's totals in a snapshot (the FINAL stage `log` trends)."""
+    stages = snapshot.get("stages")
+    if isinstance(stages, list):
+        for stage in reversed(stages):
+            if isinstance(stage, dict):
+                totals = stage.get("totals")
+                return totals if isinstance(totals, dict) else {}
+    return {}
+
+
+def _log_metric_value(totals: dict, metric: str) -> str | None:
+    """A metric's display string from final-stage totals, or None when absent.
+
+    Metric ids: "row_count" or a numeric_sums column name. row_count renders
+    as its integer string; numeric sums are already plain decimal strings.
+    """
+    if metric == "row_count":
+        value = totals.get("row_count")
+        if isinstance(value, int) and not isinstance(value, bool):
+            return str(value)
+        return None
+    sums = totals.get("numeric_sums")
+    value = sums.get(metric) if isinstance(sums, dict) else None
+    return value if isinstance(value, str) else None
+
+
+def _default_log_metrics(snapshots: list[dict]) -> list[str]:
+    """Default selection: row_count plus the union of every snapshot's
+    final-stage numeric_sums column names (sorted), so a metric that appears
+    in only some runs is still trended ("-" where it is missing)."""
+    sums: set[str] = set()
+    for snapshot in snapshots:
+        totals = _final_stage_totals(snapshot)
+        s = totals.get("numeric_sums")
+        if isinstance(s, dict):
+            sums.update(str(k) for k in s)
+    return ["row_count"] + sorted(sums)
+
+
+def _log_breached_metrics(snapshot: dict) -> set[str]:
+    """The metric ids this snapshot's judgment flagged anywhere (any bucket).
+
+    The breached map is keyed by bucket; `log` trends final-stage whole-table
+    metrics, so a metric is marked breached for the run if it breached in ANY
+    bucket. row_count and numeric-sum names match the log metric ids directly;
+    null_counts[...] ids never appear as log metrics and are ignored.
+    """
+    breached = snapshot.get("breached")
+    names: set[str] = set()
+    if isinstance(breached, dict):
+        for metrics in breached.values():
+            if isinstance(metrics, list):
+                names.update(m for m in metrics if isinstance(m, str))
+    return names
+
+
+def _build_log_periods(items: list[dict], granularity: str, metrics: list[str]) -> tuple[list[dict], int]:
+    """Collapse validated snapshot items into per-period rows (oldest first).
+
+    Multiple runs in the same period collapse LAST-WINS by created_at (ties
+    break on body_hash for determinism, matching load_snapshots' ordering).
+    Returns (rows, collapsed) where collapsed counts the runs hidden by the
+    collapse (total runs minus rendered rows). Each row carries the period key,
+    the run count, the chosen snapshot's tail/created_at/unsigned, and per-metric
+    value strings plus the breached-metric set.
+    """
+    from .history import period_key
+
+    # Group by period key. Within a period, keep the winner (the latest run by
+    # the same ordering load_snapshots uses) and count the runs collapsed.
+    groups: dict[str, dict] = {}
+    for item in items:
+        snapshot = item["snapshot"]
+        key = period_key(item["created_at"], granularity)
+        sort_key = (item["created_at"], item["body_hash"])
+        group = groups.get(key)
+        if group is None:
+            groups[key] = {"item": item, "sort_key": sort_key, "count": 1}
+        else:
+            group["count"] += 1
+            if sort_key > group["sort_key"]:
+                group["item"] = item
+                group["sort_key"] = sort_key
+
+    rows: list[dict] = []
+    collapsed = 0
+    for key in sorted(groups):  # period keys sort chronologically as strings
+        group = groups[key]
+        collapsed += group["count"] - 1
+        item = group["item"]
+        snapshot = item["snapshot"]
+        totals = _final_stage_totals(snapshot)
+        breached = _log_breached_metrics(snapshot)
+        values = {metric: _log_metric_value(totals, metric) for metric in metrics}
+        rows.append(
+            {
+                "period": key,
+                "runs": group["count"],
+                "created_at": item["created_at"],
+                "tail": snapshot.get("chain_tail_hash") or "",
+                "unsigned": not item["signed"],
+                "values": values,
+                "breached": breached,
+            }
+        )
+    return rows, collapsed
+
+
+def _render_log_table(rows: list[dict], metrics: list[str]) -> list[str]:
+    """ASCII, aligned, chronological table. Each metric column shows the value,
+    a "!" suffix when the run breached that metric, and a delta vs the previous
+    rendered row in parentheses (first row has no delta). A missing metric
+    renders "-". An "unsigned" column shows "u" for unsigned snapshots."""
+    headers = ["period", "runs", "tail", "unsigned"] + metrics
+    table: list[list[str]] = []
+    for index, row in enumerate(rows):
+        cells = [
+            row["period"],
+            str(row["runs"]),
+            (row["tail"][:8] if row["tail"] else "-"),
+            ("u" if row["unsigned"] else ""),
+        ]
+        for metric in metrics:
+            value = row["values"].get(metric)
+            if value is None:
+                cells.append("-")
+                continue
+            text = value + ("!" if metric in row["breached"] else "")
+            prior = _previous_log_value(rows, index, metric)
+            if prior is not None:
+                delta = _log_delta(prior, value)
+                if delta is not None:
+                    text += f" ({delta})"
+            cells.append(text)
+        table.append(cells)
+
+    widths = [len(h) for h in headers]
+    for cells in table:
+        for i, cell in enumerate(cells):
+            widths[i] = max(widths[i], len(cell))
+
+    def fmt(cells: list[str]) -> str:
+        return "  ".join(cell.ljust(widths[i]) for i, cell in enumerate(cells)).rstrip()
+
+    lines = [fmt(headers)]
+    lines.extend(fmt(cells) for cells in table)
+    return lines
+
+
+def _previous_log_value(rows: list[dict], index: int, metric: str) -> str | None:
+    """The most recent earlier row's value for this metric, skipping rows where
+    the metric was missing, or None when no earlier row has it. The delta a row
+    shows is against this value, so a one-off gap does not erase the trend."""
+    for back in range(index - 1, -1, -1):
+        candidate = rows[back]["values"].get(metric)
+        if candidate is not None:
+            return candidate
+    return None
+
+
+def _log_delta(before: str, after: str) -> str | None:
+    """Signed delta string between two metric values, or None when either is
+    not a finite decimal. Integers render without a decimal point ("+22");
+    fractional deltas keep their plain decimal form ("+1.5")."""
+    from decimal import Decimal, InvalidOperation
+
+    try:
+        diff = Decimal(after) - Decimal(before)
+    except InvalidOperation:
+        return None
+    if not diff.is_finite():
+        return None
+    sign = "-" if diff < 0 else "+"
+    return sign + decimal_to_plain_string(abs(diff))
+
+
+def cmd_log(args: argparse.Namespace) -> int:
+    """Render archived run history as a per-metric trend across runs.
+
+    Read-only scan of <chain dir>/history/ via load_snapshots. Empty history
+    prints a notice and exits 0; a single run renders one row with no deltas.
+    The default metric selection is row_count plus every final-stage numeric
+    sum; --metric filters it. --granularity collapses multiple runs in the
+    same period last-wins. ASCII only; --json emits the structured trend
+    (oldest first)."""
+    import json as _json
+
+    from .history import LOG_GRANULARITIES, load_snapshots
+
+    granularity = args.granularity
+    if granularity not in LOG_GRANULARITIES:
+        print(
+            f"log: unknown --granularity '{granularity}' "
+            f"(choose from {', '.join(LOG_GRANULARITIES)})",
+            file=sys.stderr,
+        )
+        return 1
+
+    chain_dir = _chain_dir_of(args.chain)
+    chain_path = Path(chain_dir) / CHAIN_FILENAME
+    trusted: list[str] = []
+    if args.pub:
+        trusted = [load_public_key_hex(path) for path in args.pub]
+    elif chain_path.is_file():
+        # Default to the chain's embedded key so signed snapshots verify.
+        try:
+            chain = read_chain(str(chain_path))
+            key = chain.get("public_key")
+            if isinstance(key, str) and key:
+                trusted = [key]
+        except (OSError, ValueError):
+            trusted = []
+
+    items = load_snapshots(
+        chain_dir,
+        trusted_keys=trusted,
+        on_notice=lambda message: print(message, file=sys.stderr),
+    )
+    if not items:
+        print("no run history yet")
+        return 0
+
+    # load_snapshots returns newest-first; `log` renders oldest-first.
+    items = list(reversed(items))
+    snapshots = [item["snapshot"] for item in items]
+    if args.metric:
+        metrics = list(dict.fromkeys(args.metric))  # de-dupe, keep order
+    else:
+        metrics = _default_log_metrics(snapshots)
+
+    rows, collapsed = _build_log_periods(items, granularity, metrics)
+
+    if args.json:
+        payload = {
+            "granularity": granularity,
+            # Total runs collapsed away by the granularity (rendered rows hide
+            # this many same-period runs). Ordered chronological (oldest first).
+            "collapsed": collapsed,
+            "runs": [
+                {
+                    "period": row["period"],
+                    "created_at": row["created_at"],
+                    "tail": (row["tail"][:8] if row["tail"] else None),
+                    "unsigned": row["unsigned"],
+                    "metrics": _log_json_metrics(rows, index, metrics),
+                    "breached": sorted(m for m in metrics if m in row["breached"]),
+                }
+                for index, row in enumerate(rows)
+            ],
+        }
+        print(_json.dumps(payload, indent=2))
+        return 0
+
+    for line in _render_log_table(rows, metrics):
+        print(line)
+    print("u = unsigned snapshot (weaker evidence); ! = breached in that run")
+    return 0
+
+
+def _log_json_metrics(rows: list[dict], index: int, metrics: list[str]) -> dict:
+    """Per-metric {value, delta?} for one JSON row. value is the display string
+    (or "-" when absent); delta is the signed delta vs the previous rendered
+    row that had a value (omitted on the first such row)."""
+    out: dict[str, dict] = {}
+    for metric in metrics:
+        value = rows[index]["values"].get(metric)
+        if value is None:
+            out[metric] = {"value": "-"}
+            continue
+        entry = {"value": value}
+        prior = _previous_log_value(rows, index, metric)
+        if prior is not None:
+            delta = _log_delta(prior, value)
+            if delta is not None:
+                entry["delta"] = delta
+        out[metric] = entry
+    return out
+
+
 def cmd_anchor(args: argparse.Namespace) -> int:
     """Anchor chain.json in the Sigstore transparency log."""
     import json as _json
@@ -1220,6 +1501,42 @@ def build_parser() -> argparse.ArgumentParser:
         help="Emit the structured diff as JSON instead of the text report",
     )
     p_diff.set_defaults(func=cmd_diff)
+
+    p_log = sub.add_parser(
+        "log",
+        help="Render archived run history as a per-metric trend across runs "
+        "(read-only; exit 0)",
+    )
+    p_log.add_argument(
+        "--chain",
+        default="receipts/",
+        help="Chain directory (or chain.json path) whose history/ to read",
+    )
+    p_log.add_argument(
+        "--granularity",
+        default="day",
+        help="Collapse runs per period: day, week, month, or quarter (default day)",
+    )
+    p_log.add_argument(
+        "--metric",
+        action="append",
+        default=None,
+        help="Metric to trend (row_count or a numeric_sums column); repeat to "
+        "add more. Default: row_count plus every final-stage numeric sum",
+    )
+    p_log.add_argument(
+        "--pub",
+        action="append",
+        default=None,
+        help="Trusted public key (.pub) path for snapshot signatures; repeat "
+        "for key rotation",
+    )
+    p_log.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit the structured trend as JSON instead of the text table",
+    )
+    p_log.set_defaults(func=cmd_log)
 
     p_anchor = sub.add_parser(
         "anchor",
