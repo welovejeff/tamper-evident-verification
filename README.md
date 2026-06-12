@@ -48,11 +48,15 @@ receipts demo
 receipts init                 # scaffold: keys, .gitignore safety, receipts dir (idempotent)
 receipts ingest sample_export.xlsx --origin "TikTok export, May 2026" --key keys/signing.key --out receipts/
 receipts verify receipts/chain.json --pub keys/signing.pub --data dashboard.xlsx
+receipts diff                 # compare two runs: code-hash changes and totals deltas (read-only)
+receipts log                  # archived run history as a per-metric trend across runs (read-only)
 receipts doctor               # integration self-check with actionable fixes
 receipts serve                # serve receipts/ on localhost with CORS (dev only)
 ```
 
 `--pub` repeats for key rotation (any trusted key verifies), and `TAMPER_SIGNAL_KEY` can carry the PEM private key in CI so no key file touches disk. `ingest` and `verify --data` accept .xlsx, .csv, .tsv, .json (array of objects), and .ndjson; the semantic hash is identical across formats, so an xlsx ingest verifies against a CSV copy of the same data. `verify` exits with the traffic light: 0 green, 1 red, 2 yellow (verifies, with caveats). Add `--warn-drift` to also flag any control-totals movement across links as a caveat; it is off by default because filters and aggregations legitimately move totals. `--json` emits a structured verdict (schema in `AGENTS.md`) for CI and coding agents.
+
+For a recurring refresh of the same report, declare a tolerance at ingest with `--band` (default 5%) and `--settle` (default 72h), optionally keyed off a date column with `--bucket-column`. The declaration is signed into the source manifest. Every non-red `verify` then archives a run snapshot under `receipts/history/`, and the next verify judges this run against that memory: recent buckets may drift within the band, settled buckets (older than the window) may not, and any breach is a yellow caveat. `receipts diff` and `receipts log` read that history (both read-only, exit 0) to show what moved between runs and the per-metric trend across them. History is CLI-local and weaker evidence than the chain: it stays out of `receipt_hashes` and anchoring, and `serve` never exposes it.
 
 Transforms record their own receipts by wrapping any list-of-dicts to list-of-dicts function:
 

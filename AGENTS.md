@@ -143,16 +143,19 @@ JS reads **.csv / .tsv / .json / .ndjson / .jsonl**. It does **not** read
 `.xlsx` to CSV first, or ingest it once with the Python CLI (`pip install
 tamper-signal`); the resulting chain verifies interchangeably on the JS side.
 
-### What is Python-only
+### Command parity (and what is Python-only)
 
-`tamper-signal` does not implement these `receipts` subcommands. On a JS-only
-project, use the equivalent and skip the rest of this runbook's Python commands:
+Most `receipts` subcommands have a JS equivalent; a few are Python-only. On a
+JS-only project, use the equivalent and skip the rest of this runbook's Python
+commands:
 
 | `receipts` (Python) | JavaScript |
 | --- | --- |
 | `receipts init` | `tamper-signal keygen`; `receipts/` is created on first `ingest` (no scaffold command) |
 | `receipts ingest` | `tamper-signal ingest` / `ingestFile()` |
 | `receipts verify` | `tamper-signal verify` / `verifyChain()` |
+| `receipts diff` | `tamper-signal diff` (same args and JSON shape) |
+| `receipts log` | `tamper-signal log` (same args and JSON shape) |
 | `receipts export` | `tamper-signal export` / `canonicalDocument()` |
 | `receipts serve` | your bundler's static server, or `tamper-signal/express` |
 | `receipts doctor` | `tamper-signal verify` (exit 0 = healthy); confirm the key is gitignored yourself |
@@ -237,12 +240,28 @@ same payload). Parse this rather than scraping text:
 {
   "verdict": "green | yellow | red",
   "exit_code": 0,
-  "spec_version": "1.1",
+  "spec_version": "1.2",
   "receipts": 3,
   "transforms": 2,
   "stages": ["source", "clean", "aggregate"],
   "final_row_count": 304,
   "caveats": ["..."],
+  "caveat_details": [
+    {
+      "type": "settled_movement",
+      "metric": "amount",
+      "periods": 1,
+      "worst": {
+        "period": "2026-05-02",
+        "before": "100",
+        "after": "200",
+        "delta": "+100"
+      },
+      "buckets": [
+        { "period": "2026-05-02", "before": "100", "after": "200", "delta": "+100" }
+      ]
+    }
+  ],
   "broken_link": {
     "link": [1, 2],
     "stage": "aggregate",
@@ -256,6 +275,19 @@ same payload). Parse this rather than scraping text:
   "anchor": ["anchor report lines; present only when --anchor is passed"]
 }
 ```
+
+`caveat_details` is additive and always present (`[]` when cross-run judgment
+found nothing or never ran), so a consumer can rely on the key. Each entry is
+one typed period-over-period finding that pairs with a string in `caveats`:
+`type` is one of `band_breach`, `settled_movement`, `bucket_removed`, or
+`bucket_loss`; `metric` is the affected control-total name (`null` for
+`bucket_loss`); `periods` counts the buckets involved; `worst` names the worst
+bucket with `before`/`after`/`delta` plain-decimal strings (a `band_breach`
+worst also carries `delta_pct`, e.g. `"+1899.8%"`); `buckets` lists every
+involved bucket. The numbers in the example above are a real captured payload
+for one settled bucket whose `amount` moved `100 -> 200`. Anchor caveats
+(missing anchor, anchor covers chain.json only) are deliberately string-only
+and have NO `caveat_details` entry: they are not period-over-period findings.
 
 `broken_link`, `data_mismatch`, and `receipt_mismatch` are null unless the
 verdict is red, and all three stay null when red comes from an anchor
@@ -295,6 +327,56 @@ jobs:
 
 Exit 1 (red) fails the build; exit 2 (yellow) surfaces a warning annotation
 without failing.
+
+## 5a. Period-over-period continuity (optional, for recurring refreshes)
+
+When the same export is re-ingested on a cadence (a nightly or weekly refresh
+of the same report), the chain can also watch how the numbers move run over
+run. This is opt-in and starts at ingest, where the producer declares how much
+movement is normal:
+
+```bash
+receipts ingest export.csv --origin "nightly" --band 5% --settle 72h \
+  --bucket-column day --key keys/signing.key --out receipts/
+```
+
+- `--band` is the tolerance band for cross-run drift: `5%`, `5 %`, or `0.05`
+  all normalize to the same signed decimal. Declaring only `--band` defaults
+  `--settle` to 72h, and vice versa.
+- `--settle` is the settling window in hours: `72`, `72h`, or `3d`. Inside the
+  window, recent buckets may legitimately drift within the band as late data
+  lands; once a bucket is older than the window it is settled, and any movement
+  there, at any size, is a caveat.
+- `--bucket-column` names the date column to key per-period buckets off. Omit
+  it and a single date-shaped column is detected automatically; name a column
+  that is not date-shaped and `ingest` exits 1 with nothing written.
+
+The declaration is signed into the source manifest, so loosening the band after
+the fact breaks the signature. With no tolerance declared, verification stays
+exact and silent: this whole section is a no-op.
+
+Run history is automatic. Every non-red CLI `verify` archives a compact run
+snapshot under `receipts/history/` (signed when a private key is available).
+Snapshots are what give the chain a memory; the cross-run judgment reads them
+on the next verify and folds its findings in as yellow caveats (never red).
+History is CLI-local: `receipts serve` 404s anything under `history/`, because
+snapshots carry per-day totals and run cadence that the published receipts do
+not. History is weaker evidence than the chain itself: snapshots sit outside
+`receipt_hashes` and outside anchoring.
+
+Two read-only commands work the archived history, both exit 0:
+
+```bash
+receipts diff                          # current chain vs the latest differing snapshot
+receipts log --granularity week        # per-metric trend across runs, oldest first
+```
+
+`diff` reports per-stage code-hash changes and a structured totals delta
+(including which period buckets moved); pass two chain directories or snapshot
+files to compare any two runs explicitly. `log` renders one row per period
+(same-period runs collapse last-wins), each metric showing its value, a `!`
+when that run breached, and the delta versus the previous row. Both take
+`--json` for the structured form.
 
 ## 5b. Anchoring (optional, for disputes and audits)
 
