@@ -26,6 +26,7 @@ from .canonical import (
 )
 from .keys import load_private_key, public_hex_from_private
 from .receipts import (
+    CHAIN_FILENAME,
     SOURCE_RECEIPT_NAME,
     build_source_manifest,
     build_transform_receipt,
@@ -33,7 +34,9 @@ from .receipts import (
     load_receipts,
     next_receipt_filename,
     output_hash_of,
+    read_chain,
     read_chain_files,
+    read_receipt,
     verify_chain,
     write_chain,
     write_receipt,
@@ -181,6 +184,115 @@ def ingest_file(
         "source_hash": manifest["semantic_hash"],
         "chain_dir": chain_dir,
     }
+
+
+class UntrustedSignerError(RuntimeError):
+    """Append-period import attempted under a signer the chain does not trust."""
+
+
+def append_period(
+    file: str,
+    *,
+    origin: str = "",
+    chain_dir: str = "receipts/",
+    key_path: str = "keys/signing.key",
+    trusted_pub_hexes: tuple[str, ...] | list[str] = (),
+    band: str | None = None,
+    settle: str | None = None,
+    bucket_column: str | None = None,
+    sheet: str | None = None,
+) -> dict[str, Any]:
+    """Import a file as the next period of an existing chain's run history.
+
+    Continues history only under a trusted signer. The importer's key must be
+    the existing chain's key or supplied as trusted via `trusted_pub_hexes`
+    (the CLI's --pub): a run snapshot signed under an untrusted key would be
+    silently dropped by verification, so "judged and yellow under an unknown
+    key" cannot exist. An untrusted signer is refused (UntrustedSignerError)
+    with guidance to use replace instead.
+
+    Inherits the prior run's signed tolerance when the caller overrides none of
+    band/settle/bucket, so omitting a band cannot silently drop judgment. Then
+    re-ingests the file (as a daily run would), judges the new run against prior
+    trusted snapshots, and archives the new snapshot with the `breached`
+    baseline guard computed BEFORE the write (a breached value must not become
+    the next clean baseline). Mirrors node/wrapper.js appendPeriod.
+
+    Returns ingest_file's result plus {"caveats", "details", "breached",
+    "compared"}.
+    """
+    from .history import archive_run_snapshot, judge_cross_run, load_snapshots
+
+    chain_path = Path(chain_dir) / CHAIN_FILENAME
+    if not chain_path.is_file():
+        raise UntrustedSignerError(
+            f"no existing chain at {chain_path} to continue; use replace to start a chain"
+        )
+    prior_chain = read_chain(str(chain_path))
+    prior_key = prior_chain.get("public_key")
+
+    importer_hex = public_hex_from_private(load_private_key(key_path))
+    trusted = {k for k in [prior_key, *trusted_pub_hexes] if k}
+    if importer_hex not in trusted:
+        raise UntrustedSignerError(
+            "append-period continues history only under a trusted signer; the importer "
+            "key is neither the chain's key nor passed as trusted. Use replace to "
+            "re-attest under a new identity, or pass the prior signer's public key."
+        )
+
+    # Inherit the prior run's signed tolerance unless the caller overrides it, so
+    # the prior declared band keeps governing and omitting a band cannot drop it.
+    if band is None and settle is None and bucket_column is None:
+        names = prior_chain.get("receipts") or []
+        prior_tol = None
+        if names:
+            try:
+                prior_source = read_receipt(chain_dir, names[0])
+                prior_tol = prior_source.get("tolerance")
+            except (ValueError, OSError):
+                prior_tol = None
+        if isinstance(prior_tol, dict):
+            if isinstance(prior_tol.get("band"), str):
+                band = prior_tol["band"]
+            if isinstance(prior_tol.get("settle_hours"), int) and not isinstance(
+                prior_tol.get("settle_hours"), bool
+            ):
+                settle = f"{prior_tol['settle_hours']}h"
+            if isinstance(prior_tol.get("bucket_column"), str):
+                bucket_column = prior_tol["bucket_column"]
+
+    result = ingest_file(
+        file,
+        origin=origin,
+        chain_dir=chain_dir,
+        key_path=key_path,
+        band=band,
+        settle=settle,
+        bucket_column=bucket_column,
+        sheet=sheet,
+    )
+
+    # Judge the new run against prior trusted snapshots BEFORE archiving this
+    # run's snapshot, so the breached guard is recorded in the snapshot we write.
+    chain = read_chain(str(chain_path))
+    receipts = [read_receipt(chain_dir, name) for name in chain.get("receipts", [])]
+    trusted_keys = sorted(trusted | {importer_hex})
+    items = load_snapshots(chain_dir, trusted_keys=trusted_keys)
+    judgment = judge_cross_run(receipts, chain, [i["snapshot"] for i in items])
+    archive_run_snapshot(
+        chain_dir,
+        chain,
+        receipts,
+        key=load_private_key(key_path),
+        trusted_keys=trusted_keys,
+        breached=judgment.get("breached") or None,
+    )
+
+    result["caveats"] = judgment.get("caveats", [])
+    result["details"] = judgment.get("details", [])
+    result["breached"] = judgment.get("breached", {})
+    result["compared"] = bool(items)
+    return result
 
 
 class ChainTailMismatch(RuntimeError):
