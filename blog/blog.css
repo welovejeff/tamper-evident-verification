@@ -57,10 +57,23 @@ code, pre { font-family: var(--mono); }
 
 .post-list { list-style: none; margin: 24px 0 64px; padding: 0; }
 .post-item {
+  display: flex; gap: 24px; align-items: flex-start;
   border-top: 1px solid var(--border);
   padding: 26px 0;
 }
 .post-item:last-child { border-bottom: 1px solid var(--border); }
+.post-thumb-link { flex: none; display: block; width: 260px; }
+.post-thumb {
+  display: block; width: 100%; height: auto; aspect-ratio: 16 / 10; object-fit: cover;
+  border-radius: 10px; border: 1px solid var(--border); background: #07090d;
+  filter: saturate(0.92); transition: filter 0.15s, border-color 0.15s;
+}
+.post-thumb-link:hover .post-thumb { border-color: var(--faint); filter: saturate(1); }
+.post-body { flex: 1; min-width: 0; }
+@media (max-width: 620px) {
+  .post-item { flex-direction: column; gap: 14px; }
+  .post-thumb-link { width: 100%; }
+}
 .post-item .post-date { font: 11px var(--mono); color: var(--faint); letter-spacing: 1px; text-transform: uppercase; margin: 0 0 8px; }
 .post-item .post-date a { color: var(--dim); }
 .post-item .post-date a:hover { color: var(--text); text-decoration: none; }
@@ -85,6 +98,7 @@ code, pre { font-family: var(--mono); }
   border: 1px solid var(--border); border-radius: 12px;
   margin: 28px 0; background: #07090d;
 }
+.post-hero { margin: 10px 0 34px; aspect-ratio: 16 / 9; object-fit: cover; }
 .post figure { margin: 28px 0; }
 .post figure img { margin: 0; }
 .post figcaption { font: 12px var(--mono); color: var(--faint); margin: 10px 2px 0; }
@@ -135,6 +149,17 @@ code, pre { font-family: var(--mono); }
 .post table.cmp tbody td:first-child { color: var(--text); font-weight: 600; }
 .post table.cmp tbody tr:last-child td { border-bottom: 0; }
 .post table.cmp tbody tr:last-child { background: rgba(52, 211, 153, 0.05); }
+
+/* ---------- related reading (foot of each post) ---------- */
+.related { padding: 10px 0 4px; }
+.related .wrap { max-width: 760px; }
+.related-k { font: 12px var(--mono); color: var(--faint); letter-spacing: 2px; text-transform: uppercase; margin: 0 0 6px; }
+.related-list { list-style: none; margin: 0; padding: 0; }
+.related-list li { border-top: 1px solid var(--border); padding: 18px 0; }
+.related-list li:last-child { padding-bottom: 4px; }
+.related-list a { display: inline-block; color: var(--text); font-size: 19px; letter-spacing: -0.3px; margin: 0 0 5px; }
+.related-list a:hover { color: var(--green); text-decoration: none; }
+.related-list p { color: var(--dim); font-size: 14px; margin: 0; }
 
 /* ---------- footer ---------- */
 footer { border-top: 1px solid var(--border); margin-top: 40px; padding: 26px 0 50px; font: 12px var(--mono); color: var(--faint); }
