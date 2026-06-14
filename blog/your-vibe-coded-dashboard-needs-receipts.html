@@ -10,9 +10,9 @@
 <meta property="article:author" content="https://github.com/welovejeff" />
 <meta property="og:title" content="Your vibe-coded dashboard needs receipts: catch silent data-pipeline errors" />
 <meta property="og:description" content="AI-built dashboards fail silently. Signed receipts at every step prove nobody changed your data, and name the exact link if they did." />
-<meta property="og:image" content="https://tampersignal.com/docs/media/thumbs/stoplight.jpg" />
+<meta property="og:image" content="https://tampersignal.com/docs/media/thumbs/post-receipts.jpg" />
 <meta name="twitter:card" content="summary_large_image" />
-<meta name="twitter:image" content="https://tampersignal.com/docs/media/thumbs/stoplight.jpg" />
+<meta name="twitter:image" content="https://tampersignal.com/docs/media/thumbs/post-receipts.jpg" />
 <link rel="canonical" href="https://tampersignal.com/blog/your-vibe-coded-dashboard-needs-receipts.html" />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='%2334d399'/%3E%3C/svg%3E" />
 <link rel="stylesheet" href="blog.css" />
@@ -22,7 +22,7 @@
   "@type": "BlogPosting",
   "headline": "Your vibe-coded dashboard needs receipts",
   "description": "AI-built dashboards fail silently: they drop rows and double-count without crashing. Signed receipts at every step prove your numbers still descend from the source, and name the exact link if they don't.",
-  "image": "https://tampersignal.com/docs/media/thumbs/stoplight.jpg",
+  "image": "https://tampersignal.com/docs/media/thumbs/post-receipts.jpg",
   "datePublished": "2026-06-11",
   "dateModified": "2026-06-14",
   "author": { "@type": "Person", "name": "Jeff MacDonald", "url": "https://github.com/welovejeff" },
@@ -32,6 +32,17 @@
     "logo": { "@type": "ImageObject", "url": "https://tampersignal.com/docs/media/og-card.png" }
   },
   "mainEntityOfPage": { "@type": "WebPage", "@id": "https://tampersignal.com/blog/your-vibe-coded-dashboard-needs-receipts.html" }
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://tampersignal.com/" },
+    { "@type": "ListItem", "position": 2, "name": "Blog", "item": "https://tampersignal.com/blog/" },
+    { "@type": "ListItem", "position": 3, "name": "Your vibe-coded dashboard needs receipts" }
+  ]
 }
 </script>
 </head>
@@ -59,6 +70,7 @@
     <a class="post-back" href="/blog/">← all posts</a>
     <h1>Your vibe-coded dashboard needs receipts</h1>
     <p class="post-meta">By <a href="https://github.com/welovejeff" rel="author">Jeff MacDonald</a> · June 2026</p>
+    <img class="post-hero" src="/docs/media/thumbs/post-receipts.jpg" alt="A paper receipt unspooling across a dark surface, its core glowing green" width="1600" height="900" />
 
     <p>Your social team exports a month of TikTok performance data. Someone opens an AI assistant, describes the dashboard they want, and has it running by the end of the afternoon. It looks great. The charts are clean, the totals are plausible, and everyone moves on.</p>
 
@@ -145,9 +157,29 @@ def transform_clean(records):
   </div>
 </article>
 
+<aside class="related" aria-label="Related reading">
+  <div class="wrap">
+    <p class="related-k">Related reading</p>
+    <ul class="related-list">
+      <li>
+        <a href="/blog/your-data-is-supposed-to-move.html">Your data is supposed to move</a>
+        <p>Real pipelines refresh every morning. How the light stays believable when the numbers are meant to change.</p>
+      </li>
+      <li>
+        <a href="/blog/show-your-work.html">Show your work</a>
+        <p>A chart asks you to believe; a table lets you check. Why every dashboard needs a Data tab.</p>
+      </li>
+    </ul>
+  </div>
+</aside>
+
 <footer>
   <div class="wrap">
     <span>MIT licensed</span>
+    <span>·</span>
+    <a href="/blog/">blog</a>
+    <span>·</span>
+    <a href="/docs/faq.html">FAQ</a>
     <span>·</span>
     <a href="https://github.com/welovejeff/tamper-evident-verification">github.com/welovejeff/tamper-evident-verification</a>
     <span>·</span>

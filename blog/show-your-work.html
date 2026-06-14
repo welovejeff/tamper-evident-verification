@@ -10,9 +10,9 @@
 <meta property="article:author" content="https://github.com/welovejeff" />
 <meta property="og:title" content="Show your work: every dashboard needs a Data tab" />
 <meta property="og:description" content="A chart asks you to believe; a table lets you check. Put the verified Data tab next to every chart." />
-<meta property="og:image" content="https://tampersignal.com/docs/media/thumbs/stoplight.jpg" />
+<meta property="og:image" content="https://tampersignal.com/docs/media/thumbs/post-show-your-work.jpg" />
 <meta name="twitter:card" content="summary_large_image" />
-<meta name="twitter:image" content="https://tampersignal.com/docs/media/thumbs/stoplight.jpg" />
+<meta name="twitter:image" content="https://tampersignal.com/docs/media/thumbs/post-show-your-work.jpg" />
 <link rel="canonical" href="https://tampersignal.com/blog/show-your-work.html" />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='%2334d399'/%3E%3C/svg%3E" />
 <link rel="stylesheet" href="blog.css" />
@@ -22,7 +22,7 @@
   "@type": "BlogPosting",
   "headline": "Show your work: every dashboard needs a Data tab",
   "description": "A chart asks you to believe; a table lets you check. Why every dashboard built on verified data should put a Data tab, the raw table behind the charts, right next to them.",
-  "image": "https://tampersignal.com/docs/media/thumbs/stoplight.jpg",
+  "image": "https://tampersignal.com/docs/media/thumbs/post-show-your-work.jpg",
   "datePublished": "2026-06-14",
   "dateModified": "2026-06-14",
   "author": { "@type": "Person", "name": "Jeff MacDonald", "url": "https://github.com/welovejeff" },
@@ -32,6 +32,17 @@
     "logo": { "@type": "ImageObject", "url": "https://tampersignal.com/docs/media/og-card.png" }
   },
   "mainEntityOfPage": { "@type": "WebPage", "@id": "https://tampersignal.com/blog/show-your-work.html" }
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://tampersignal.com/" },
+    { "@type": "ListItem", "position": 2, "name": "Blog", "item": "https://tampersignal.com/blog/" },
+    { "@type": "ListItem", "position": 3, "name": "Show your work" }
+  ]
 }
 </script>
 </head>
@@ -59,6 +70,7 @@
     <a class="post-back" href="/blog/">← all posts</a>
     <h1>Show your work</h1>
     <p class="post-meta">By <a href="https://github.com/welovejeff" rel="author">Jeff MacDonald</a> · June 2026</p>
+    <img class="post-hero" src="/docs/media/thumbs/post-show-your-work.jpg" alt="A grid of data cells glowing green on a dark tray" width="1600" height="900" />
 
     <p>A number in a deck gets questioned. Someone asks where it came from, and the answer that comes back is a screenshot of a chart pasted into a Slack thread with a green arrow drawn on it. That is a picture of someone believing the number, not a picture of where the number came from. The actual rows that made it are three transforms and one AI-written aggregation away, and nobody in the thread can reach them.</p>
 
@@ -127,9 +139,29 @@ mountReceiptTable(document.querySelector("#data"), "/receipts/chain.json")</code
   </div>
 </article>
 
+<aside class="related" aria-label="Related reading">
+  <div class="wrap">
+    <p class="related-k">Related reading</p>
+    <ul class="related-list">
+      <li>
+        <a href="/blog/your-vibe-coded-dashboard-needs-receipts.html">Your vibe-coded dashboard needs receipts</a>
+        <p>The longer version of the pitch: why dashboards lie so quietly, and what it feels like when yours can prove itself.</p>
+      </li>
+      <li>
+        <a href="/blog/your-data-is-supposed-to-move.html">Your data is supposed to move</a>
+        <p>Real pipelines refresh every morning. How the light stays believable when the numbers are meant to change.</p>
+      </li>
+    </ul>
+  </div>
+</aside>
+
 <footer>
   <div class="wrap">
     <span>MIT licensed</span>
+    <span>·</span>
+    <a href="/blog/">blog</a>
+    <span>·</span>
+    <a href="/docs/faq.html">FAQ</a>
     <span>·</span>
     <a href="https://github.com/welovejeff/tamper-evident-verification">github.com/welovejeff/tamper-evident-verification</a>
     <span>·</span>
