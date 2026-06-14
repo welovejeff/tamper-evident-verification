@@ -12,6 +12,7 @@ Period-over-period continuity: declare a signed tolerance at ingest (`--band`, `
 - [README](https://raw.githubusercontent.com/welovejeff/tamper-evident-verification/main/README.md): overview, CLI, how the chain works, honest limits
 - [Domain vocabulary](https://raw.githubusercontent.com/welovejeff/tamper-evident-verification/main/CONCEPTS.md): receipt, chain, semantic hash, the light, spec version
 - [Copy rules](https://raw.githubusercontent.com/welovejeff/tamper-evident-verification/main/docs/MESSAGING.md): the verdict lines and banned claims, binding for any UI text you write
+- [FAQ](https://tampersignal.com/docs/faq.html): what it proves and what it does not, the traffic light, blockchain, and how it differs from dbt and friends
 
 ## Writing
 

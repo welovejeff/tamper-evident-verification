@@ -34,6 +34,39 @@
   "mainEntityOfPage": { "@type": "WebPage", "@id": "https://tampersignal.com/blog/your-vibe-coded-dashboard-needs-receipts.html" }
 }
 </script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "Why do AI-built dashboards fail silently?",
+      "acceptedAnswer": { "@type": "Answer", "text": "AI-written data code works most of the time, and when it fails it does not crash. It drops rows, double-counts, or coerces a column wrong and quietly shifts every total, while the dashboard still renders and the chart still looks plausible." }
+    },
+    {
+      "@type": "Question",
+      "name": "How do signed receipts verify a data pipeline?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Every stage signs a receipt: a fingerprint of the data it received, the code it ran, and the data it produced. Receipts link because each stage's input fingerprint must match the previous stage's output, so the whole pipeline verifies end to end." }
+    },
+    {
+      "@type": "Question",
+      "name": "What does the red light show when verification fails?",
+      "acceptedAnswer": { "@type": "Answer", "text": "It names the exact link and the exact delta, for example broken at link 1 to 2 (transform_aggregate) with row_count 48212 to 48190 (-22). It points to the stage that changed instead of printing a stack trace." }
+    },
+    {
+      "@type": "Question",
+      "name": "Does Tamper Signal prove the data is correct?",
+      "acceptedAnswer": { "@type": "Answer", "text": "No. It proves continuity, not correctness. It proves your dashboard numbers descend from the original export unchanged. If the source export is wrong, the chain will faithfully verify wrong numbers." }
+    },
+    {
+      "@type": "Question",
+      "name": "What do you need to run Tamper Signal?",
+      "acceptedAnswer": { "@type": "Answer", "text": "It is open source under the MIT license and runs on Python 3.11+ or Node 18.17+. Both stacks sign interchangeable chains, and the badge and inline light run in any frontend with no server-side trust." }
+    }
+  ]
+}
+</script>
 </head>
 <body>
 
@@ -99,7 +132,7 @@
     <p>The verdict is a traffic light.</p>
 
     <div class="verdict"><span class="lt g" aria-hidden="true"></span><p><strong>The light is green, the data is clean.</strong> Every link verifies, every signature checks. Your dashboard numbers descend from the original export, untouched.</p></div>
-    <div class="verdict"><span class="lt y" aria-hidden="true"></span><p><strong>The light is yellow, a human should look.</strong> The chain verifies, with caveats: a gap in the receipt coverage, a signing key you haven't said you trust, totals drifting in ways you asked it to flag. Yellow never blames. It asks for eyes.</p></div>
+    <div class="verdict"><span class="lt y" aria-hidden="true"></span><p><strong>The light is yellow, a human should look.</strong> The chain verifies, with caveats: a gap in the receipt coverage, a signing key you haven't said you trust, <a href="/blog/your-data-is-supposed-to-move.html">totals drifting in ways you asked it to flag</a>. Yellow never blames. It asks for eyes.</p></div>
     <div class="verdict"><span class="lt r" aria-hidden="true"></span><p><strong>The light is red, the chain is broken.</strong> And this is the part worth paying for, even though it costs nothing: red doesn't shrug. It names the exact link and the exact delta.</p></div>
 
     <pre><code>✗ CHAIN BROKEN at link 1 -&gt; 2 (transform_aggregate)
@@ -119,7 +152,7 @@
 
     <p>The verdict isn't only a CLI thing. A small badge, or the newer inline status light, drops into any web frontend and re-verifies the whole chain in the viewer's browser using Web Crypto: every signature, every link, on page load. No server-side trust required. When the chain breaks, the light can even flag the specific on-page metric that no longer descends from the source.</p>
 
-    <p>And once the light is green, we think your dashboard should show its work. Not a tooltip, not an export-on-request: a Data tab, right next to the charts, with the raw verified table the pretty numbers came from. If the chain is intact there is no reason to hide the rows, and if you find yourself wanting to hide them, that's worth sitting with. A chart asks you to believe; a table lets you check.</p>
+    <p>And once the light is green, we think your dashboard should <a href="/blog/show-your-work.html">show its work</a>. Not a tooltip, not an export-on-request: a Data tab, right next to the charts, with the raw verified table the pretty numbers came from. If the chain is intact there is no reason to hide the rows, and if you find yourself wanting to hide them, that's worth sitting with. A chart asks you to believe; a table lets you check.</p>
 
     <h2>Try it in five minutes</h2>
 
