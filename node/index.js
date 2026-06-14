@@ -74,6 +74,8 @@ export {
   ChainTailMismatch,
   DEFAULT_BAND,
   DEFAULT_SETTLE_HOURS,
+  UntrustedSignerError,
+  appendPeriod,
   ingestFile,
   parseBand,
   parseSettle,
