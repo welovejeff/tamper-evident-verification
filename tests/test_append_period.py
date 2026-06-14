@@ -92,3 +92,56 @@ def test_append_period_refuses_without_existing_chain(tmp_path, monkeypatch):
 
     with pytest.raises(UntrustedSignerError):
         append_period("data.csv", origin="t", chain_dir="receipts/")
+
+
+# ---------------------------------------------------------------------------
+# CLI surface: receipts ingest --as replace|period (U6)
+# ---------------------------------------------------------------------------
+def test_cli_ingest_as_period_under_chain_key(tmp_path, monkeypatch, capsys):
+    _seed_period_one(tmp_path, monkeypatch)
+    (tmp_path / "data.csv").write_text(P2_INBAND, encoding="utf-8")
+
+    assert main(["ingest", "data.csv", "--origin", "t", "--as", "period"]) == 0
+    assert "in band against the prior run" in capsys.readouterr().out
+
+
+def test_cli_ingest_as_period_yellow_on_drift(tmp_path, monkeypatch, capsys):
+    _seed_period_one(tmp_path, monkeypatch)
+    (tmp_path / "data.csv").write_text(P2_BREACH, encoding="utf-8")
+
+    assert main(["ingest", "data.csv", "--origin", "t", "--as", "period"]) == 2
+    assert "the light is yellow" in capsys.readouterr().out
+
+
+def test_cli_ingest_as_period_refuses_untrusted(tmp_path, monkeypatch, capsys):
+    _seed_period_one(tmp_path, monkeypatch)
+    generate_keys("otherkeys")
+    (tmp_path / "data.csv").write_text(P2_INBAND, encoding="utf-8")
+
+    code = main(["ingest", "data.csv", "--origin", "t", "--as", "period", "--key", "otherkeys/signing.key"])
+    assert code == 1
+    assert "Refusing to append a period" in capsys.readouterr().err
+
+
+def test_cli_ingest_as_period_trusts_via_pub(tmp_path, monkeypatch, capsys):
+    _seed_period_one(tmp_path, monkeypatch)
+    generate_keys("otherkeys")
+    (tmp_path / "data.csv").write_text(P2_INBAND, encoding="utf-8")
+
+    code = main([
+        "ingest", "data.csv", "--origin", "t", "--as", "period",
+        "--key", "otherkeys/signing.key", "--pub", "otherkeys/signing.pub",
+    ])
+    assert code == 0
+
+
+def test_cli_replace_archives_prior_chain(tmp_path, monkeypatch):
+    _seed_period_one(tmp_path, monkeypatch)
+    prior = read_chain("receipts/chain.json")
+    (tmp_path / "data.csv").write_text(P2_INBAND, encoding="utf-8")
+
+    # A default ingest (replace) preserves the prior chain under receipts/archive/.
+    assert main(["ingest", "data.csv", "--origin", "t"]) == 0
+    archives = list((tmp_path / "receipts" / "archive").glob("*/chain.json"))
+    assert archives, "expected the prior chain to be archived before the reset"
+    assert read_chain(str(archives[0]))["public_key"] == prior["public_key"]

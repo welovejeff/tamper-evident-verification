@@ -83,15 +83,98 @@ def _is_unsnapshotted_reset(chain_dir: str) -> bool:
         return True
 
 
+def _archive_prior_chain(chain_dir: str) -> Path | None:
+    """Before a replace reset, copy the prior chain.json and its receipts into
+    <chain_dir>/archive/<tail>/ so the prior chain is preserved, not silently
+    overwritten (R9). Content-addressed by the prior chain's tail hash: the same
+    prior chain re-archives idempotently and a different prior chain never
+    collides. Returns the archive directory, or None when there is nothing to
+    archive. Never raises (archiving is best-effort audit, never blocks ingest).
+    """
+    import shutil
+
+    chain_path = Path(chain_dir) / CHAIN_FILENAME
+    if not chain_path.is_file():
+        return None
+    from .history import chain_tail_hash
+
+    try:
+        chain = read_chain(str(chain_path))
+        tail = chain_tail_hash(chain_dir, chain)
+    except (OSError, ValueError):
+        return None
+    dest = Path(chain_dir) / "archive" / tail
+    if dest.exists():
+        return dest  # this exact prior chain is already archived
+    try:
+        dest.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(chain_path, dest / CHAIN_FILENAME)
+        for name in chain.get("receipts", []):
+            src = Path(chain_dir) / name
+            if src.is_file():
+                shutil.copy2(src, dest / name)
+    except OSError:
+        return None
+    return dest
+
+
+def _cmd_ingest_period(args: argparse.Namespace) -> int:
+    """`ingest --as period`: continue the chain's run history under a trusted
+    signer. Refuses an untrusted signer rather than appending silently."""
+    from .wrapper import UntrustedSignerError, append_period
+
+    trusted = [h for h in (load_public_key_hex(p) for p in (args.pub or [])) if h]
+    try:
+        result = append_period(
+            args.file,
+            origin=args.origin,
+            chain_dir=args.out,
+            key_path=args.key,
+            trusted_pub_hexes=trusted,
+            band=args.band,
+            settle=args.settle,
+            bucket_column=args.bucket_column,
+            sheet=args.sheet,
+        )
+    except UntrustedSignerError as exc:
+        print(f"✗ Refusing to append a period: {exc}", file=sys.stderr)
+        return 1
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+
+    manifest = result["manifest"]
+    totals = manifest["control_totals"]
+    print(f"Imported next period: {manifest['source']['filename']}")
+    print(f"  semantic_hash {manifest['semantic_hash']}")
+    print(f"  rows {totals['row_count']}, columns {totals['column_count']}")
+    caveats = result.get("caveats") or []
+    if caveats:
+        print("  the light is yellow, a human should look:")
+        for caveat in caveats:
+            print(f"    - {caveat}")
+        return 2
+    if result.get("compared"):
+        print("  in band against the prior run (the light stays green)")
+    else:
+        print("  recorded as the first period (no prior run to compare)")
+    return 0
+
+
 def cmd_ingest(args: argparse.Namespace) -> int:
     if os.environ.get("TAMPER_SIGNAL_KEY"):
         # The env var silently outranks --key; say so where it matters.
         print("Signing with TAMPER_SIGNAL_KEY from the environment (overrides --key)", file=sys.stderr)
 
+    if getattr(args, "mode", "replace") == "period":
+        return _cmd_ingest_period(args)
+
     # Compute the unsnapshotted-reset condition from the OUTGOING chain before
     # ingest_file overwrites chain.json; emit the warning only after ingest
     # validation passes (below), so an invalid flag exits 1 with no warning.
     unsnapshotted_reset = _is_unsnapshotted_reset(args.out)
+    # Preserve the prior chain before the reset overwrites it (R9).
+    _archive_prior_chain(args.out)
 
     # ingest_file parses the tolerance declaration, builds and signs the source
     # manifest, and RESETS chain.json to it -- the same call a Python pipeline
@@ -1383,6 +1466,21 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Column to key period buckets off (signed into the tolerance "
         "declaration; must be a date-shaped column)",
+    )
+    p_ingest.add_argument(
+        "--as",
+        dest="mode",
+        choices=["replace", "period"],
+        default="replace",
+        help="replace (default): re-sign a fresh chain (the prior chain is archived). "
+        "period: continue the chain's run history as the next period (trusted signer only)",
+    )
+    p_ingest.add_argument(
+        "--pub",
+        action="append",
+        default=[],
+        help="Public key to trust for --as period (repeatable); needed when the "
+        "importer's key differs from the chain's signing key",
     )
     p_ingest.set_defaults(func=cmd_ingest)
 

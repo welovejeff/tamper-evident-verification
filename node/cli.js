@@ -10,7 +10,7 @@
 // Exit codes are the traffic light: 0 green, 1 red, 2 yellow.
 
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { parseArgs } from "node:util";
 import process from "node:process";
@@ -43,7 +43,7 @@ import {
   verifyChain,
 } from "./receipts.js";
 import { controlTotals, groupedNumericColumns, structuredTotalsDelta } from "./totals.js";
-import { ingestFile } from "./wrapper.js";
+import { UntrustedSignerError, appendPeriod, ingestFile } from "./wrapper.js";
 
 const USAGE = `usage: tamper-signal <command>
 
@@ -51,12 +51,18 @@ commands:
   keygen --out keys/                         generate an Ed25519 signing keypair
   ingest <file> --origin "..." [--key keys/signing.key] [--out receipts/]
                 [--band 5%] [--settle 72h] [--bucket-column <name>]
+                [--as replace|period] [--pub key.pub ...]
                                              create a signed source manifest
                                              (.csv, .tsv, .json, .ndjson);
                                              --band/--settle/--bucket-column
                                              sign a tolerance declaration into
                                              the manifest (band default 0.05,
-                                             settle default 72h)
+                                             settle default 72h). --as replace
+                                             (default) re-signs a fresh chain
+                                             (prior chain archived); --as period
+                                             continues run history under a
+                                             trusted signer (--pub to trust a
+                                             key other than the chain's)
   verify <chain.json> [--pub key.pub ...] [--data <file>] [--warn-drift] [--json]
                                              verify a chain (exit 0 green, 1 red, 2 yellow)
   diff [A] [B] [--chain receipts/] [--json]  compare two runs: per-stage
@@ -115,6 +121,75 @@ function isUnsnapshottedReset(chainDir) {
   }
 }
 
+// Before a replace reset, copy the prior chain.json and its receipts into
+// <chainDir>/archive/<tail>/ so the prior chain is preserved, not silently
+// overwritten (R9). Content-addressed by the prior chain tail; idempotent and
+// collision-free. Best-effort: never throws, never blocks ingest.
+function archivePriorChain(chainDir) {
+  const chainPath = join(chainDir, CHAIN_FILENAME);
+  if (!existsSync(chainPath)) return;
+  let chain;
+  let tail;
+  try {
+    chain = readChain(chainPath);
+    tail = chainTailHash(chainDir, chain);
+  } catch {
+    return;
+  }
+  const dest = join(chainDir, "archive", tail);
+  if (existsSync(dest)) return;
+  try {
+    mkdirSync(dest, { recursive: true });
+    copyFileSync(chainPath, join(dest, CHAIN_FILENAME));
+    for (const name of chain.receipts ?? []) {
+      const src = join(chainDir, name);
+      if (existsSync(src)) copyFileSync(src, join(dest, name));
+    }
+  } catch {
+    // best-effort audit trail; ingest proceeds regardless
+  }
+}
+
+// `ingest --as period`: continue the chain's run history under a trusted signer.
+function cmdIngestPeriod(values, file) {
+  const trusted = (values.pub ?? []).map((p) => loadPublicKeyHex(p)).filter(Boolean);
+  let result;
+  try {
+    result = appendPeriod({
+      file,
+      declaredOrigin: values.origin,
+      chainDir: values.out,
+      keyPath: values.key,
+      trustedPubHexes: trusted,
+      band: values.band ?? null,
+      settle: values.settle ?? null,
+      bucketColumn: values["bucket-column"] ?? null,
+    });
+  } catch (err) {
+    if (err instanceof UntrustedSignerError) {
+      console.error(`✗ Refusing to append a period: ${err.message}`);
+      return 1;
+    }
+    console.error(err.message);
+    return 1;
+  }
+  const totals = result.manifest.control_totals;
+  console.log(`Imported next period: ${result.manifest.source.filename}`);
+  console.log(`  semantic_hash ${result.manifest.semantic_hash}`);
+  console.log(`  rows ${totals.row_count}, columns ${totals.column_count}`);
+  if (result.caveats.length) {
+    console.log("  the light is yellow, a human should look:");
+    for (const caveat of result.caveats) console.log(`    - ${caveat}`);
+    return 2;
+  }
+  console.log(
+    result.compared
+      ? "  in band against the prior run (the light stays green)"
+      : "  recorded as the first period (no prior run to compare)",
+  );
+  return 0;
+}
+
 function cmdIngest(args) {
   const { values, positionals } = parseArgs({
     args,
@@ -126,6 +201,8 @@ function cmdIngest(args) {
       band: { type: "string" },
       settle: { type: "string" },
       "bucket-column": { type: "string" },
+      as: { type: "string", default: "replace" },
+      pub: { type: "string", multiple: true, default: [] },
     },
   });
   const file = positionals[0];
@@ -137,10 +214,13 @@ function cmdIngest(args) {
     // The env var silently outranks --key; say so where it matters.
     console.error("Signing with TAMPER_SIGNAL_KEY from the environment (overrides --key)");
   }
+  if ((values.as ?? "replace") === "period") return cmdIngestPeriod(values, file);
   // Compute the unsnapshotted-reset condition from the OUTGOING chain before
   // ingestFile overwrites chain.json; emit the warning only after ingest
   // validation passes (below), so an invalid flag exits 1 with no warning.
   const unsnapshottedReset = isUnsnapshottedReset(values.out);
+  // Preserve the prior chain before the reset overwrites it (R9).
+  archivePriorChain(values.out);
   // ingestFile resets the chain to a fresh source manifest; the same call is
   // the programmatic entry point and the foundation of rebuildChain. Invalid
   // tolerance values and a non-qualifying --bucket-column throw before
