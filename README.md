@@ -156,6 +156,12 @@ It ships: `receipts export` writes the canonical table document next to the chai
 
 *Design preview: install the verification layer and your dashboard grows a Data tab. When the chain breaks, the break is localized to the column and total that no longer verify, right in the table.*
 
+## Take your data with you
+
+Verified data should be portable, proof and all. `receipts export --bundle` (or `tamper-signal export --bundle`) writes a verified bundle: a zip of the data file plus `chain.json` and its receipts, kept byte for byte, so whoever you send it to runs `receipts verify chain.json` and gets the same light, offline. In the browser, the Data tab's "Take your data" control exports the attested data client-side as that bundle or as a bare rows-only file (csv/tsv/json/ndjson; xlsx routes through the Python CLI). Because the semantic hash is format-agnostic, a CSV you export here re-verifies as JSON and the light stays green; numeric-looking text canonicalizes to its number, so leading zeros and trailing decimals do not survive the round trip.
+
+To bring an updated file back, `receipts ingest --as replace|period`. `replace` (the default) re-signs a fresh chain and archives the prior one under `receipts/archive/`. `period` continues the chain's run history as the next period, judged against prior runs through the prior run's signed tolerance band; it continues only under a trusted signer (`--pub` to trust a key other than the chain's) and refuses an untrusted one rather than appending silently. Re-attestation is never silent: the importer's identity is recorded, and an unrecognized signer stays yellow.
+
 ## The console
 
 The light answers "is it fine?"; the console answers "where, exactly, and by how much?" `mountReceiptConsole(el, "/receipts/chain.json")` from `badge/console.js` (npm: `tamper-signal/console`) renders the chain as an inspectable pipeline: links carry the hash they proved, a break severs the link with the break card pinned at it, coverage gaps appear as ghost nodes at their position, and the event log mirrors `receipts verify` line for line. Every attach helper also serves it ready-made at `/tamper-signal/console`. Live demo: `badge/console.html`.

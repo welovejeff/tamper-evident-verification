@@ -6,6 +6,8 @@ Install: `pip install tamper-signal` (Python 3.11+, CLI `receipts`) or `npm inst
 
 Period-over-period continuity: declare a signed tolerance at ingest (`--band`, `--settle`, `--bucket-column`) and recurring refreshes earn yellow caveats when recent data drifts past the band or settled data moves; `receipts diff` and `receipts log` read the auto-archived run history (weaker evidence than the chain).
 
+Data portability: `receipts export --bundle` writes a verified zip (the data file plus `chain.json` and receipts) a recipient re-verifies offline, and the browser Data tab's "Take your data" exports the attested data client-side (csv/tsv/json/ndjson; xlsx via the CLI). `receipts ingest --as period` continues an existing chain's history under a trusted signer (refusing an untrusted one); `--as replace` (default) re-signs a fresh chain and archives the prior one. The Semantic hash is format-agnostic, so a CSV exported here re-verifies as JSON and the light stays green.
+
 ## Docs
 
 - [Integration runbook for coding agents](https://raw.githubusercontent.com/welovejeff/tamper-evident-verification/main/AGENTS.md): the complete install-to-verified path; follow it in order
