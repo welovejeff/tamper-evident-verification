@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>FAQ · Tamper Signal docs</title>
+<meta name="description" content="Frequently asked questions about Tamper Signal: what it proves and what it deliberately does not, the green/yellow/red light, how it differs from dbt, whether it is blockchain, and how to add it to your pipeline." />
+<meta property="og:title" content="FAQ · Tamper Signal docs" />
+<meta property="og:description" content="What Tamper Signal proves and what it does not, the traffic light, and how it differs from warehouse tools. The honest answers." />
+<meta property="og:image" content="https://tampersignal.com/docs/media/og-card.png" />
+<link rel="canonical" href="https://tampersignal.com/docs/faq.html" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='%2334d399'/%3E%3C/svg%3E" />
+<link rel="stylesheet" href="docs.css" />
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "What is Tamper Signal?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Tamper Signal puts a signed receipt on every stage of a data pipeline and reduces the whole chain to one verdict: a green, yellow, or red light. It proves the numbers on your dashboard descend from the original export through a known sequence of code, unchanged. It is open source, installs with pip or npm, and needs no database, server, or metadata catalog." }
+    },
+    {
+      "@type": "Question",
+      "name": "What problem does it solve?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Vibe-coded pipelines fail silently. AI-written transform scripts work most of the time, and when they do not, they do not crash: they drop rows, double-count, or coerce a column wrong and quietly shift a total, while the dashboard still renders. Tamper Signal is the missing verification layer that catches the change, or proves nothing changed." }
+    },
+    {
+      "@type": "Question",
+      "name": "What does \"vibe-coded\" mean?",
+      "acceptedAnswer": { "@type": "Answer", "text": "A pipeline someone built quickly by describing what they wanted to an AI assistant, rather than engineering it with a warehouse, an orchestrator, and tests. It names the audience's reality without judging it. These are the pipelines with no safety net, and the ones Tamper Signal is built for." }
+    },
+    {
+      "@type": "Question",
+      "name": "Does Tamper Signal make sure my data is correct?",
+      "acceptedAnswer": { "@type": "Answer", "text": "No, and it never claims to. It proves continuity, not correctness. It can prove nobody changed your data between the export and the dashboard, but it cannot tell you the export was right in the first place. If the source is wrong, the chain faithfully verifies wrong numbers. Checking the source is still your job." }
+    },
+    {
+      "@type": "Question",
+      "name": "What does \"continuity, not correctness\" mean?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Continuity is the property that a result descends from the original source through a known sequence of code, unchanged. Correctness is whether the source itself is true. Tamper Signal proves the first and deliberately makes no claim about the second. It is the one line the whole product is held to." }
+    },
+    {
+      "@type": "Question",
+      "name": "Is Tamper Signal a blockchain?",
+      "acceptedAnswer": { "@type": "Answer", "text": "No. It is a hash chain: signed files on disk that link because each stage's input fingerprint must match the previous stage's output. There is no consensus, no network, no tokens, no ledger. Just receipts, like the shoebox under your bed, except these check themselves." }
+    },
+    {
+      "@type": "Question",
+      "name": "What is a receipt, and what is a chain?",
+      "acceptedAnswer": { "@type": "Answer", "text": "A receipt is a signed record one pipeline stage emits: a fingerprint of the data it received, the code it ran, the data it produced, and that stage's control totals. A chain is the ordered sequence of receipts, verified link by link. A chain has exactly two honest endpoints: intact, or broken at an exact link." }
+    },
+    {
+      "@type": "Question",
+      "name": "What do green, yellow, and red mean?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Green: every link verifies and every signature checks, so the data is intact. Yellow: the chain verifies but carries a caveat a human should look at, such as a coverage gap, an unrecognized signing key, or declared drift. Red: the chain is broken at a specific link, reported with the exact stage and the control-totals delta." }
+    },
+    {
+      "@type": "Question",
+      "name": "What is the difference between the evidence hash and the semantic hash?",
+      "acceptedAnswer": { "@type": "Answer", "text": "The evidence hash fingerprints an artifact's raw bytes, taken once at ingest, anchoring the original file exactly as exported. The semantic hash fingerprints the canonicalized data content, stable across format round-trips, so an xlsx ingest still verifies against a CSV copy of the same data. One answers is this the same file, the other is this the same data." }
+    },
+    {
+      "@type": "Question",
+      "name": "Does it work with Python and JavaScript?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Yes. pip install tamper-signal gives a Python CLI (receipts) and library; npm install tamper-signal gives a Node CLI (tamper-signal) and API. The chains are interchangeable across the two stacks, proven byte-for-byte by golden vectors, so a chain signed in Python verifies in Node and the reverse." }
+    },
+    {
+      "@type": "Question",
+      "name": "What file formats can it read?",
+      "acceptedAnswer": { "@type": "Answer", "text": "ingest and verify accept .xlsx, .csv, .tsv, .json as an array of objects, and .ndjson. The semantic hash is identical across formats, so the format you store in does not move the verdict. Spreadsheets go through the Python CLI; the JavaScript stack reads the text formats." }
+    },
+    {
+      "@type": "Question",
+      "name": "How do I add it to my own project?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Point your coding agent at the repository and say add tamper signal. AGENTS.md is the full integration runbook: install, generate keys, ingest the source, wrap your transforms with the receipt decorator, mount the signal, and verify. By hand, receipts demo runs the whole story end to end in about a minute." }
+    },
+    {
+      "@type": "Question",
+      "name": "How do I put the light in my dashboard?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Mount one of the browser surfaces and point it at your chain file. The inline status light, the badge, the Data tab, and the inspector console each re-verify the whole chain in the viewer's browser with Web Crypto, no server-side trust. They ship for plain HTML, React, and any framework via a custom element." }
+    },
+    {
+      "@type": "Question",
+      "name": "Where does the signing key live?",
+      "acceptedAnswer": { "@type": "Answer", "text": "On your machine. Day to day, that local Ed25519 keypair is the root of trust, and anyone holding it can sign a fresh, internally consistent chain. For the moments that matter, anchoring closes that gap by witnessing the chain in a public log under your identity." }
+    },
+    {
+      "@type": "Question",
+      "name": "What is anchoring?",
+      "acceptedAnswer": { "@type": "Answer", "text": "An optional step that records the exact bytes of your chain in a public transparency log under your identity, a browser login locally and automatic in CI. It proves this exact chain existed at a point in time, independent of the signing key, closing the gap where whoever holds the key could quietly re-sign everything." }
+    },
+    {
+      "@type": "Question",
+      "name": "How is this different from dbt, Great Expectations, or OpenLineage?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Those model lineage and quality at the warehouse and orchestration layer, and assume that infrastructure exists. Tamper Signal is narrower and lighter: a signed, file-based receipt chain you drop in front of an ad-hoc xlsx-to-dashboard pipeline with no database, server, or catalog. It is a complement for the gap before those tools are in place, not a replacement." }
+    },
+    {
+      "@type": "Question",
+      "name": "What are tolerance bands?",
+      "acceptedAnswer": { "@type": "Answer", "text": "A signed declaration, made at ingest, of how much a period normally moves day over day, plus a settling window. Recurring refreshes then stay green when recent data drifts within the band and turn yellow when settled data moves or a recent bucket breaches the band. It keeps the light believable on a pipeline that refreshes every morning." }
+    },
+    {
+      "@type": "Question",
+      "name": "Is it free, and what are the requirements?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Yes, open source under the MIT license. It needs Python 3.11+ or Node 18.17+. There is no paid tier, no account, and no server to run." }
+    }
+  ]
+}
+</script>
+</head>
+<body>
+
+<div class="top">
+  <div class="wrap">
+    <a class="logo-stacked" href="/" aria-label="Tamper Signal — home">
+      <span class="ls-rail" aria-hidden="true"><i class="r"></i><i class="y"></i><i class="g"></i></span>
+      <span class="ls-words">TAMPER<br>SIGNAL</span>
+    </a>
+    <button class="menu-btn" type="button" aria-expanded="false" aria-controls="site-nav">menu <span class="mb-caret">▾</span></button>
+    <nav id="site-nav">
+      <a href="/#demo">live demo</a>
+      <a href="/#how">how it works</a>
+      <a href="/docs/" aria-current="location">docs</a>
+      <a href="/blog/">blog</a>
+      <a href="https://github.com/welovejeff/tamper-evident-verification">github</a>
+    </nav>
+  </div>
+</div>
+
+<div class="docs-shell">
+  <aside class="docs-side">
+    <button class="side-toggle" type="button" aria-expanded="false">On this site <span class="st-caret" aria-hidden="true">▾</span></button>
+    <div class="side-inner">
+      <div class="side-group">
+        <p class="side-label">Start here</p>
+        <ul>
+          <li><a href="/docs/">Overview</a></li>
+          <li><a href="/docs/concepts.html">Core concepts</a></li>
+          <li><a href="/docs/quickstart.html">Quickstart</a></li>
+        </ul>
+      </div>
+      <div class="side-group">
+        <p class="side-label">Reference</p>
+        <ul>
+          <li><a href="/docs/cli.html">CLI</a></li>
+          <li><a href="/docs/api.html">Python &amp; JS API</a></li>
+          <li><a href="/docs/mounting.html">Mounting the signal</a></li>
+        </ul>
+      </div>
+      <div class="side-group">
+        <p class="side-label">Going deeper</p>
+        <ul>
+          <li><a href="/docs/advanced.html">Power user</a></li>
+          <li><a href="/docs/faq.html" aria-current="page">FAQ</a></li>
+        </ul>
+      </div>
+    </div>
+  </aside>
+
+  <main class="docs-main">
+    <a class="doc-back" href="/docs/">← Docs home</a>
+    <p class="doc-kicker">Help</p>
+    <h1>FAQ</h1>
+    <p class="lede">The questions people actually ask, answered the way the rest of this project talks: confident about the mechanism, scrupulously honest about the limits. The shortest true answer to most of them is "it proves continuity, not correctness."</p>
+
+    <div class="honesty">
+      <p><strong>The one claim, up front.</strong> Tamper Signal can prove nobody changed your data between the export and the dashboard. It cannot tell you the export was right. Everything below is downstream of that line.</p>
+    </div>
+
+    <h2 id="basics">The basics</h2>
+
+    <h3>What is Tamper Signal?</h3>
+    <p>Tamper Signal puts a signed receipt on every stage of a data pipeline and reduces the whole chain to one verdict: a green, yellow, or red light. It proves the numbers on your dashboard descend from the original export through a known sequence of code, unchanged. It is open source, installs with <code>pip</code> or <code>npm</code>, and needs no database, server, or metadata catalog.</p>
+
+    <h3>What problem does it solve?</h3>
+    <p>Vibe-coded pipelines fail silently. AI-written transform scripts work most of the time, and when they do not, they do not crash: they drop rows, double-count, or coerce a column wrong and quietly shift a total, while the dashboard still renders. Tamper Signal is the missing verification layer that catches the change, or proves nothing changed. The <a href="/blog/your-vibe-coded-dashboard-needs-receipts.html">longer version is on the blog</a>.</p>
+
+    <h3>What does "vibe-coded" mean?</h3>
+    <p>A pipeline someone built quickly by describing what they wanted to an AI assistant, rather than engineering it with a warehouse, an orchestrator, and tests. It names the audience's reality without judging it. These are the pipelines with no safety net, and the ones Tamper Signal is built for.</p>
+
+    <h2 id="proves">What it proves, and what it does not</h2>
+
+    <h3>Does Tamper Signal make sure my data is correct?</h3>
+    <p>No, and it never claims to. It proves continuity, not correctness. It can prove nobody changed your data between the export and the dashboard, but it cannot tell you the export was right in the first place. If the source is wrong, the chain faithfully verifies wrong numbers. Checking the source is still your job.</p>
+
+    <h3>What does "continuity, not correctness" mean?</h3>
+    <p>Continuity is the property that a result descends from the original source through a known sequence of code, unchanged. Correctness is whether the source itself is true. Tamper Signal proves the first and deliberately makes no claim about the second. It is the one line the whole product is held to.</p>
+
+    <h3>Is Tamper Signal a blockchain?</h3>
+    <p>No. It is a hash chain: signed files on disk that link because each stage's input fingerprint must match the previous stage's output. There is no consensus, no network, no tokens, no ledger. Just receipts, like the shoebox under your bed, except these check themselves.</p>
+
+    <h2 id="how">How it works</h2>
+
+    <h3>What is a receipt, and what is a chain?</h3>
+    <p>A receipt is a signed record one pipeline stage emits: a fingerprint of the data it received, the code it ran, the data it produced, and that stage's control totals. A chain is the ordered sequence of receipts, verified link by link. A chain has exactly two honest endpoints: intact, or broken at an exact link. The full vocabulary is in <a href="/docs/concepts.html">Core concepts</a>.</p>
+
+    <h3>What do green, yellow, and red mean?</h3>
+    <p>Green: every link verifies and every signature checks, so the data is intact. Yellow: the chain verifies but carries a caveat a human should look at, such as a coverage gap, an unrecognized signing key, or declared drift. Red: the chain is broken at a specific link, reported with the exact stage and the control-totals delta. Yellow never blames; red points rather than panics.</p>
+
+    <h3>What is the difference between the evidence hash and the semantic hash?</h3>
+    <p>The evidence hash fingerprints an artifact's raw bytes, taken once at ingest, anchoring the original file exactly as exported. The semantic hash fingerprints the canonicalized data content, stable across format round-trips, so an xlsx ingest still verifies against a CSV copy of the same data. One answers "is this the same file," the other "is this the same data."</p>
+
+    <h2 id="using">Using it</h2>
+
+    <h3>Does it work with Python and JavaScript?</h3>
+    <p>Yes. <code>pip install tamper-signal</code> gives a Python CLI (<code>receipts</code>) and library; <code>npm install tamper-signal</code> gives a Node CLI (<code>tamper-signal</code>) and API. The chains are interchangeable across the two stacks, proven byte-for-byte by golden vectors, so a chain signed in Python verifies in Node and the reverse.</p>
+
+    <h3>What file formats can it read?</h3>
+    <p><code>ingest</code> and <code>verify</code> accept .xlsx, .csv, .tsv, .json (an array of objects), and .ndjson. The semantic hash is identical across formats, so the format you store in does not move the verdict. Spreadsheets go through the Python CLI; the JavaScript stack reads the text formats.</p>
+
+    <h3>How do I add it to my own project?</h3>
+    <p>Point your coding agent at the repository and say "add tamper signal." AGENTS.md is the full integration runbook: install, generate keys, ingest the source, wrap your transforms with the receipt decorator, mount the signal, and verify. By hand, the <a href="/docs/quickstart.html">Quickstart</a> takes you from <code>pip install</code> to a green light in about five minutes.</p>
+
+    <h3>How do I put the light in my dashboard?</h3>
+    <p>Mount one of the browser surfaces and point it at your chain file. The inline status light, the badge, the Data tab, and the inspector console each re-verify the whole chain in the viewer's browser with Web Crypto, no server-side trust. They ship for plain HTML, React, and any framework via a custom element. See <a href="/docs/mounting.html">Mounting the signal</a>, or the case for a verified table in <a href="/blog/show-your-work.html">Show your work</a>.</p>
+
+    <h2 id="trust">Trust and security</h2>
+
+    <h3>Where does the signing key live?</h3>
+    <p>On your machine. Day to day, that local Ed25519 keypair is the root of trust, and anyone holding it can sign a fresh, internally consistent chain. For the moments that matter, anchoring closes that gap by witnessing the chain in a public log under your identity.</p>
+
+    <h3>What is anchoring?</h3>
+    <p>An optional step that records the exact bytes of your chain in a public transparency log under your identity (a browser login locally, automatic in CI). It proves this exact chain existed at a point in time, independent of the signing key, closing the gap where whoever holds the key could quietly re-sign everything.</p>
+
+    <h2 id="scope">Scope and alternatives</h2>
+
+    <h3>How is this different from dbt, Great Expectations, or OpenLineage?</h3>
+    <p>Those model lineage and quality at the warehouse and orchestration layer, and assume that infrastructure exists. Tamper Signal is narrower and lighter: a signed, file-based receipt chain you drop in front of an ad-hoc xlsx-to-dashboard pipeline with no database, server, or catalog. It is a complement for the gap before those tools are in place, not a replacement.</p>
+
+    <h3>What are tolerance bands?</h3>
+    <p>A signed declaration, made at ingest, of how much a period normally moves day over day, plus a settling window. Recurring refreshes then stay green when recent data drifts within the band and turn yellow when settled data moves or a recent bucket breaches the band. It keeps the light believable on a pipeline that refreshes every morning, which is the <a href="/blog/your-data-is-supposed-to-move.html">whole story behind 1.6.0</a>.</p>
+
+    <h3>Is it free, and what are the requirements?</h3>
+    <p>Yes, open source under the MIT license. It needs Python 3.11+ or Node 18.17+. There is no paid tier, no account, and no server to run.</p>
+
+    <div class="doc-next">
+      <a class="dn-l" href="/docs/concepts.html">
+        <span class="dn-label">Read next</span>
+        <span class="dn-title">Core concepts</span>
+      </a>
+      <a class="dn-r" href="/docs/quickstart.html">
+        <span class="dn-label">Or jump in</span>
+        <span class="dn-title">Quickstart</span>
+      </a>
+    </div>
+  </main>
+</div>
+
+<footer>
+  <div class="wrap">
+    <span>MIT licensed</span>
+    <span>·</span>
+    <a href="https://github.com/welovejeff/tamper-evident-verification">github.com/welovejeff/tamper-evident-verification</a>
+    <span>·</span>
+    <a href="/">tampersignal.com</a>
+  </div>
+</footer>
+
+<script>
+  const menuBtn = document.querySelector(".menu-btn");
+  const siteNav = document.getElementById("site-nav");
+  if (menuBtn && siteNav) {
+    menuBtn.addEventListener("click", () => {
+      const open = siteNav.classList.toggle("open");
+      menuBtn.setAttribute("aria-expanded", String(open));
+    });
+    siteNav.addEventListener("click", (e) => {
+      if (e.target.tagName === "A") { siteNav.classList.remove("open"); menuBtn.setAttribute("aria-expanded", "false"); }
+    });
+  }
+  const sideToggle = document.querySelector(".side-toggle");
+  const docsSide = document.querySelector(".docs-side");
+  if (sideToggle && docsSide) {
+    sideToggle.addEventListener("click", () => {
+      const open = docsSide.classList.toggle("open");
+      sideToggle.setAttribute("aria-expanded", String(open));
+    });
+  }
+</script>
+
+</body>
+</html>

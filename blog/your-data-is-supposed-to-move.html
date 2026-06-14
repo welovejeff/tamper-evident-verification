@@ -16,6 +16,24 @@
 <link rel="canonical" href="https://tampersignal.com/blog/your-data-is-supposed-to-move.html" />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='%2334d399'/%3E%3C/svg%3E" />
 <link rel="stylesheet" href="blog.css" />
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Your data is supposed to move",
+  "description": "Tamper Signal 1.6.0: real reporting data drifts as it matures, and a trust tool that cries wolf on normal drift gets muted. Tolerance bands and run history teach the light what normal looks like.",
+  "image": "https://tampersignal.com/docs/media/thumbs/stoplight.jpg",
+  "datePublished": "2026-06-12",
+  "dateModified": "2026-06-14",
+  "author": { "@type": "Person", "name": "Jeff MacDonald", "url": "https://github.com/welovejeff" },
+  "publisher": {
+    "@type": "Organization",
+    "name": "Tamper Signal",
+    "logo": { "@type": "ImageObject", "url": "https://tampersignal.com/docs/media/og-card.png" }
+  },
+  "mainEntityOfPage": { "@type": "WebPage", "@id": "https://tampersignal.com/blog/your-data-is-supposed-to-move.html" }
+}
+</script>
 </head>
 <body>
 
@@ -44,7 +62,7 @@
 
     <p>A trust tool that cries wolf gets muted, and a muted trust tool is worthless.</p>
 
-    <p>That one sentence is the reason 1.6.0 exists. Tamper Signal has always been able to prove your dashboard numbers descend from the source unchanged. It turns out "unchanged" was the wrong word for the pipelines people actually run.</p>
+    <p>That one sentence is the reason 1.6.0 exists. Tamper Signal has always been able to <a href="/blog/your-vibe-coded-dashboard-needs-receipts.html">prove your dashboard numbers descend from the source</a> unchanged. It turns out "unchanged" was the wrong word for the pipelines people actually run.</p>
 
     <h2>The daily-refresh problem</h2>
 
@@ -82,7 +100,7 @@ receipts log       # the trend, day over day, week over week</code></pre>
 
     <h2>Still continuity, not correctness</h2>
 
-    <p>A band is not a claim that your data is right. It is your own signed statement of how much a period normally moves, and the tool holding you to it. Tamper Signal still proves continuity, not correctness. It still cannot tell you the source export was good.</p>
+    <p>A band is not a claim that your data is right. It is your own signed statement of how much a period normally moves, and the tool holding you to it. Tamper Signal still proves continuity, not correctness. It still cannot tell you the source export was good. For that you open the rows yourself, which is the whole case for <a href="/blog/show-your-work.html">a verified Data tab</a>.</p>
 
     <p>What 1.6.0 changes is narrower and, like the red light that names the broken link, more useful in practice. The green light now means something on a pipeline that refreshes every morning, because it stopped crying wolf on the mornings nothing was wrong. The light is green, the data is clean, and now it stays believable on the days your data was only doing what data does.</p>
 

@@ -16,6 +16,24 @@
 <link rel="canonical" href="https://tampersignal.com/blog/your-vibe-coded-dashboard-needs-receipts.html" />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='%2334d399'/%3E%3C/svg%3E" />
 <link rel="stylesheet" href="blog.css" />
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Your vibe-coded dashboard needs receipts",
+  "description": "AI-built dashboards fail silently: they drop rows and double-count without crashing. Signed receipts at every step prove your numbers still descend from the source, and name the exact link if they don't.",
+  "image": "https://tampersignal.com/docs/media/thumbs/stoplight.jpg",
+  "datePublished": "2026-06-02",
+  "dateModified": "2026-06-14",
+  "author": { "@type": "Person", "name": "Jeff MacDonald", "url": "https://github.com/welovejeff" },
+  "publisher": {
+    "@type": "Organization",
+    "name": "Tamper Signal",
+    "logo": { "@type": "ImageObject", "url": "https://tampersignal.com/docs/media/og-card.png" }
+  },
+  "mainEntityOfPage": { "@type": "WebPage", "@id": "https://tampersignal.com/blog/your-vibe-coded-dashboard-needs-receipts.html" }
+}
+</script>
 </head>
 <body>
 
@@ -81,7 +99,7 @@
     <p>The verdict is a traffic light.</p>
 
     <div class="verdict"><span class="lt g" aria-hidden="true"></span><p><strong>The light is green, the data is clean.</strong> Every link verifies, every signature checks. Your dashboard numbers descend from the original export, untouched.</p></div>
-    <div class="verdict"><span class="lt y" aria-hidden="true"></span><p><strong>The light is yellow, a human should look.</strong> The chain verifies, with caveats: a gap in the receipt coverage, a signing key you haven't said you trust, totals drifting in ways you asked it to flag. Yellow never blames. It asks for eyes.</p></div>
+    <div class="verdict"><span class="lt y" aria-hidden="true"></span><p><strong>The light is yellow, a human should look.</strong> The chain verifies, with caveats: a gap in the receipt coverage, a signing key you haven't said you trust, <a href="/blog/your-data-is-supposed-to-move.html">totals drifting in ways you asked it to flag</a>. Yellow never blames. It asks for eyes.</p></div>
     <div class="verdict"><span class="lt r" aria-hidden="true"></span><p><strong>The light is red, the chain is broken.</strong> And this is the part worth paying for, even though it costs nothing: red doesn't shrug. It names the exact link and the exact delta.</p></div>
 
     <pre><code>✗ CHAIN BROKEN at link 1 -&gt; 2 (transform_aggregate)
@@ -101,7 +119,7 @@
 
     <p>The verdict isn't only a CLI thing. A small badge, or the newer inline status light, drops into any web frontend and re-verifies the whole chain in the viewer's browser using Web Crypto: every signature, every link, on page load. No server-side trust required. When the chain breaks, the light can even flag the specific on-page metric that no longer descends from the source.</p>
 
-    <p>And once the light is green, we think your dashboard should show its work. Not a tooltip, not an export-on-request: a Data tab, right next to the charts, with the raw verified table the pretty numbers came from. If the chain is intact there is no reason to hide the rows, and if you find yourself wanting to hide them, that's worth sitting with. A chart asks you to believe; a table lets you check.</p>
+    <p>And once the light is green, we think your dashboard should <a href="/blog/show-your-work.html">show its work</a>. Not a tooltip, not an export-on-request: a Data tab, right next to the charts, with the raw verified table the pretty numbers came from. If the chain is intact there is no reason to hide the rows, and if you find yourself wanting to hide them, that's worth sitting with. A chart asks you to believe; a table lets you check.</p>
 
     <h2>Try it in five minutes</h2>
 

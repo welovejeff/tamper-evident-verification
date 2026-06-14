@@ -12,6 +12,14 @@ Period-over-period continuity: declare a signed tolerance at ingest (`--band`, `
 - [README](https://raw.githubusercontent.com/welovejeff/tamper-evident-verification/main/README.md): overview, CLI, how the chain works, honest limits
 - [Domain vocabulary](https://raw.githubusercontent.com/welovejeff/tamper-evident-verification/main/CONCEPTS.md): receipt, chain, semantic hash, the light, spec version
 - [Copy rules](https://raw.githubusercontent.com/welovejeff/tamper-evident-verification/main/docs/MESSAGING.md): the verdict lines and banned claims, binding for any UI text you write
+- [FAQ](https://tampersignal.com/docs/faq.html): what it proves and what it does not, the traffic light, blockchain, and how it differs from dbt and friends
+
+## Writing
+
+- [Blog](https://tampersignal.com/blog/): notes on keeping AI-built data pipelines honest
+- [Your vibe-coded dashboard needs receipts](https://tampersignal.com/blog/your-vibe-coded-dashboard-needs-receipts.html): the pitch, longer; why AI-written data code fails silently and how a signed receipt at every step catches it
+- [Your data is supposed to move](https://tampersignal.com/blog/your-data-is-supposed-to-move.html): tolerance bands and run history, so the light stays believable on a pipeline that refreshes every morning
+- [Show your work](https://tampersignal.com/blog/show-your-work.html): why every dashboard built on verified data should ship a Data tab, the raw verified rows next to the charts
 
 ## Source
 
