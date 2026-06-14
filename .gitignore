@@ -31,3 +31,6 @@ animations/.remotion/
 
 # OS
 .DS_Store
+
+# fal.ai generation scratch (variants to pick winners from); manifest.json is kept
+docs/media/thumbs/_gen/

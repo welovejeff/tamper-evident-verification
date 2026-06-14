@@ -1,0 +1,50 @@
+{
+  "brand_style": {
+    "base_style": "realistic_image",
+    "model": "fal-ai/recraft/v3/create-style",
+    "references": [
+      "docs/media/thumbs/stoplight.jpg",
+      "docs/media/thumbs/faq.jpg",
+      "docs/media/thumbs/post-receipts.jpg",
+      "docs/media/thumbs/post-move.jpg",
+      "docs/media/thumbs/post-show-your-work.jpg"
+    ],
+    "style_id": "65e64f0a-d9a5-4fee-96fc-7acc7ab1d9be"
+  },
+  "entries": {
+    "faq-a": {
+      "collection": "d8nf53kregj0m3bnnbmg",
+      "image_size": {
+        "height": 800,
+        "width": 1280
+      },
+      "local_path": "docs/media/thumbs/_gen/faq-a.jpg",
+      "model": "fal-ai/recraft/v3/text-to-image",
+      "prompt": "A single rounded matte-charcoal 3D question mark floating in the center, the dot of the question mark glowing emerald green like a small indicator light. Minimalist 3D product render, near-black blue-black background, soft studio lighting, matte charcoal rubberized material, gentle soft shadows, subtle radial vignette, generous negative space, single centered hero object, one emerald-green glow as the only saturated light source with a soft bloom halo, shallow depth of field, premium and restrained, no text, no lettering, no logos, high detail, octane render.",
+      "request_id": "019ec7fa-3a67-7093-b7a2-3885249049a5",
+      "result_url": "https://v3b.fal.media/files/b/0a9e4f51/dQeVQms2Fb_NV3vQU4xtn_image.webp",
+      "slot": "faq",
+      "style_id": "65e64f0a-d9a5-4fee-96fc-7acc7ab1d9be",
+      "synced": true,
+      "variant": "a",
+      "vector_id": "a9c3b867-b6a6-5f02-8d9a-43e8c0b7ed52"
+    },
+    "faq-b": {
+      "collection": "d8nf53kregj0m3bnnbmg",
+      "image_size": {
+        "height": 800,
+        "width": 1280
+      },
+      "local_path": "docs/media/thumbs/_gen/faq-b.jpg",
+      "model": "fal-ai/recraft/v3/text-to-image",
+      "prompt": "A single rounded matte-charcoal 3D question mark floating in the center, the dot of the question mark glowing emerald green like a small indicator light. Minimalist 3D product render, near-black blue-black background, soft studio lighting, matte charcoal rubberized material, gentle soft shadows, subtle radial vignette, generous negative space, single centered hero object, one emerald-green glow as the only saturated light source with a soft bloom halo, shallow depth of field, premium and restrained, no text, no lettering, no logos, high detail, octane render.",
+      "request_id": "019ec7fa-a247-7123-b53e-7f49eadc3221",
+      "result_url": "https://v3b.fal.media/files/b/0a9e4f53/xMEaX72HNZ42-GFlGdsLE_image.webp",
+      "slot": "faq",
+      "style_id": "65e64f0a-d9a5-4fee-96fc-7acc7ab1d9be",
+      "synced": true,
+      "variant": "b",
+      "vector_id": "0cdb1fbe-100b-5726-9459-7dcd9a48c7e3"
+    }
+  }
+}
