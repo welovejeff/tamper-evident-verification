@@ -50,3 +50,14 @@ The property this system proves: the data behind a result descends from the orig
 
 ### The light
 The user-facing verdict, expressed as a traffic light. Green: every link in the Chain verifies and every signature checks ("The light is green, the data is clean"). Yellow: the chain is verifiable but carries caveats — coverage gaps, an unrecognized signing key, or Control-total drift — and a human should look. Red: the Chain is broken at a specific link, with the expected and found fingerprints and the Control-totals delta. Yellow never blames; red points rather than panics.
+
+## Portability
+
+### Verified bundle
+A single zip that carries exported data together with its proof: the native data file (a real, openable CSV/xlsx) alongside `chain.json` and the `receipts/` directory. It stays one artifact that cannot get separated in transit, and a recipient re-verifies it offline with `receipts verify`, unchanged. Contrast with a rows-only export.
+
+### Rows-only export
+The bare native data file with no chain or receipts attached — the data without its proof. The honest counterpart to the Verified bundle, offered when the recipient does not need to re-verify; the UI makes the unverified nature legible before download.
+
+### Re-attestation
+What import does: re-ingesting a file signs a fresh Receipt (and, in replace mode, a fresh Chain) under the importer's identity. Evidence restarts at the importer; the verdict reflects the new signer (an unrecognized key stays yellow). Re-attestation is never silent — every import records who re-attested and when — so imported data cannot be laundered into a green chain.
