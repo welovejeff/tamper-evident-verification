@@ -60,6 +60,10 @@ SLOTS = {
     "showwork": "A matte 3D chart card lifting at one corner to reveal a "
                 "glowing grid of data rows beneath it, the revealed rows lit "
                 "emerald green, as if showing the work behind the numbers.",
+    "takedata": "A matte charcoal 3D parcel or export box mid-lift in the "
+                "center, a small glowing emerald-green wax-sealed tag attached "
+                "to it by a short cord, as if the data is leaving with its "
+                "receipt still attached.",
 }
 
 SIZE = {"width": 1280, "height": 800}  # 16:10, matches the card thumb aspect
