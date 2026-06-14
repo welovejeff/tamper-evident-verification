@@ -5,7 +5,7 @@
 //   tamper-signal keygen --out keys/
 //   tamper-signal ingest export.csv --origin "..." --key keys/signing.key --out receipts/
 //   tamper-signal verify receipts/chain.json [--pub keys/signing.pub] [--data current.csv] [--warn-drift]
-//   tamper-signal export receipts/chain.json --data current.csv [--out receipts/table.json]
+//   tamper-signal export receipts/chain.json --data current.csv [--out receipts/table.json] [--bundle]
 //
 // Exit codes are the traffic light: 0 green, 1 red, 2 yellow.
 
@@ -30,6 +30,7 @@ import {
 import { decimalToPlainString, parseDecimal } from "./canonical.js";
 import { generateKeys, loadPrivateKey, loadPublicKeyHex, publicHexFromPrivate } from "./keys.js";
 import { loadRecords } from "./load.js";
+import { makeStoredZip } from "./zip.js";
 import {
   CHAIN_FILENAME,
   SOURCE_RECEIPT_NAME,
@@ -76,10 +77,12 @@ commands:
                                              collapse last-wins); each metric
                                              shows its value and the delta vs
                                              the previous row. Read-only; exit 0
-  export <chain.json> --data <file> [--out receipts/table.json]
+  export <chain.json> --data <file> [--out receipts/table.json] [--bundle]
                                              write the canonical table document
                                              (refuses unless --data matches the
-                                             final receipt)
+                                             final receipt); --bundle writes a
+                                             verified zip (data + chain.json +
+                                             receipts) for offline re-verification
 `;
 
 function cmdKeygen(args) {
@@ -909,6 +912,7 @@ function cmdExport(args) {
     options: {
       data: { type: "string" },
       out: { type: "string" },
+      bundle: { type: "boolean" },
     },
   });
   const chainPath = positionals[0];
@@ -949,6 +953,28 @@ function cmdExport(args) {
     console.error(`  found    data hash   ${dataHash}`);
     console.error("  The Data tab only shows attested data. Re-run the pipeline or fix --data.");
     return 1;
+  }
+
+  if (values.bundle) {
+    // Verified bundle: the original data file plus chain.json and its receipts,
+    // packaged so a recipient can `tamper-signal verify chain.json` offline.
+    // Entry bytes are stored verbatim (chain.json's receipt_hashes commit to the
+    // raw receipt bytes), mirroring the on-disk chain_dir layout flat at the root.
+    const dataName = basename(values.data);
+    const receiptNames = chain.receipts ?? [];
+    const entries = [
+      { name: dataName, bytes: readFileSync(values.data) },
+      { name: CHAIN_FILENAME, bytes: readFileSync(chainPath) },
+      ...receiptNames.map((name) => ({ name, bytes: readFileSync(join(chainDir, name)) })),
+    ];
+    const stem = dataName.replace(/\.[^.]+$/, "");
+    const bundlePath = values.out || join(chainDir, `${stem}-verified.zip`);
+    writeFileSync(bundlePath, makeStoredZip(entries));
+    console.log(`Exported verified bundle: ${bundlePath}`);
+    console.log(`  data ${dataName}, ${receiptNames.length} receipts + ${CHAIN_FILENAME}`);
+    console.log(`  semantic_hash ${dataHash} (matches final receipt)`);
+    console.log(`  recipient: unzip, then \`tamper-signal verify ${CHAIN_FILENAME}\``);
+    return 0;
   }
 
   const outPath = values.out || join(chainDir, "table.json");
