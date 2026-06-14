@@ -63,15 +63,19 @@ below uses plan R-IDs.
 - R7. Import in replace mode re-ingests the file as a new source, signing a fresh
   chain.
 - R8. Import in append-period mode records the file as the next run snapshot and
-  judges drift against prior snapshots through the declared tolerance bands.
+  judges drift against prior snapshots through the prior run's signed tolerance band.
+  It requires a trusted signer (chain key or `--pub`), refuses an untrusted signer
+  rather than appending silently, computes the `breached` guard before archiving, and
+  records the re-attestation event.
 - R9. Replace archives the prior chain rather than silently overwriting it.
 
 **Honesty and re-attestation**
 
 - R10. Every import records who re-attested and when; re-attestation is never silent.
-- R11. Import never launders unverified data into a green chain: imported data is
-  attested under the importer's identity, and the verdict reflects that identity (an
-  unrecognized key stays yellow).
+- R11. Import never launders unverified data into a green chain: replace re-attests
+  under the importer's identity (a key a third-party verifier doesn't recognize stays
+  yellow on verify), and append-period refuses an untrusted signer rather than
+  continuing history under an unknown identity.
 
 **Naming and content**
 
@@ -117,13 +121,25 @@ below uses plan R-IDs.
   the trusted set and computing the `breached` baseline guard into the archived
   snapshot (mirroring JS `rebuildChain`).
 
-- **Append-period continuity keys on source identity, not signing key.** Cross-run
-  judgment matches on `run_source` (filename + column set). Append-period is
-  recognized as a continuation only when the imported file preserves the prior run's
-  filename and columns; a renamed or reshaped file is treated as a new source. The
-  signing key may rotate freely — the importer's key is added to the trusted set so
-  its snapshot is judged, and a key the next verifier doesn't recognize surfaces as a
-  yellow caveat, never a silent green.
+- **Append-period continues history only under a trusted signer.** Cross-run judgment
+  matches on `run_source` (filename + column set), so append-period is recognized as a
+  continuation only when the imported file preserves the prior run's filename and
+  columns; a renamed or reshaped file is a new source. The importer's key must be
+  trusted (the chain's own key, or one passed via `--pub`): a run-history snapshot
+  signed under an untrusted key is *dropped* by `load_snapshots`, never surfaced, so
+  silently appending under an unknown key is impossible to do honestly. Append-period
+  therefore **refuses** an untrusted signer with guidance to use `--as replace`
+  (re-attest under a new identity) or pass `--pub`. This replaces the earlier
+  "judged-and-yellow under an unrecognized key" model, which the snapshot mechanics
+  cannot produce.
+
+- **Append-period judges against the prior signed band and guards the baseline.** Drift
+  is judged against the tolerance band from the *prior run's signed source manifest*,
+  not the freshly-imported file's manifest, so an importer cannot widen the band to
+  launder a tampered value. The `breached` map is computed by judging against prior
+  trusted snapshots *before* the new snapshot is archived, so a breached value cannot
+  become the next clean baseline. The re-attestation event (who re-attested, when) is
+  recorded so a continued history never hides that the data changed hands.
 
 - **Import mode is a flag on `ingest`, defaulting to replace.** `receipts ingest
   <file> --as replace|period`; bare `ingest` stays replace for back-compat. Export
@@ -155,8 +171,10 @@ flowchart TB
   subgraph Import
     File["edited / fresh file"] --> Mode{"--as ?"}
     Mode -->|replace| Fresh["ingest_file: fresh signed chain<br/>(prior chain archived)"]
-    Mode -->|period| Snap["build_run_snapshot + judge_cross_run<br/>preserve filename+columns<br/>thread importer key into trusted set"]
-    Snap --> Bands["tolerance-band verdict<br/>(yellow on unrecognized key)"]
+    Mode -->|period| Trust{"signer trusted?"}
+    Trust -->|no| Refuse["refuse: use --as replace or --pub"]
+    Trust -->|yes| Snap["build_run_snapshot + judge_cross_run<br/>preserve filename+columns<br/>judge vs prior signed band"]
+    Snap --> Bands["tolerance-band verdict<br/>(breached computed before archive)"]
   end
   Zip -.cross-format round trip.-> File
 ```
@@ -243,24 +261,30 @@ Phased: Export (U1–U3), Import (U4–U6), Integrity gate (U7), Demo & content 
 ### U4. Append-period core (Python)
 
 - **Goal:** A library function that records an imported file as the next run snapshot
-  and judges it against prior snapshots via tolerance bands, under the importer's key.
+  under a trusted signer, judging it against prior snapshots via the prior run's
+  signed tolerance band; refuses an untrusted signer.
 - **Requirements:** R8, R10, R11
 - **Dependencies:** none
 - **Files:** `tamper_signal/wrapper.py`, `tamper_signal/history.py`, `tests/test_run_history.py`, `tests/test_judgment.py`
 - **Approach:** Compose `build_run_snapshot` + `judge_cross_run`. Preserve
-  `run_source` filename + columns so judgment recognizes continuity. Add the
-  importer's public key to the snapshot's trusted set and compute the `breached`
-  baseline guard into the archived snapshot. Re-attestation identity (who/when) is
-  recorded in the snapshot/receipt.
+  `run_source` filename + columns so judgment recognizes continuity. Require a trusted
+  signer (chain key or a passed `--pub`); if the importer's key is not trusted, refuse
+  (a snapshot under an untrusted key would be silently dropped by `load_snapshots`, so
+  refusing is the honest behavior). Judge against the prior run's signed band, compute
+  the `breached` guard against prior trusted snapshots *before* archiving, and record
+  the re-attestation event (who/when).
 - **Patterns to follow:** `archive_run_snapshot`, `_archive_after_verify`'s
   trusted-key handling, and the JS `rebuildChain` breached-threading at
   `node/wrapper.js`.
 - **Test scenarios:**
-  - Happy path: an in-band next-period import is judged within tolerance; light green.
+  - Happy path: an in-band next-period import under a trusted key is judged within
+    tolerance; light green.
   - Edge: settled-period movement raises the existing settled-movement caveat.
   - Edge: renamed/reshaped file → judged a new source, not a continuation.
-  - Error/integration: import signed under an unrecognized key → yellow, never silent
-    green. Covers AE3.
+  - Error: import under an untrusted signer is refused with guidance, no snapshot
+    archived. Covers AE3.
+  - Security: a widened band in the imported manifest does not loosen judgment (prior
+    signed band governs); a breached value does not become the next baseline.
 - **Verification:** judgment finds prior snapshots when filename+columns match; key
   change surfaces as a caveat.
 
@@ -382,9 +406,10 @@ Carried from origin.
 - AE2. Cross-format round trip stays green. **Covers R4, R5, R8.** Given a bundle
   exported as CSV, when re-verified as JSON (CLI or append-period import), then the
   Semantic hash matches and the light is green.
-- AE3. Append-period crosses a signer boundary. **Covers R10, R11.** Given an
-  append-period import signed under an unrecognized key, when the run is judged, then
-  it is attributed to the importer and the light is yellow, never a silent green.
+- AE3. Append-period refuses an untrusted signer. **Covers R8, R11.** Given an
+  append-period import whose signing key is not the chain's key and is not passed via
+  `--pub`, when the import runs, then it is refused (not silently dropped) with
+  guidance to use `--as replace` or pass `--pub`, and no snapshot is archived.
 - AE4. Rows-only carries no proof. **Covers R6.** Given the rows-only output, when the
   file is downloaded, then it is the bare native file with no chain or receipts, and
   the UI marked it unverified.

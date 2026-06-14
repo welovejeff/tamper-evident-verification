@@ -63,13 +63,16 @@ can argue.
   a verified bundle transitively carries whatever anchor its chain already had, and
   export does not mutate the chain.
 
-- **Append-period is a history-level judgment, not a chain extension.** Import always
-  re-attests under the importer's key; the new period is recorded as a run snapshot
-  and compared against prior snapshots via the tolerance bands. The system never
-  claims one continuous chain across the import. The signer change surfaces through
-  the existing "unrecognized signing key" yellow caveat — no new honesty surface is
-  invented. This reuses the period-over-period machinery (#32), where run snapshots
-  already sit outside the chain as weaker evidence.
+- **Append-period is a history-level judgment under a trusted signer.** The new period
+  is recorded as a run snapshot and compared against prior snapshots via the prior
+  run's signed tolerance band; the system never claims one continuous chain across the
+  import. Because a snapshot signed under an untrusted key is dropped by verification
+  (never surfaced), append-period **refuses** an untrusted signer rather than appending
+  silently — the importer uses replace (re-attest under a new identity) or passes the
+  key as trusted. This reuses the period-over-period machinery (#32), where run
+  snapshots sit outside the chain as weaker evidence. (Revised from an earlier
+  "judged-and-yellow under an unrecognized key" idea, which the snapshot mechanics
+  cannot produce.)
 
 ## Actors
 
@@ -140,18 +143,19 @@ can argue.
 - R7. Import in replace mode re-ingests the file as a new source, signing a fresh
   chain.
 - R9. Import in append-period mode records the file as the next run snapshot and
-  judges drift against prior snapshots through the declared tolerance bands (#32); it
-  re-attests under the importer's key and surfaces any signer change via the existing
-  unrecognized-key caveat rather than implying a continuous chain.
+  judges drift against prior snapshots through the prior run's signed tolerance band
+  (#32). It requires a trusted signer and refuses an untrusted signer rather than
+  appending silently or implying a continuous chain.
 - R8. Replace archives the prior chain rather than silently overwriting it.
 
 **Honesty and re-attestation**
 
 - R10. Every import records who re-attested and when; re-attestation is never
   silent.
-- R11. Import never launders unverified data into a green chain: imported data is
-  attested under the importer's identity, and the verdict reflects that new identity
-  (e.g., an unrecognized signing key stays yellow).
+- R11. Import never launders unverified data into a green chain: replace re-attests
+  under the importer's identity (a key a third-party verifier doesn't recognize stays
+  yellow on verify), and append-period refuses an untrusted signer rather than
+  continuing history under an unknown identity.
 
 **Naming and copy**
 
@@ -184,12 +188,12 @@ can argue.
   - **When** the data is re-verified as JSON (CLI or append-period import),
   - **Then** the Semantic hash matches and the light is green.
 
-- AE3. Append-period crosses a signer boundary. **Covers R10, R11.**
-  - **Given** an append-period import signed under a key the dashboard does not
-    recognize,
-  - **When** the next-period run is judged,
-  - **Then** the run is attributed to the importer's identity and the light reflects
-    the unrecognized key (yellow), never a silent green.
+- AE3. Append-period refuses an untrusted signer. **Covers R8, R11.**
+  - **Given** an append-period import whose signing key is neither the chain's key nor
+    passed as trusted,
+  - **When** the import runs,
+  - **Then** it is refused (not silently dropped) with guidance to use replace or pass
+    the key as trusted, and no snapshot is archived.
 
 - AE4. Rows-only carries no proof. **Covers R6.**
   - **Given** A1 chooses the rows-only output,
