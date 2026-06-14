@@ -177,6 +177,69 @@ def test_export_refuses_mismatched_data(tmp_path, monkeypatch, capsys):
     assert "Refusing to export" in capsys.readouterr().err
 
 
+def _matching_data_file(tmp_path) -> Path:
+    """A data file whose records match the seeded chain's final receipt."""
+    records = sample_records()
+    data = tmp_path / "current.json"
+    data.write_text(json.dumps([
+        {k: (v.isoformat() if hasattr(v, "isoformat") else v) for k, v in r.items()}
+        for r in records
+    ]), encoding="utf-8")
+    return data
+
+
+def test_export_bundle_unzips_and_verifies_green(tmp_path, monkeypatch):
+    import zipfile
+
+    monkeypatch.chdir(tmp_path)
+    _seed_chain(tmp_path)
+    data = _matching_data_file(tmp_path)
+
+    assert main(["export", "--chain", "receipts/chain.json", "--data", str(data), "--bundle"]) == 0
+    bundle = tmp_path / "receipts" / "current-verified.zip"
+    assert bundle.exists()
+    assert not (tmp_path / "receipts" / "table.json").exists()  # --bundle writes the zip, not table.json
+
+    # The bundle carries the data file, chain.json, and every receipt.
+    with zipfile.ZipFile(bundle) as zf:
+        names = set(zf.namelist())
+    assert {"current.json", "chain.json", SOURCE_RECEIPT_NAME} <= names
+
+    # Unzip into a fresh dir with no keys/receipts of its own, then verify offline.
+    out = tmp_path / "recipient"
+    out.mkdir()
+    with zipfile.ZipFile(bundle) as zf:
+        zf.extractall(out)
+    monkeypatch.chdir(out)
+    assert main(["verify", "chain.json", "--json"]) == 0
+
+
+def test_export_bundle_preserves_receipt_bytes(tmp_path, monkeypatch):
+    import zipfile
+
+    monkeypatch.chdir(tmp_path)
+    _seed_chain(tmp_path)
+    data = _matching_data_file(tmp_path)
+    assert main(["export", "--chain", "receipts/chain.json", "--data", str(data), "--bundle"]) == 0
+
+    # receipt_hashes commit to raw bytes; the bundle must store them byte-for-byte.
+    on_disk = (tmp_path / "receipts" / SOURCE_RECEIPT_NAME).read_bytes()
+    chain_on_disk = (tmp_path / "receipts" / "chain.json").read_bytes()
+    with zipfile.ZipFile(tmp_path / "receipts" / "current-verified.zip") as zf:
+        assert zf.read(SOURCE_RECEIPT_NAME) == on_disk
+        assert zf.read("chain.json") == chain_on_disk
+
+
+def test_export_bundle_refuses_mismatched_data(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    _seed_chain(tmp_path)
+    data = tmp_path / "wrong.json"
+    data.write_text('[{"a": 1}]', encoding="utf-8")
+    assert main(["export", "--chain", "receipts/chain.json", "--data", str(data), "--bundle"]) == 1
+    assert not list((tmp_path / "receipts").glob("*-verified.zip"))
+    assert "Refusing to export" in capsys.readouterr().err
+
+
 # ---------------------------------------------------------------------------
 # receipts ingest --band / --settle / --bucket-column (tolerance declaration)
 # ---------------------------------------------------------------------------

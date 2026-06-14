@@ -19,6 +19,7 @@ import os
 import sys
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 from .canonical import (
     decimal_to_plain_string,
@@ -647,11 +648,50 @@ def cmd_export(args: argparse.Namespace) -> int:
         print("  The Data tab only shows attested data. Re-run the pipeline or fix --data.", file=sys.stderr)
         return 1
 
+    if getattr(args, "bundle", False):
+        return _write_verified_bundle(args, chain, chain_dir, data_hash)
+
     out_path = Path(args.out) if args.out else chain_dir / "table.json"
     out_path.write_text(_json.dumps(document, indent=2) + "\n", encoding="utf-8")
     print(f"Exported verified table: {out_path}")
     print(f"  rows {len(document['rows'])}, columns {len(document['headers'])}")
     print(f"  semantic_hash {data_hash} (matches final receipt)")
+    return 0
+
+
+def _write_verified_bundle(
+    args: argparse.Namespace, chain: dict[str, Any], chain_dir: Path, data_hash: str
+) -> int:
+    """Write a verified bundle: the original data file plus chain.json and its
+    receipt files, packaged so a recipient can `receipts verify chain.json`
+    offline.
+
+    Stores entries uncompressed and byte-for-byte (LF preserved), because
+    chain.json's receipt_hashes commit to the raw bytes of each receipt file —
+    any re-serialization would verify as a broken chain on the recipient's side.
+    The data file is included verbatim, so the bundle carries the original file,
+    not the canonicalized table.
+    """
+    import zipfile
+
+    data_path = Path(args.data)
+    chain_path = Path(args.chain)
+    receipt_names = list(chain.get("receipts", []))
+
+    out_path = Path(args.out) if args.out else chain_dir / f"{data_path.stem}-verified.zip"
+
+    # Mirror the on-disk chain_dir layout flat at the bundle root so an unzip +
+    # `receipts verify chain.json` resolves receipts the same way it does locally.
+    with zipfile.ZipFile(out_path, "w", compression=zipfile.ZIP_STORED) as bundle:
+        bundle.writestr(data_path.name, data_path.read_bytes())
+        bundle.writestr(CHAIN_FILENAME, chain_path.read_bytes())
+        for name in receipt_names:
+            bundle.writestr(name, (chain_dir / name).read_bytes())
+
+    print(f"Exported verified bundle: {out_path}")
+    print(f"  data {data_path.name}, {len(receipt_names)} receipts + {CHAIN_FILENAME}")
+    print(f"  semantic_hash {data_hash} (matches final receipt)")
+    print(f"  recipient: unzip, then `receipts verify {CHAIN_FILENAME}`")
     return 0
 
 
@@ -1407,8 +1447,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_export.add_argument("--chain", default="receipts/chain.json", help="Path to chain.json")
     p_export.add_argument("--data", required=True, help="Data file that must match the final receipt")
-    p_export.add_argument("--out", default=None, help="Output path (default: <chain dir>/table.json)")
+    p_export.add_argument(
+        "--out",
+        default=None,
+        help="Output path (default: <chain dir>/table.json, or <data stem>-verified.zip with --bundle)",
+    )
     p_export.add_argument("--sheet", default=None, help="Worksheet name (xlsx only, optional)")
+    p_export.add_argument(
+        "--bundle",
+        action="store_true",
+        help="Write a verified bundle (zip of the data file + chain.json + receipts) for offline re-verification",
+    )
     p_export.set_defaults(func=cmd_export)
 
     p_diff = sub.add_parser(
