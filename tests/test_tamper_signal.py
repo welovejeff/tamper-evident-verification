@@ -105,7 +105,14 @@ def test_same_data_hashes_identically_across_formats(tmp_path):
         encoding="utf-8",
     )
 
-    for path in (xlsx_path, csv_path, json_path, ndjson_path):
+    tsv_path = tmp_path / "data.tsv"
+    with open(tsv_path, "w", newline="", encoding="utf-8") as handle:
+        writer = csv.writer(handle, delimiter="\t")
+        writer.writerow(headers)
+        for r in records:
+            writer.writerow([iso(r[h]) for h in headers])
+
+    for path in (xlsx_path, csv_path, json_path, ndjson_path, tsv_path):
         assert semantic_hash(load_records(str(path))) == expected, path.suffix
 
 
