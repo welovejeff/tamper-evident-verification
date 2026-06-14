@@ -82,7 +82,20 @@ function injectTableStyles() {
     background:none;border:1px solid var(--tt-border);border-radius:6px;
     padding:4px 10px;cursor:pointer}
   .tt .tt-foot button:hover{border-color:var(--tt-faint)}
-  .tt .tt-tagline{margin-left:auto;color:var(--tt-green)}`;
+  .tt .tt-tagline{margin-left:auto;color:var(--tt-green)}
+  .tt .tt-export{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;
+    border-top:1px solid var(--tt-border);padding:8px 14px;font-size:11px;color:var(--tt-dim)}
+  .tt .tt-export .tt-xlabel{color:var(--tt-text);letter-spacing:0.3px}
+  .tt .tt-export label{display:inline-flex;align-items:center;gap:4px;cursor:pointer}
+  .tt .tt-export select{font:11px inherit;font-family:inherit;color:var(--tt-text);
+    background:var(--tt-panel);border:1px solid var(--tt-border);border-radius:6px;padding:3px 6px}
+  .tt .tt-export button{font:11px inherit;font-family:inherit;color:var(--tt-cyan);
+    background:none;border:1px solid var(--tt-border);border-radius:6px;padding:4px 12px;cursor:pointer}
+  .tt .tt-export button:hover:not(:disabled){border-color:var(--tt-faint)}
+  .tt .tt-export button:disabled{color:var(--tt-faint);cursor:not-allowed;opacity:0.6}
+  .tt .tt-export .tt-xnote{flex-basis:100%;color:var(--tt-dim)}
+  .tt .tt-export .tt-xnote.tt-warn{color:var(--tt-amber)}
+  .tt .tt-export .tt-xhint{margin-left:auto;color:var(--tt-faint)}`;
   document.head.appendChild(el("style", { id: "tamper-table-styles", textContent: css }));
 }
 
@@ -108,6 +121,132 @@ function brokenColumns(result) {
   return cols;
 }
 
+// ---------------------------------------------------------------------------
+// "Take your data": client-side export of the attested data.
+//
+// The browser only holds the canonical table document, so it reconstructs a
+// native-format file from that data (column- and row-sorted, normalized) — the
+// attested data, not the user's original file byte-for-byte. A verified bundle
+// also carries chain.json and the receipts (fetched as raw bytes so the
+// recipient can re-verify), packaged with a store-only zip writer that mirrors
+// node/zip.js. xlsx is not offered here; it goes through the Python CLI.
+// ---------------------------------------------------------------------------
+
+const _CRC_TABLE = (() => {
+  const table = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    table[n] = c >>> 0;
+  }
+  return table;
+})();
+
+function crc32(bytes) {
+  let c = 0xffffffff;
+  for (let i = 0; i < bytes.length; i++) c = _CRC_TABLE[(c ^ bytes[i]) & 0xff] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+}
+
+// Store-only (no compression) zip. Entry bytes are kept verbatim so the
+// bundled chain.json and receipts stay byte-identical to the server's copies —
+// receipt_hashes commit to raw bytes, and any transform would verify as broken.
+function makeStoredZip(entries) {
+  const enc = new TextEncoder();
+  const parts = [];
+  const central = [];
+  let offset = 0;
+  for (const { name, bytes } of entries) {
+    const nameBytes = enc.encode(name);
+    const crc = crc32(bytes);
+    const size = bytes.length;
+    const local = new DataView(new ArrayBuffer(30));
+    local.setUint32(0, 0x04034b50, true);
+    local.setUint16(4, 20, true);
+    local.setUint16(8, 0, true);
+    local.setUint16(12, 0x21, true);
+    local.setUint32(14, crc, true);
+    local.setUint32(18, size, true);
+    local.setUint32(22, size, true);
+    local.setUint16(26, nameBytes.length, true);
+    const localHeader = new Uint8Array(local.buffer);
+    parts.push(localHeader, nameBytes, bytes);
+    const cd = new DataView(new ArrayBuffer(46));
+    cd.setUint32(0, 0x02014b50, true);
+    cd.setUint16(4, 20, true);
+    cd.setUint16(6, 20, true);
+    cd.setUint16(12, 0x21, true);
+    cd.setUint32(16, crc, true);
+    cd.setUint32(20, size, true);
+    cd.setUint32(24, size, true);
+    cd.setUint16(28, nameBytes.length, true);
+    cd.setUint32(42, offset, true);
+    central.push(new Uint8Array(cd.buffer), nameBytes);
+    offset += localHeader.length + nameBytes.length + size;
+  }
+  let centralSize = 0;
+  for (const c of central) centralSize += c.length;
+  const eocd = new DataView(new ArrayBuffer(22));
+  eocd.setUint32(0, 0x06054b50, true);
+  eocd.setUint16(8, entries.length, true);
+  eocd.setUint16(10, entries.length, true);
+  eocd.setUint32(12, centralSize, true);
+  eocd.setUint32(16, offset, true);
+  const all = [...parts, ...central, new Uint8Array(eocd.buffer)];
+  let total = 0;
+  for (const c of all) total += c.length;
+  const out = new Uint8Array(total);
+  let p = 0;
+  for (const c of all) {
+    out.set(c, p);
+    p += c.length;
+  }
+  return out;
+}
+
+function cellText(cell) {
+  if (cell === null || cell === undefined) return "";
+  if (cell === true) return "true";
+  if (cell === false) return "false";
+  return String(cell);
+}
+
+// Reconstruct a native-format file from the canonical document. Values are the
+// attested values; format is the recipient's choice. Re-ingesting any of these
+// yields the same Semantic hash, since canonicalization is format-agnostic.
+function serializeDoc(doc, format) {
+  const { headers, rows } = doc;
+  if (format === "json") {
+    return JSON.stringify(rows.map((r) => Object.fromEntries(headers.map((h, i) => [h, r[i]]))), null, 2) + "\n";
+  }
+  if (format === "ndjson") {
+    return rows.map((r) => JSON.stringify(Object.fromEntries(headers.map((h, i) => [h, r[i]])))).join("\n") + "\n";
+  }
+  const sep = format === "tsv" ? "\t" : ",";
+  const quote = (v) => {
+    const s = cellText(v);
+    if (format === "tsv") return s.replace(/[\t\r\n]/g, " ");
+    return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const lines = [headers.map(quote).join(sep)];
+  for (const row of rows) lines.push(row.map(quote).join(sep));
+  return lines.join("\n") + "\n";
+}
+
+const EXPORT_EXT = { csv: "csv", tsv: "tsv", json: "json", ndjson: "ndjson" };
+
+function triggerDownload(filename, bytes, mime) {
+  const blob = new Blob([bytes], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = el("a", { href: url, download: filename });
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+let _ttSeq = 0;
+
 export function mountReceiptTable(containerEl, chainUrl, tableUrl, opts) {
   if (tableUrl && typeof tableUrl === "object") {
     opts = tableUrl;
@@ -128,12 +267,101 @@ export function mountReceiptTable(containerEl, chainUrl, tableUrl, opts) {
   const noteSlot = el("div");
   const scroll = el("div", { className: "tt-scroll" });
   const foot = el("div", { className: "tt-foot" });
-  root.append(strip, noteSlot, scroll, foot);
+  const exportBar = el("div", { className: "tt-export" });
+  root.append(strip, noteSlot, scroll, foot, exportBar);
   containerEl.appendChild(root);
   root.dataset.state = "unverifiable";
 
+  const uid = String(_ttSeq++);
   let destroyed = false;
   let showAll = false;
+  let currentDoc = null;
+  let currentAttested = false;
+
+  // "Take your data": rebuilt each refresh from the current verdict. The
+  // verified-bundle option is offered only when the data is attested and the
+  // light is green or yellow; rows-only is always available but never claims
+  // proof.
+  function renderExport() {
+    exportBar.textContent = "";
+    const state = root.dataset.state;
+    const doc = currentDoc;
+    if (!doc) {
+      exportBar.appendChild(el("span", { className: "tt-xnote" },
+        "Export unavailable: verification did not complete."));
+      return;
+    }
+    const bundleOk = currentAttested && (state === "green" || state === "yellow");
+    const typeName = `tt-xtype-${uid}`;
+    const bundleRadio = el("input",
+      { type: "radio", name: typeName, value: "bundle", checked: bundleOk, disabled: !bundleOk });
+    const rowsRadio = el("input",
+      { type: "radio", name: typeName, value: "rows", checked: !bundleOk });
+    const fmt = el("select", {}, Object.keys(EXPORT_EXT).map((f) => el("option", { value: f }, f)));
+    const btn = el("button", { type: "button" }, "Download");
+    const note = el("div", { className: "tt-xnote" });
+
+    exportBar.append(
+      el("span", { className: "tt-xlabel" }, "Take your data"),
+      el("label", {}, [bundleRadio, "Verified bundle"]),
+      el("label", {}, [rowsRadio, "Rows only"]),
+      fmt,
+      btn,
+      el("span", { className: "tt-xhint" }, "xlsx: use the receipts export command"),
+      note,
+    );
+
+    function updateNote() {
+      note.className = "tt-xnote";
+      if (rowsRadio.checked) {
+        note.textContent = "Rows only: no chain or receipts. A recipient can't verify this file.";
+      } else if (state === "yellow") {
+        note.className = "tt-xnote tt-warn";
+        note.textContent = "The chain has caveats; a recipient will see a yellow light.";
+      } else if (!bundleOk) {
+        note.className = "tt-xnote tt-warn";
+        note.textContent = "Verified bundle unavailable: this table is not the attested data.";
+      } else {
+        note.textContent = "Verified bundle: data plus chain.json and receipts. The recipient verifies it offline.";
+      }
+    }
+    bundleRadio.addEventListener("change", updateNote);
+    rowsRadio.addEventListener("change", updateNote);
+    updateNote();
+
+    btn.addEventListener("click", async () => {
+      const rowsOnly = rowsRadio.checked;
+      const ext = EXPORT_EXT[fmt.value];
+      const dataBytes = new TextEncoder().encode(serializeDoc(doc, fmt.value));
+      const label = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = "Preparing…";
+      try {
+        if (rowsOnly) {
+          triggerDownload(`data-rows-only.${ext}`, dataBytes, "application/octet-stream");
+        } else {
+          const base = new URL(chainUrl, window.location.href);
+          const chainBytes = new Uint8Array(await (await fetch(base)).arrayBuffer());
+          const chainDoc = JSON.parse(new TextDecoder().decode(chainBytes));
+          const entries = [
+            { name: `data.${ext}`, bytes: dataBytes },
+            { name: "chain.json", bytes: chainBytes },
+          ];
+          for (const name of chainDoc.receipts || []) {
+            const bytes = new Uint8Array(await (await fetch(new URL(name, base))).arrayBuffer());
+            entries.push({ name, bytes });
+          }
+          triggerDownload("data-verified.zip", makeStoredZip(entries), "application/zip");
+        }
+      } catch (_e) {
+        note.className = "tt-xnote tt-warn";
+        note.textContent = "Could not build the download. Try again.";
+      } finally {
+        btn.textContent = label;
+        btn.disabled = false;
+      }
+    });
+  }
 
   function setStrip(state, verdictText, metaText, trusted) {
     root.dataset.state = state;
@@ -197,6 +425,9 @@ export function mountReceiptTable(containerEl, chainUrl, tableUrl, opts) {
       scroll.textContent = "";
       foot.textContent = "";
       if (doc) renderTable(doc, new Set());
+      currentDoc = doc;
+      currentAttested = false;
+      renderExport();
       return result;
     }
 
@@ -239,6 +470,9 @@ export function mountReceiptTable(containerEl, chainUrl, tableUrl, opts) {
       setStrip("green", "VERIFIED", rowsText, true);
       renderTable(doc, new Set());
     }
+    currentDoc = doc;
+    currentAttested = attested;
+    renderExport();
     return result;
   }
 
