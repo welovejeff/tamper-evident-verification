@@ -34,39 +34,6 @@
   "mainEntityOfPage": { "@type": "WebPage", "@id": "https://tampersignal.com/blog/your-vibe-coded-dashboard-needs-receipts.html" }
 }
 </script>
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "FAQPage",
-  "mainEntity": [
-    {
-      "@type": "Question",
-      "name": "Why do AI-built dashboards fail silently?",
-      "acceptedAnswer": { "@type": "Answer", "text": "AI-written data code works most of the time, and when it fails it does not crash. It drops rows, double-counts, or coerces a column wrong and quietly shifts every total, while the dashboard still renders and the chart still looks plausible." }
-    },
-    {
-      "@type": "Question",
-      "name": "How do signed receipts verify a data pipeline?",
-      "acceptedAnswer": { "@type": "Answer", "text": "Every stage signs a receipt: a fingerprint of the data it received, the code it ran, and the data it produced. Receipts link because each stage's input fingerprint must match the previous stage's output, so the whole pipeline verifies end to end." }
-    },
-    {
-      "@type": "Question",
-      "name": "What does the red light show when verification fails?",
-      "acceptedAnswer": { "@type": "Answer", "text": "It names the exact link and the exact delta, for example broken at link 1 to 2 (transform_aggregate) with row_count 48212 to 48190 (-22). It points to the stage that changed instead of printing a stack trace." }
-    },
-    {
-      "@type": "Question",
-      "name": "Does Tamper Signal prove the data is correct?",
-      "acceptedAnswer": { "@type": "Answer", "text": "No. It proves continuity, not correctness. It proves your dashboard numbers descend from the original export unchanged. If the source export is wrong, the chain will faithfully verify wrong numbers." }
-    },
-    {
-      "@type": "Question",
-      "name": "What do you need to run Tamper Signal?",
-      "acceptedAnswer": { "@type": "Answer", "text": "It is open source under the MIT license and runs on Python 3.11+ or Node 18.17+. Both stacks sign interchangeable chains, and the badge and inline light run in any frontend with no server-side trust." }
-    }
-  ]
-}
-</script>
 </head>
 <body>
 

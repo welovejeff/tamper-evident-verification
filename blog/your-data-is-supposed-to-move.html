@@ -34,39 +34,6 @@
   "mainEntityOfPage": { "@type": "WebPage", "@id": "https://tampersignal.com/blog/your-data-is-supposed-to-move.html" }
 }
 </script>
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "FAQPage",
-  "mainEntity": [
-    {
-      "@type": "Question",
-      "name": "Why does reporting data change day over day?",
-      "acceptedAnswer": { "@type": "Answer", "text": "Conversions arrive late and attribution backfills, so the reporting window keeps maturing for a day or two after the period closes. A metric moving less than five percent day over day is usually normal settling, not tampering." }
-    },
-    {
-      "@type": "Question",
-      "name": "What is a tolerance band in Tamper Signal?",
-      "acceptedAnswer": { "@type": "Answer", "text": "A signed declaration made at ingest of how much a period normally moves: a band that defaults to five percent day over day, plus a settling window that defaults to 72 hours. Because it is signed into the manifest, it cannot be loosened later without breaking the signature." }
-    },
-    {
-      "@type": "Question",
-      "name": "How does the two-zone judgment work?",
-      "acceptedAnswer": { "@type": "Answer", "text": "Recent, still-settling data may drift within the declared band and stay green. Settled data older than the window is frozen, so any movement there, even a fraction of a percent, trips yellow and asks a human to look." }
-    },
-    {
-      "@type": "Question",
-      "name": "What do receipts diff and receipts log do?",
-      "acceptedAnswer": { "@type": "Answer", "text": "diff compares two runs and names what moved and at which stage; log shows the per-metric trend across runs. Both read an auto-archived run history and are read-only. History is weaker evidence than the chain itself." }
-    },
-    {
-      "@type": "Question",
-      "name": "Is Tamper Signal 1.6.0 backward compatible?",
-      "acceptedAnswer": { "@type": "Answer", "text": "Yes. Chains signed under earlier versions still verify green, and with no band declared verification behaves exactly as before. The one new habit is that verifying now leaves a small history trail in receipts/history/." }
-    }
-  ]
-}
-</script>
 </head>
 <body>
 

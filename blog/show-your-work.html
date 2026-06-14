@@ -34,39 +34,6 @@
   "mainEntityOfPage": { "@type": "WebPage", "@id": "https://tampersignal.com/blog/show-your-work.html" }
 }
 </script>
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "FAQPage",
-  "mainEntity": [
-    {
-      "@type": "Question",
-      "name": "What is a verified Data tab on a dashboard?",
-      "acceptedAnswer": { "@type": "Answer", "text": "A Data tab shows the raw rows behind the charts and re-hashes them in the browser against the final receipt, so the numbers can be checked on screen instead of taken on trust. A byte-for-byte match renders VERIFIED." }
-    },
-    {
-      "@type": "Question",
-      "name": "Why should a dashboard show the table behind its charts?",
-      "acceptedAnswer": { "@type": "Answer", "text": "A chart asks you to believe a number; a table lets you check it. Without the rows, questioning a figure means trading screenshots instead of reaching the data that produced it. When the chain is intact and the light is green, there is no reason to hide the rows." }
-    },
-    {
-      "@type": "Question",
-      "name": "How do you know the table shown is the real, attested data?",
-      "acceptedAnswer": { "@type": "Answer", "text": "The mountReceiptTable component re-hashes the displayed rows in the browser against the final receipt. A byte-for-byte match shows VERIFIED; stale or edited rows render dimmed under a not the attested data strip, and a broken chain flags the columns that moved." }
-    },
-    {
-      "@type": "Question",
-      "name": "What does a visible data table prove, and what does it not prove?",
-      "acceptedAnswer": { "@type": "Answer", "text": "It proves the rows on screen are the attested rows and lets you check that the chart is a faithful summary of them. It does not prove the underlying source was correct. It verifies continuity, not correctness." }
-    },
-    {
-      "@type": "Question",
-      "name": "What do you need to add a verified Data tab to a dashboard?",
-      "acceptedAnswer": { "@type": "Answer", "text": "You mount one component and point it at the chain file. It re-hashes the rows in the browser with no server or database, is MIT licensed, and runs on Python 3.11+ or Node 18.17+." }
-    }
-  ]
-}
-</script>
 </head>
 <body>
 

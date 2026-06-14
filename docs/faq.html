@@ -23,12 +23,12 @@
     },
     {
       "@type": "Question",
-      "name": "What problem does Tamper Signal solve?",
+      "name": "What problem does it solve?",
       "acceptedAnswer": { "@type": "Answer", "text": "Vibe-coded pipelines fail silently. AI-written transform scripts work most of the time, and when they do not, they do not crash: they drop rows, double-count, or coerce a column wrong and quietly shift a total, while the dashboard still renders. Tamper Signal is the missing verification layer that catches the change, or proves nothing changed." }
     },
     {
       "@type": "Question",
-      "name": "What does vibe-coded mean?",
+      "name": "What does \"vibe-coded\" mean?",
       "acceptedAnswer": { "@type": "Answer", "text": "A pipeline someone built quickly by describing what they wanted to an AI assistant, rather than engineering it with a warehouse, an orchestrator, and tests. It names the audience's reality without judging it. These are the pipelines with no safety net, and the ones Tamper Signal is built for." }
     },
     {
@@ -38,7 +38,7 @@
     },
     {
       "@type": "Question",
-      "name": "What does continuity, not correctness mean?",
+      "name": "What does \"continuity, not correctness\" mean?",
       "acceptedAnswer": { "@type": "Answer", "text": "Continuity is the property that a result descends from the original source through a known sequence of code, unchanged. Correctness is whether the source itself is true. Tamper Signal proves the first and deliberately makes no claim about the second. It is the one line the whole product is held to." }
     },
     {
@@ -63,7 +63,7 @@
     },
     {
       "@type": "Question",
-      "name": "Does Tamper Signal work with Python and JavaScript?",
+      "name": "Does it work with Python and JavaScript?",
       "acceptedAnswer": { "@type": "Answer", "text": "Yes. pip install tamper-signal gives a Python CLI (receipts) and library; npm install tamper-signal gives a Node CLI (tamper-signal) and API. The chains are interchangeable across the two stacks, proven byte-for-byte by golden vectors, so a chain signed in Python verifies in Node and the reverse." }
     },
     {
@@ -73,7 +73,7 @@
     },
     {
       "@type": "Question",
-      "name": "How do I add Tamper Signal to my own project?",
+      "name": "How do I add it to my own project?",
       "acceptedAnswer": { "@type": "Answer", "text": "Point your coding agent at the repository and say add tamper signal. AGENTS.md is the full integration runbook: install, generate keys, ingest the source, wrap your transforms with the receipt decorator, mount the signal, and verify. By hand, receipts demo runs the whole story end to end in about a minute." }
     },
     {
@@ -93,7 +93,7 @@
     },
     {
       "@type": "Question",
-      "name": "How is Tamper Signal different from dbt, Great Expectations, or OpenLineage?",
+      "name": "How is this different from dbt, Great Expectations, or OpenLineage?",
       "acceptedAnswer": { "@type": "Answer", "text": "Those model lineage and quality at the warehouse and orchestration layer, and assume that infrastructure exists. Tamper Signal is narrower and lighter: a signed, file-based receipt chain you drop in front of an ad-hoc xlsx-to-dashboard pipeline with no database, server, or catalog. It is a complement for the gap before those tools are in place, not a replacement." }
     },
     {
@@ -103,7 +103,7 @@
     },
     {
       "@type": "Question",
-      "name": "Is Tamper Signal free, and what are the requirements?",
+      "name": "Is it free, and what are the requirements?",
       "acceptedAnswer": { "@type": "Answer", "text": "Yes, open source under the MIT license. It needs Python 3.11+ or Node 18.17+. There is no paid tier, no account, and no server to run." }
     }
   ]
