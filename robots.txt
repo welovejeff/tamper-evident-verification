@@ -1,0 +1,9 @@
+# tampersignal.com
+# Signed receipts for vibe-coded data pipelines.
+# Crawlers and answer engines are welcome. See also /llms.txt for an
+# LLM-oriented map of the project.
+
+User-agent: *
+Allow: /
+
+Sitemap: https://tampersignal.com/sitemap.xml

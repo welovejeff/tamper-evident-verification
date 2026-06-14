@@ -113,6 +113,29 @@ code, pre { font-family: var(--mono); }
 
 .post-end { border-top: 1px solid var(--border); margin-top: 40px; padding: 22px 0 0; color: var(--green); font: 13px var(--mono); }
 
+/* Comparison table inside a post (tooltip vs export vs Data tab, etc.). */
+.post table.cmp {
+  width: 100%; border-collapse: collapse; margin: 4px 0 26px;
+  font-size: 14px; border: 1px solid var(--border); border-radius: 10px;
+  overflow: hidden;
+}
+.post table.cmp caption {
+  caption-side: top; text-align: left;
+  font: 12px var(--mono); color: var(--faint); letter-spacing: 0.5px;
+  margin: 0 0 10px;
+}
+.post table.cmp th, .post table.cmp td {
+  text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border);
+}
+.post table.cmp thead th {
+  background: var(--chrome); color: var(--text); font-weight: 600;
+  font-size: 12px; letter-spacing: 0.3px;
+}
+.post table.cmp tbody td { color: #d4dbe2; }
+.post table.cmp tbody td:first-child { color: var(--text); font-weight: 600; }
+.post table.cmp tbody tr:last-child td { border-bottom: 0; }
+.post table.cmp tbody tr:last-child { background: rgba(52, 211, 153, 0.05); }
+
 /* ---------- footer ---------- */
 footer { border-top: 1px solid var(--border); margin-top: 40px; padding: 26px 0 50px; font: 12px var(--mono); color: var(--faint); }
 footer .wrap { max-width: 1020px; display: flex; flex-wrap: wrap; gap: 16px; align-items: baseline; }
