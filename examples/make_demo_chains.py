@@ -28,7 +28,13 @@ from make_sample_export import make as make_sample
 from transform_clean import transform_clean
 from transform_aggregate import transform_aggregate
 
-from tamper_signal.canonical import canonical_document, evidence_hash, load_xlsx, semantic_hash
+from tamper_signal.canonical import (
+    canonical_document,
+    evidence_hash,
+    load_records,
+    load_xlsx,
+    semantic_hash,
+)
 from tamper_signal.demo import _write_tampered_chain_to
 from tamper_signal.keys import generate_keys, load_private_key, public_hex_from_private
 from tamper_signal.receipts import (
@@ -44,6 +50,47 @@ from tamper_signal.wrapper import receipt_step
 INTACT_DIR = "examples/chains/intact"
 TAMPERED_DIR = "examples/chains/tampered"
 GAP_DIR = "examples/chains/gap"
+
+
+def _write_round_trip_exports(chain_dir: str, document: dict, attested_hash: str) -> None:
+    """Write the attested data as both export.csv and export.json (reconstructed
+    from the canonical document, as the browser export does) and assert both
+    re-ingest to the chain's output hash. This is the format-agnostic round-trip
+    the demo and blog point at: export as one format, re-verify as another, the
+    light stays green.
+    """
+    import csv
+    import io
+    import json
+
+    headers, rows = document["headers"], document["rows"]
+
+    def cell(v):
+        if v is None:
+            return ""
+        if v is True:
+            return "true"
+        if v is False:
+            return "false"
+        return str(v)
+
+    buf = io.StringIO()
+    writer = csv.writer(buf, lineterminator="\n")  # LF, matching the browser export
+    writer.writerow(headers)
+    for row in rows:
+        writer.writerow([cell(c) for c in row])
+    Path(chain_dir, "export.csv").write_text(buf.getvalue(), encoding="utf-8")
+
+    Path(chain_dir, "export.json").write_text(
+        json.dumps([dict(zip(headers, row)) for row in rows], indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+    csv_hash = semantic_hash(load_records(str(Path(chain_dir, "export.csv"))))
+    json_hash = semantic_hash(load_records(str(Path(chain_dir, "export.json"))))
+    assert csv_hash == json_hash == attested_hash, (
+        f"round-trip drift: csv {csv_hash}, json {json_hash}, attested {attested_hash}"
+    )
 
 
 def main() -> int:
@@ -128,6 +175,13 @@ def main() -> int:
         broken = verify_chain(load_receipts(TAMPERED_DIR), public_hex)
         assert broken.verdict == "red", broken.lines
         print(f"{TAMPERED_DIR}: {broken.lines[0]}")
+
+        # Round-trip demo, written last so it lands only in the intact (green)
+        # chain and not in the tampered/gap copies: the SAME attested data as
+        # both CSV and JSON, reconstructed from the canonical document the way
+        # "Take your data" does. Both re-ingest to the chain's output hash, so a
+        # CSV exported here and re-verified as JSON stays green.
+        _write_round_trip_exports(INTACT_DIR, document, semantic_hash(final))
 
     return 0
 
