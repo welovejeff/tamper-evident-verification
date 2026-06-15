@@ -86,12 +86,12 @@
         <thead><tr><th>Command</th><th>What it does</th></tr></thead>
         <tbody>
           <tr><td><code>receipts init</code></td><td>Scaffold keys, a <code>receipts/</code> directory, and <code>.gitignore</code> safety. Idempotent.</td></tr>
-          <tr><td><code>receipts ingest &lt;file&gt;</code></td><td>Pin a source file: record evidence and semantic hashes plus control totals, sign the source receipt. Writes <code>000_source.json</code> and <code>chain.json</code>.</td></tr>
+          <tr><td><code>receipts ingest &lt;file&gt;</code></td><td>Pin a source file: record evidence and semantic hashes plus control totals, sign the source receipt. Writes <code>000_source.json</code> and <code>chain.json</code>. <code>--as replace</code> (default) re-signs a fresh chain and archives the prior one; <code>--as period</code> brings a file back as the next period of the chain's run history, under a trusted signer.</td></tr>
           <tr><td><code>receipts verify &lt;chain&gt;</code></td><td>Walk the chain and emit the light. Add <code>--data</code> to also check a current file against the final receipt.</td></tr>
           <tr><td><code>receipts diff</code></td><td>Compare two runs: per-stage code-hash changes and a structured totals delta, including which period buckets moved. Read-only; exit 0 with or without differences.</td></tr>
           <tr><td><code>receipts log</code></td><td>Render archived run history as a per-metric trend across runs, one row per period. Read-only; exit 0.</td></tr>
           <tr><td><code>receipts doctor</code></td><td>Integration self-check with actionable fixes: Python version, key present and untracked, <code>.gitignore</code> coverage, chain verifies. Exit 0 = healthy.</td></tr>
-          <tr><td><code>receipts export</code></td><td>Write <code>receipts/table.json</code>, the canonical attested table for the data tab. Refuses if the data does not match the final receipt.</td></tr>
+          <tr><td><code>receipts export</code></td><td>Write <code>receipts/table.json</code>, the canonical attested table for the data tab. Refuses if the data does not match the final receipt. Add <code>--bundle</code> to write a verified zip instead: the data file plus <code>chain.json</code> and its receipts, which a recipient re-verifies offline with <code>receipts verify chain.json</code>.</td></tr>
           <tr><td><code>receipts serve</code></td><td>Serve <code>receipts/</code> on localhost with CORS, for development.</td></tr>
           <tr><td><code>receipts anchor</code></td><td>Record the chain in a Sigstore transparency log under your identity. Optional, see <a href="/docs/advanced.html#anchoring">Power user</a>.</td></tr>
           <tr><td><code>receipts demo</code></td><td>Run the whole story end to end on sample data, then serve a badge showing green, yellow, and red.</td></tr>
@@ -110,7 +110,9 @@
           <tr><td><code>--band &lt;pct&gt;</code></td><td>ingest</td><td>Tolerance band for cross-run drift, e.g. <code>5%</code> or <code>0.05</code>. Signed into the manifest; defaults the settling window to 72h.</td></tr>
           <tr><td><code>--settle &lt;hours&gt;</code></td><td>ingest</td><td>Settling window, e.g. <code>72h</code> or <code>3d</code>. Recent buckets may drift within the band; settled buckets may not. Defaults the band to 0.05.</td></tr>
           <tr><td><code>--bucket-column &lt;name&gt;</code></td><td>ingest</td><td>Date column to key per-period buckets off. Omit it and a single date-shaped column is detected automatically.</td></tr>
-          <tr><td><code>--pub &lt;path&gt;</code></td><td>verify</td><td>Public key to trust. Repeats: any listed key verifies, which is how key rotation works.</td></tr>
+          <tr><td><code>--as replace|period</code></td><td>ingest</td><td><code>replace</code> (default) re-signs a fresh chain and archives the prior one; <code>period</code> appends the file as the next run in history, judged against the prior run's signed band. <code>period</code> requires a trusted signer.</td></tr>
+          <tr><td><code>--bundle</code></td><td>export</td><td>Write a verified zip (data file + <code>chain.json</code> + receipts) for offline re-verification, instead of <code>table.json</code>.</td></tr>
+          <tr><td><code>--pub &lt;path&gt;</code></td><td>verify, ingest</td><td>Public key to trust. Repeats: any listed key verifies, which is how key rotation works. On <code>ingest --as period</code>, names a trusted signer other than the chain's own key.</td></tr>
           <tr><td><code>--data &lt;file&gt;</code></td><td>verify</td><td>Check the file the dashboard reads against the final receipt.</td></tr>
           <tr><td><code>--warn-drift</code></td><td>verify</td><td>Flag any control-total movement across links as a yellow caveat. Off by default, because filters and aggregations legitimately move totals.</td></tr>
           <tr><td><code>--json</code></td><td>verify</td><td>Emit the structured verdict (schema below) instead of prose.</td></tr>
