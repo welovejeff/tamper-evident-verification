@@ -145,3 +145,27 @@ def test_cli_replace_archives_prior_chain(tmp_path, monkeypatch):
     archives = list((tmp_path / "receipts" / "archive").glob("*/chain.json"))
     assert archives, "expected the prior chain to be archived before the reset"
     assert read_chain(str(archives[0]))["public_key"] == prior["public_key"]
+
+
+def test_cli_period_reports_evidence_hash_and_archives_prior_chain(tmp_path, monkeypatch, capsys):
+    _seed_period_one(tmp_path, monkeypatch)
+    (tmp_path / "data.csv").write_text(P2_INBAND, encoding="utf-8")
+
+    assert main(["ingest", "data.csv", "--origin", "t", "--as", "period"]) == 0
+    assert "evidence_hash" in capsys.readouterr().out  # parity with replace output
+    # the prior chain is preserved before the period overwrites it
+    assert list((tmp_path / "receipts" / "archive").glob("*/chain.json"))
+
+
+def test_cli_period_warns_when_prior_run_unsnapshotted(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("TAMPER_SIGNAL_KEY", raising=False)
+    generate_keys("keys")
+    (tmp_path / "data.csv").write_text(P1, encoding="utf-8")
+    # Ingest with a tolerance but DO NOT verify: the prior run never enters history.
+    assert main(["ingest", "data.csv", "--origin", "t", "--band", "5%", "--bucket-column", "day"]) == 0
+    capsys.readouterr()
+    (tmp_path / "data.csv").write_text(P2_INBAND, encoding="utf-8")
+
+    assert main(["ingest", "data.csv", "--origin", "t", "--as", "period"]) == 0
+    assert "previous run was never verified" in capsys.readouterr().err

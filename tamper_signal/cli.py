@@ -49,6 +49,10 @@ from .wrapper import (
 # from tamper_signal.cli for callers and tests that referenced them here.
 __all__ = ["DEFAULT_BAND", "DEFAULT_SETTLE_HOURS", "parse_band", "parse_settle", "main"]
 
+# Where replace-mode ingest preserves the prior chain (content-addressed by tail).
+# Like history/, this is CLI-local and never published, so `serve` 404s it too.
+ARCHIVE_DIRNAME = "archive"
+
 
 def cmd_keygen(args: argparse.Namespace) -> int:
     private_path, public_path = generate_keys(args.out)
@@ -103,7 +107,7 @@ def _archive_prior_chain(chain_dir: str) -> Path | None:
         tail = chain_tail_hash(chain_dir, chain)
     except (OSError, ValueError):
         return None
-    dest = Path(chain_dir) / "archive" / tail
+    dest = Path(chain_dir) / ARCHIVE_DIRNAME / tail
     if dest.exists():
         return dest  # this exact prior chain is already archived
     try:
@@ -122,6 +126,13 @@ def _cmd_ingest_period(args: argparse.Namespace) -> int:
     """`ingest --as period`: continue the chain's run history under a trusted
     signer. Refuses an untrusted signer rather than appending silently."""
     from .wrapper import UntrustedSignerError, append_period
+
+    # Like replace, compute the unsnapshotted-reset condition and preserve the
+    # prior chain before append_period's ingest overwrites chain.json. (A refused
+    # untrusted import leaves the prior chain untouched, so the archive copy is an
+    # idempotent no-op in that case.)
+    unsnapshotted_reset = _is_unsnapshotted_reset(args.out)
+    _archive_prior_chain(args.out)
 
     trusted = [h for h in (load_public_key_hex(p) for p in (args.pub or [])) if h]
     try:
@@ -143,9 +154,16 @@ def _cmd_ingest_period(args: argparse.Namespace) -> int:
         print(str(exc), file=sys.stderr)
         return 1
 
+    if unsnapshotted_reset:
+        print(
+            "warning: previous run was never verified; its totals will not enter history",
+            file=sys.stderr,
+        )
+
     manifest = result["manifest"]
     totals = manifest["control_totals"]
     print(f"Imported next period: {manifest['source']['filename']}")
+    print(f"  evidence_hash {manifest['source']['evidence_hash']}")
     print(f"  semantic_hash {manifest['semantic_hash']}")
     print(f"  rows {totals['row_count']}, columns {totals['column_count']}")
     caveats = result.get("caveats") or []
@@ -647,14 +665,18 @@ def _serve_handler_class(directory: str):
     """The request handler `receipts serve` uses, bound to a directory.
 
     CORS is open and caching is off for every response. Anything under
-    history/ is 404'd: run snapshots are CLI-local memory, not published
-    receipts (and they leak run cadence and per-day totals).
+    history/ or archive/ is 404'd: run snapshots and archived prior chains are
+    CLI-local memory, not published receipts (they leak run cadence, per-day
+    totals, and the reset/migration trail).
     """
     import http.server
 
     from .history import HISTORY_DIRNAME
 
-    history_dir = (Path(directory) / HISTORY_DIRNAME).resolve()
+    blocked_dirs = [
+        (Path(directory) / HISTORY_DIRNAME).resolve(),
+        (Path(directory) / ARCHIVE_DIRNAME).resolve(),
+    ]
 
     class Handler(http.server.SimpleHTTPRequestHandler):
         def __init__(self, *handler_args, **handler_kwargs) -> None:
@@ -666,14 +688,14 @@ def _serve_handler_class(directory: str):
             super().end_headers()
 
         def send_head(self):  # covers GET and HEAD
-            # Resolve the translated filesystem path so neither /history/...
-            # nor a traversal spelling of it can reach the snapshot files.
+            # Resolve the translated filesystem path so neither /history/... nor
+            # /archive/... (nor a traversal spelling of them) can reach the files.
             try:
                 target = Path(self.translate_path(self.path)).resolve()
             except (OSError, ValueError):
                 self.send_error(404, "Not found")
                 return None
-            if target == history_dir or history_dir in target.parents:
+            if any(target == d or d in target.parents for d in blocked_dirs):
                 self.send_error(404, "Not found")
                 return None
             return super().send_head()

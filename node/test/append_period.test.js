@@ -3,7 +3,8 @@
 // untrusted signer. Mirrors tests/test_append_period.py.
 
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdtempSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -89,6 +90,20 @@ test("appendPeriod trusts a signer passed via trustedPubHexes", () => {
   });
   assert.equal(res.compared, true);
   assert.equal(readChain(join(chainDir, "chain.json")).public_key, otherHex);
+});
+
+test("the period CLI archives the prior chain and reports evidence_hash", () => {
+  const { keyPath, chainDir, dataPath } = seedPeriodOne();
+  writeFileSync(dataPath, P2_INBAND);
+  const cli = new URL("../cli.js", import.meta.url).pathname;
+  const out = execFileSync(
+    "node",
+    [cli, "ingest", dataPath, "--origin", "t", "--as", "period", "--key", keyPath, "--out", chainDir],
+    { encoding: "utf8" },
+  );
+  assert.match(out, /evidence_hash/); // parity with replace output
+  const archiveDir = join(chainDir, "archive");
+  assert.ok(existsSync(archiveDir) && readdirSync(archiveDir).length > 0, "prior chain archived");
 });
 
 test("appendPeriod refuses when no chain exists", () => {

@@ -152,6 +152,13 @@ function archivePriorChain(chainDir) {
 
 // `ingest --as period`: continue the chain's run history under a trusted signer.
 function cmdIngestPeriod(values, file) {
+  // Like replace, compute the unsnapshotted-reset condition and preserve the
+  // prior chain before appendPeriod's ingest overwrites chain.json. A refused
+  // untrusted import leaves the prior chain untouched, so the archive is an
+  // idempotent no-op in that case.
+  const unsnapshottedReset = isUnsnapshottedReset(values.out);
+  archivePriorChain(values.out);
+
   const trusted = (values.pub ?? []).map((p) => loadPublicKeyHex(p)).filter(Boolean);
   let result;
   try {
@@ -173,10 +180,24 @@ function cmdIngestPeriod(values, file) {
     console.error(err.message);
     return 1;
   }
+  if (unsnapshottedReset) {
+    console.error("warning: previous run was never verified; its totals will not enter history");
+  }
   const totals = result.manifest.control_totals;
   console.log(`Imported next period: ${result.manifest.source.filename}`);
+  console.log(`  evidence_hash ${result.manifest.source.evidence_hash}`);
   console.log(`  semantic_hash ${result.manifest.semantic_hash}`);
   console.log(`  rows ${totals.row_count}, columns ${totals.column_count}`);
+  const grouped = groupedNumericColumns(result.records);
+  if (grouped.length) {
+    console.error("");
+    for (const { column, example } of grouped) {
+      console.error(`  warning: column "${column}" looks numeric (e.g. "${example}") but is missing from numeric_sums.`);
+    }
+    console.error("  Grouped numbers don't parse as plain decimals, so these columns are left out of the control totals'");
+    console.error("  numeric_sums -- a data-receipt-column on them can never flag a change. Add a normalize step that");
+    console.error("  strips the separators before ingest. Only plain decimals (no thousands grouping) are summed.");
+  }
   if (result.caveats.length) {
     console.log("  the light is yellow, a human should look:");
     for (const caveat of result.caveats) console.log(`    - ${caveat}`);
