@@ -8,6 +8,7 @@ import { existsSync, mkdtempSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 
 import { archiveRunSnapshot } from "../history.js";
 import { generateKeys, loadPrivateKey, publicHexFromPrivate } from "../keys.js";
@@ -95,7 +96,7 @@ test("appendPeriod trusts a signer passed via trustedPubHexes", () => {
 test("the period CLI archives the prior chain and reports evidence_hash", () => {
   const { keyPath, chainDir, dataPath } = seedPeriodOne();
   writeFileSync(dataPath, P2_INBAND);
-  const cli = new URL("../cli.js", import.meta.url).pathname;
+  const cli = fileURLToPath(new URL("../cli.js", import.meta.url));
   const out = execFileSync(
     "node",
     [cli, "ingest", dataPath, "--origin", "t", "--as", "period", "--key", keyPath, "--out", chainDir],
