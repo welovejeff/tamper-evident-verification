@@ -175,7 +175,7 @@ function makeStoredZip(entries) {
     cd.setUint32(0, 0x02014b50, true);
     cd.setUint16(4, 20, true);
     cd.setUint16(6, 20, true);
-    cd.setUint16(12, 0x21, true);
+    cd.setUint16(14, 0x21, true); // DOS date at offset 14 (offset 12 is the time field, left 0)
     cd.setUint32(16, crc, true);
     cd.setUint32(20, size, true);
     cd.setUint32(24, size, true);

@@ -4,6 +4,7 @@
 // reader and assert the archive structure is well-formed.
 
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import { makeStoredZip } from "../zip.js";
@@ -60,4 +61,24 @@ test("makeStoredZip writes a valid end-of-central-directory record", () => {
 test("makeStoredZip is deterministic for identical input", () => {
   const entries = [{ name: "x", bytes: enc.encode("same") }];
   assert.deepEqual(makeStoredZip(entries), makeStoredZip(entries));
+});
+
+// The browser Data tab inlines its own copy of this writer (badge/table.js can't
+// import from node/), so guard against the two drifting: the inline copy must
+// produce byte-identical archives. This caught a central-directory date-field
+// offset bug the DOM-less unit tests could not reach.
+test("the inline badge/table.js ZIP writer matches node/zip.js byte for byte", async () => {
+  const src = readFileSync(new URL("../../badge/table.js", import.meta.url), "utf8");
+  const start = src.indexOf("const _CRC_TABLE");
+  const end = src.indexOf("function cellText");
+  assert.ok(start !== -1 && end > start, "could not locate the inline ZIP writer in badge/table.js");
+  const code = src.slice(start, end) + "\nexport { makeStoredZip };\n";
+  const inline = await import("data:text/javascript," + encodeURIComponent(code));
+
+  const entries = [
+    { name: "report.csv", bytes: enc.encode("a,b\n1,2\n3,4\n") },
+    { name: "chain.json", bytes: enc.encode('{"receipts":["000_source.json"]}\n') },
+    { name: "000_source.json", bytes: enc.encode('{"kind":"source"}\n') },
+  ];
+  assert.deepEqual(inline.makeStoredZip(entries), makeStoredZip(entries));
 });
