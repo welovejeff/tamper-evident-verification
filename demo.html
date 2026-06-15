@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Live demo · Tamper Signal</title>
+<meta name="description" content="The whole instrument, running in your browser: the status light, badge, verified Data tab with export, and inspector console over a real receipt chain. Flip it to tampered and watch every surface react." />
+<meta property="og:title" content="Tamper Signal live demo" />
+<meta property="og:description" content="Every surface, running on real receipts in your browser. Flip to tampered and watch them all react. Take the data out and re-verify it across formats." />
+<meta property="og:image" content="https://tampersignal.com/docs/media/og-card.png" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:image" content="https://tampersignal.com/docs/media/og-card.png" />
+<link rel="canonical" href="https://tampersignal.com/demo.html" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='%2334d399'/%3E%3C/svg%3E" />
+<style>
+  :root {
+    --bg: #0b0f14; --panel: #11161d; --border: #1f2937; --chrome: #161d26;
+    --text: #e5e7eb; --dim: #8b98a5; --faint: #3d4854; --row: #18202b;
+    --green: #34d399; --red: #f87171; --amber: #fbbf24; --cyan: #67e8f9;
+    --mono: ui-monospace, 'SF Mono', Menlo, Monaco, 'Cascadia Code', monospace;
+    --sans: -apple-system, 'SF Pro Display', 'Segoe UI', Roboto, Helvetica, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); line-height: 1.6; }
+  a { color: var(--cyan); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code, pre { font-family: var(--mono); }
+  .wrap { max-width: 1020px; margin: 0 auto; padding: 0 22px; }
+
+  .top { border-bottom: 1px solid var(--border); background: rgba(11,15,20,0.85); position: sticky; top: 0; z-index: 50; backdrop-filter: blur(8px); }
+  .top .wrap { display: flex; align-items: center; gap: 18px; padding: 12px 22px; }
+  .logo-stacked { display: inline-flex; align-items: center; gap: 9px; font: 700 13px/1 var(--mono); letter-spacing: 1px; color: var(--text); }
+  .logo-stacked:hover { text-decoration: none; }
+  .ls-rail { display: inline-flex; flex-direction: column; gap: 3px; }
+  .ls-rail i { width: 7px; height: 7px; border-radius: 50%; display: block; }
+  .ls-rail .r { background: var(--red); } .ls-rail .y { background: var(--amber); } .ls-rail .g { background: var(--green); }
+  .top nav { margin-left: auto; display: flex; gap: 18px; flex-wrap: wrap; font-size: 13px; }
+  .top nav a { color: var(--dim); }
+  .top nav a:hover, .top nav a[aria-current="page"] { color: var(--text); }
+
+  main { padding: 40px 0 64px; }
+  .kicker { font: 11px var(--mono); color: var(--faint); letter-spacing: 2px; margin: 0 0 8px; text-transform: uppercase; }
+  h1 { font-size: clamp(26px, 4vw, 38px); margin: 0 0 10px; letter-spacing: -0.5px; }
+  .lede { color: var(--dim); max-width: 70ch; margin: 0 0 26px; }
+
+  .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-bottom: 6px; }
+  .switcher { display: inline-flex; align-items: center; gap: 8px; font: 11px var(--mono); letter-spacing: 0.5px; }
+  .switcher .sw-label { letter-spacing: 1.5px; color: var(--faint); }
+  .switcher button { display: inline-flex; align-items: center; gap: 7px; font: 11px var(--mono); letter-spacing: 0.5px; color: var(--dim); background: var(--chrome); border: 1px solid var(--border); border-radius: 7px; padding: 7px 12px; cursor: pointer; }
+  .switcher button[aria-pressed="true"] { color: var(--text); border-color: var(--faint); }
+  .switcher button i { width: 8px; height: 8px; border-radius: 50%; display: block; background: var(--faint); }
+  .switcher button[data-set="green"] i { background: var(--green); }
+  .switcher button[data-set="yellow"] i { background: var(--amber); }
+  .switcher button[data-set="red"] i { background: var(--red); }
+  .btn { font: 12px var(--mono); color: var(--cyan); background: none; border: 1px solid var(--border); border-radius: 7px; padding: 7px 14px; cursor: pointer; letter-spacing: 0.4px; }
+  .btn:hover:not(:disabled) { border-color: var(--faint); }
+  .btn:disabled { color: var(--faint); cursor: not-allowed; opacity: 0.6; }
+  .state-note { font-size: 12px; color: var(--dim); margin: 4px 0 26px; min-height: 1.4em; }
+
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 28px; }
+  .grid .full { grid-column: 1 / -1; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+  .card > h2 { font: 11px var(--mono); color: var(--faint); letter-spacing: 1.5px; text-transform: uppercase; margin: 0 0 12px; }
+  .light-card { display: flex; align-items: center; gap: 12px; }
+  @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+
+  .rt { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
+  .rt h2 { font-size: 16px; margin: 0 0 6px; }
+  .rt p { color: var(--dim); font-size: 13px; margin: 0 0 14px; }
+  .rt-rows { font: 12px var(--mono); display: grid; gap: 6px; margin: 12px 0; }
+  .rt-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .rt-row .k { color: var(--dim); min-width: 16ch; }
+  .rt-row .h { color: var(--cyan); }
+  .rt-row .ok { color: var(--green); }
+  .rt-verdict { display: inline-flex; align-items: center; gap: 8px; font: 12px var(--mono); color: var(--green); margin-top: 6px; }
+  .rt-verdict i { width: 10px; height: 10px; border-radius: 50%; background: var(--green); display: block; }
+  .rt pre { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; overflow: auto; font-size: 12px; color: var(--text); margin: 14px 0 0; }
+  .rt .muted { color: var(--faint); }
+
+  footer { border-top: 1px solid var(--border); }
+  footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 12px; padding: 22px; font-size: 13px; color: var(--dim); align-items: center; }
+  footer a { color: var(--dim); }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <div class="wrap">
+    <a class="logo-stacked" href="/" aria-label="Tamper Signal — home">
+      <span class="ls-rail" aria-hidden="true"><i class="r"></i><i class="y"></i><i class="g"></i></span>
+      <span>TAMPER SIGNAL</span>
+    </a>
+    <nav>
+      <a href="/demo.html" aria-current="page">demo</a>
+      <a href="/#how">how it works</a>
+      <a href="/docs/">docs</a>
+      <a href="/blog/">blog</a>
+      <a href="https://github.com/welovejeff/tamper-evident-verification">github</a>
+    </nav>
+  </div>
+</div>
+
+<main>
+  <div class="wrap">
+    <p class="kicker">live demo · not a mockup</p>
+    <h1>The whole instrument, running in your browser</h1>
+    <p class="lede">
+      Every surface below is checking a real receipt chain right now, in your browser,
+      with no server. Flip the switch to see what each one does when the data is clean,
+      when it needs a second look, and when a number has been changed. Then take the data
+      out and watch it re-verify across formats.
+    </p>
+
+    <div class="controls">
+      <div class="switcher" role="group" aria-label="Demo state">
+        <span class="sw-label">TRY IT ·</span>
+        <button type="button" data-set="green" aria-pressed="true"><i></i>ALL GOOD</button>
+        <button type="button" data-set="yellow" aria-pressed="false"><i></i>NEEDS A LOOK</button>
+        <button type="button" data-set="red" aria-pressed="false"><i></i>TAMPERED</button>
+      </div>
+      <button type="button" id="reset" class="btn">↺ Reset demo</button>
+    </div>
+    <p class="state-note" id="state-note"></p>
+
+    <div class="grid">
+      <div class="card light-card">
+        <h2 style="margin:0">Status light</h2>
+        <span id="slot-light"></span>
+      </div>
+      <div class="card">
+        <h2>Badge</h2>
+        <div id="slot-badge"></div>
+      </div>
+      <div class="card full">
+        <h2>Verified Data tab</h2>
+        <div id="slot-table"></div>
+      </div>
+      <div class="card full">
+        <h2>Inspector console</h2>
+        <div id="slot-console"></div>
+      </div>
+    </div>
+
+    <div class="rt">
+      <h2>Take the data with you</h2>
+      <p>
+        Export the verified rows above and the proof comes with them. The fingerprint is
+        taken over the data, not the file format, so the same rows exported as CSV and
+        re-checked as JSON produce the same hash and stay green. Use the Data tab's
+        "Take your data" control to download a bundle; the panel below proves the
+        round-trip live.
+      </p>
+      <button type="button" id="run-rt" class="btn">Run the round-trip →</button>
+      <div id="rt-result"></div>
+      <pre id="rt-cli"># bring an edited file back under your key (re-attests; never silent):
+receipts ingest report.csv --as period --key keys/signing.key</pre>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>MIT licensed</span><span>·</span>
+    <a href="/blog/">blog</a><span>·</span>
+    <a href="/docs/faq.html">FAQ</a><span>·</span>
+    <a href="https://github.com/welovejeff/tamper-evident-verification">github.com/welovejeff/tamper-evident-verification</a>
+  </div>
+</footer>
+
+<script type="module">
+  import { mountTamperSignal } from "./badge/light.js";
+  import { renderReceiptBadge, canonicalize } from "./badge/badge.js";
+  import { mountReceiptConsole } from "./badge/console.js";
+  import { mountReceiptTable } from "./badge/table.js";
+
+  // Each state is one pre-baked committed chain; swapping the chain drives every
+  // surface at once. Yellow uses the coverage-gap chain (a real "verifies, with
+  // caveats" state every surface reflects) rather than the homepage's bad-key
+  // trick, which only the key-aware surfaces would show.
+  const CHAINS = {
+    green: "examples/chains/intact/chain.json",
+    yellow: "examples/chains/gap/chain.json",
+    red: "examples/chains/tampered/chain.json",
+  };
+  const NOTES = {
+    green: "The chain is intact: every link matches and every signature checks. The light is green, the data is clean.",
+    yellow: "The chain verifies but carries a caveat (here, a coverage gap where a receipt is missing from the run). The light is yellow, a human should look.",
+    red: "A value was changed after signing, so a link no longer matches. The light is red, and every surface points at the break.",
+  };
+
+  const slots = {
+    light: document.getElementById("slot-light"),
+    badge: document.getElementById("slot-badge"),
+    table: document.getElementById("slot-table"),
+    console: document.getElementById("slot-console"),
+  };
+  const buttons = [...document.querySelectorAll(".switcher button[data-set]")];
+  const stateNote = document.getElementById("state-note");
+  const runBtn = document.getElementById("run-rt");
+  const rtResult = document.getElementById("rt-result");
+
+  // mountTamperSignal / mountReceiptConsole / mountReceiptTable return a handle with
+  // destroy(); renderReceiptBadge returns nothing and clears its own container.
+  const handles = { light: null, console: null, table: null };
+  let currentState = "green";
+
+  function destroyAll() {
+    for (const key of ["light", "console", "table"]) {
+      if (handles[key]) { handles[key].destroy(); handles[key] = null; }
+    }
+    slots.badge.innerHTML = "";
+  }
+
+  function mountAll(chain) {
+    handles.light = mountTamperSignal(slots.light, chain);
+    renderReceiptBadge(slots.badge, chain);
+    handles.console = mountReceiptConsole(slots.console, chain);
+    handles.table = mountReceiptTable(slots.table, chain, { maxRows: 8 });
+  }
+
+  function clearRoundTrip() {
+    rtResult.innerHTML = "";
+  }
+
+  function setState(name) {
+    currentState = name;
+    buttons.forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.set === name)));
+    stateNote.textContent = NOTES[name];
+    destroyAll();
+    mountAll(CHAINS[name]);
+    // The round-trip only makes sense over attested data, so it is offered in
+    // green/yellow and disabled in the tampered state.
+    runBtn.disabled = name === "red";
+    runBtn.title = name === "red" ? "The chain is broken — there is no attested data to take." : "";
+    clearRoundTrip();
+  }
+
+  buttons.forEach((b) => b.addEventListener("click", () => setState(b.dataset.set)));
+  document.getElementById("reset").addEventListener("click", () => setState("green"));
+
+  // ----- The live round-trip -------------------------------------------------
+  // The attested hash is sha256(canonicalize({headers, rows})). The round-trip
+  // serializes the attested data to a format, RE-PARSES it back into the document
+  // shape, re-canonicalizes, and hashes again. Because canonicalization is taken
+  // over the data (not the bytes), every format reproduces the attested hash.
+  async function sha256hex(text) {
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+    return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+  }
+  const short = (h) => `${h.slice(0, 8)}…${h.slice(-6)}`;
+  const cell = (v) => (v === null || v === undefined ? "" : String(v));
+
+  function toCsv(doc) {
+    const rows = [doc.headers.join(",")];
+    for (const row of doc.rows) rows.push(row.map((c) => cell(c)).join(","));
+    return rows.join("\n") + "\n";
+  }
+  function fromCsv(text) {
+    const lines = text.replace(/\n$/, "").split("\n");
+    const headers = lines[0].split(",");
+    const rows = lines.slice(1).map((line) => line.split(",").map((s) => (s === "" ? null : s)));
+    return { headers, rows };
+  }
+  function toJson(doc) {
+    return JSON.stringify(doc.rows.map((r) => Object.fromEntries(doc.headers.map((h, i) => [h, r[i]]))));
+  }
+  function fromJson(text, headers) {
+    const records = JSON.parse(text);
+    const rows = records.map((rec) => headers.map((h) => (rec[h] === undefined ? null : rec[h])));
+    return { headers, rows };
+  }
+
+  async function runRoundTrip() {
+    runBtn.disabled = true;
+    const label = runBtn.textContent;
+    runBtn.textContent = "Verifying…";
+    try {
+      const doc = await (await fetch("examples/chains/intact/table.json")).json();
+      const attested = await sha256hex(canonicalize({ headers: doc.headers, rows: doc.rows }));
+      const csv = fromCsv(toCsv(doc));
+      const csvHash = await sha256hex(canonicalize(csv));
+      const json = fromJson(toJson(doc), doc.headers);
+      const jsonHash = await sha256hex(canonicalize(json));
+      const same = csvHash === attested && jsonHash === attested;
+      rtResult.innerHTML = `
+        <div class="rt-rows">
+          <div class="rt-row"><span class="k">attested (signed)</span><span class="h">${short(attested)}</span></div>
+          <div class="rt-row"><span class="k">exported as CSV, re-checked</span><span class="h">${short(csvHash)}</span>${csvHash === attested ? '<span class="ok">✓ same</span>' : '<span style="color:var(--red)">✗ differs</span>'}</div>
+          <div class="rt-row"><span class="k">exported as JSON, re-checked</span><span class="h">${short(jsonHash)}</span>${jsonHash === attested ? '<span class="ok">✓ same</span>' : '<span style="color:var(--red)">✗ differs</span>'}</div>
+        </div>
+        <span class="rt-verdict">${same ? "<i></i>same data, any format — the light stays green" : "hashes differ"}</span>`;
+    } catch (_e) {
+      rtResult.innerHTML = '<p class="muted">Could not run the round-trip. Reload and try again.</p>';
+    } finally {
+      runBtn.textContent = label;
+      runBtn.disabled = currentState === "red";
+    }
+  }
+  runBtn.addEventListener("click", runRoundTrip);
+
+  setState("green");
+</script>
+
+</body>
+</html>
