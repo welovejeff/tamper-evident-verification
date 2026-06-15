@@ -4,7 +4,7 @@
 
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -105,6 +105,21 @@ test("the period CLI archives the prior chain and reports evidence_hash", () => 
   assert.match(out, /evidence_hash/); // parity with replace output
   const archiveDir = join(chainDir, "archive");
   assert.ok(existsSync(archiveDir) && readdirSync(archiveDir).length > 0, "prior chain archived");
+});
+
+test("the export --bundle CLI ships a README with verify instructions", () => {
+  const { chainDir, dataPath } = seedPeriodOne();
+  const cli = fileURLToPath(new URL("../cli.js", import.meta.url));
+  execFileSync(
+    "node",
+    [cli, "export", join(chainDir, "chain.json"), "--data", dataPath, "--bundle"],
+    { encoding: "utf8" },
+  );
+  // data.csv -> data-verified.zip beside the chain; entries are stored
+  // uncompressed, so the README text appears verbatim in the archive bytes.
+  const zip = readFileSync(join(chainDir, "data-verified.zip")).toString("latin1");
+  assert.ok(zip.includes("README.md"), "bundle lists README.md");
+  assert.ok(zip.includes("receipts verify chain.json"), "README carries verify instructions");
 });
 
 test("appendPeriod refuses when no chain exists", () => {

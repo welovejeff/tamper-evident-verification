@@ -200,10 +200,13 @@ def test_export_bundle_unzips_and_verifies_green(tmp_path, monkeypatch):
     assert bundle.exists()
     assert not (tmp_path / "receipts" / "table.json").exists()  # --bundle writes the zip, not table.json
 
-    # The bundle carries the data file, chain.json, and every receipt.
+    # The bundle carries a README (verify instructions for the recipient), the
+    # data file, chain.json, and every receipt.
     with zipfile.ZipFile(bundle) as zf:
         names = set(zf.namelist())
-    assert {"current.json", "chain.json", SOURCE_RECEIPT_NAME} <= names
+        readme = zf.read("README.md").decode("utf-8")
+    assert {"README.md", "current.json", "chain.json", SOURCE_RECEIPT_NAME} <= names
+    assert "receipts verify chain.json" in readme  # tells the recipient how to verify
 
     # Unzip into a fresh dir with no keys/receipts of its own, then verify offline.
     out = tmp_path / "recipient"

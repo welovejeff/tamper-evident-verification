@@ -91,6 +91,37 @@ commands:
                                              receipts) for offline re-verification
 `;
 
+// Shipped inside every verified bundle so a recipient can verify it without
+// prior knowledge of Tamper Signal. Kept in sync with the Python CLI and the
+// browser export (tamper_signal/cli.py BUNDLE_README, badge/table.js).
+const BUNDLE_README = `# Verified data bundle (Tamper Signal)
+
+This zip is a verified export from Tamper Signal. It holds the data file plus
+chain.json and the receipt files that prove it.
+
+## Verify it yourself, offline
+
+Install either stack (chains are interchangeable across them):
+
+    pip install tamper-signal       # Python 3.11+, command: receipts
+    npm install -g tamper-signal    # Node 18.17+, command: tamper-signal
+
+Then, from the folder you unzipped this into:
+
+    receipts verify chain.json
+
+The exit code is the traffic light: 0 green (intact), 2 yellow (verifies, with
+caveats), 1 red (broken, at the exact link, with the totals that moved).
+
+## What a green light proves
+
+Continuity, not correctness. It proves this data descends unchanged from the
+signed source, not that the source was right to begin with. Green means nobody
+changed the data between the export and you.
+
+https://tampersignal.com
+`;
+
 function cmdKeygen(args) {
   const { values } = parseArgs({ args, options: { out: { type: "string", default: "keys/" } } });
   const { privatePath, publicPath } = generateKeys(values.out);
@@ -1064,6 +1095,7 @@ function cmdExport(args) {
     const dataName = basename(values.data);
     const receiptNames = chain.receipts ?? [];
     const entries = [
+      { name: "README.md", bytes: new TextEncoder().encode(BUNDLE_README) }, // verify instructions
       { name: dataName, bytes: readFileSync(values.data) },
       { name: CHAIN_FILENAME, bytes: readFileSync(chainPath) },
       ...receiptNames.map((name) => ({ name, bytes: readFileSync(join(chainDir, name)) })),
