@@ -53,6 +53,40 @@ __all__ = ["DEFAULT_BAND", "DEFAULT_SETTLE_HOURS", "parse_band", "parse_settle",
 # Like history/, this is CLI-local and never published, so `serve` 404s it too.
 ARCHIVE_DIRNAME = "archive"
 
+# Shipped inside every verified bundle so a recipient who has never heard of
+# Tamper Signal can still verify it. Plain instructions, no Tamper Signal install
+# assumed. Kept in sync with the JS CLI and the browser export (node/cli.js,
+# badge/table.js) -- it is documentation, not hashed content, so exact parity is
+# not required, but the wording should not drift.
+BUNDLE_README = """\
+# Verified data bundle (Tamper Signal)
+
+This zip is a verified export from Tamper Signal. It holds the data file plus
+chain.json and the receipt files that prove it.
+
+## Verify it yourself, offline
+
+Install either stack (chains are interchangeable across them):
+
+    pip install tamper-signal       # Python 3.11+, command: receipts
+    npm install -g tamper-signal    # Node 18.17+, command: tamper-signal
+
+Then, from the folder you unzipped this into:
+
+    receipts verify chain.json
+
+The exit code is the traffic light: 0 green (intact), 2 yellow (verifies, with
+caveats), 1 red (broken, at the exact link, with the totals that moved).
+
+## What a green light proves
+
+Continuity, not correctness. It proves this data descends unchanged from the
+signed source, not that the source was right to begin with. Green means nobody
+changed the data between the export and you.
+
+https://tampersignal.com
+"""
+
 
 def cmd_keygen(args: argparse.Namespace) -> int:
     private_path, public_path = generate_keys(args.out)
@@ -788,6 +822,7 @@ def _write_verified_bundle(
     # Mirror the on-disk chain_dir layout flat at the bundle root so an unzip +
     # `receipts verify chain.json` resolves receipts the same way it does locally.
     with zipfile.ZipFile(out_path, "w", compression=zipfile.ZIP_STORED) as bundle:
+        bundle.writestr("README.md", BUNDLE_README)  # verify instructions for the recipient
         bundle.writestr(data_path.name, data_path.read_bytes())
         bundle.writestr(CHAIN_FILENAME, chain_path.read_bytes())
         for name in receipt_names:
