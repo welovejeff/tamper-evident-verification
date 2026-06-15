@@ -286,3 +286,84 @@ export async function rebuildChain({
   }
   return current;
 }
+
+export class UntrustedSignerError extends Error {}
+
+// Import a file as the next period of an existing chain's run history. Mirrors
+// tamper_signal.wrapper.append_period: continues history only under a trusted
+// signer (the chain's key or one passed via trustedPubHexes); a snapshot signed
+// under an untrusted key would be silently dropped by verification, so an
+// untrusted signer is refused rather than appended. Inherits the prior run's
+// signed tolerance unless overridden, re-ingests the file, judges the new run
+// against prior trusted snapshots, and archives the snapshot with the breached
+// guard computed before the write.
+export function appendPeriod({
+  file,
+  declaredOrigin = "",
+  chainDir = "receipts/",
+  keyPath = "keys/signing.key",
+  trustedPubHexes = [],
+  band = null,
+  settle = null,
+  bucketColumn = null,
+} = {}) {
+  if (!file) throw new TypeError("appendPeriod requires a `file` path.");
+  const chainPath = join(chainDir, CHAIN_FILENAME);
+  let priorChain;
+  try {
+    priorChain = readChain(chainPath);
+  } catch {
+    throw new UntrustedSignerError(
+      `no existing chain at ${chainPath} to continue; use replace to start a chain`,
+    );
+  }
+  const priorKey = priorChain.public_key;
+  const importerHex = publicHexFromPrivate(loadPrivateKey(keyPath));
+  const trusted = new Set([priorKey, ...trustedPubHexes].filter(Boolean));
+  if (!trusted.has(importerHex)) {
+    throw new UntrustedSignerError(
+      "append-period continues history only under a trusted signer; the importer key " +
+        "is neither the chain's key nor passed as trusted. Use replace to re-attest " +
+        "under a new identity, or pass the prior signer's public key.",
+    );
+  }
+
+  // Inherit the prior run's signed tolerance unless the caller overrides it.
+  if (band === null && settle === null && bucketColumn === null) {
+    let priorTol = null;
+    try {
+      priorTol = loadReceipts(chainDir)[0]?.tolerance ?? null;
+    } catch {
+      priorTol = null;
+    }
+    if (priorTol && typeof priorTol === "object") {
+      if (typeof priorTol.band === "string") band = priorTol.band;
+      if (Number.isInteger(priorTol.settle_hours)) settle = `${priorTol.settle_hours}h`;
+      if (typeof priorTol.bucket_column === "string") bucketColumn = priorTol.bucket_column;
+    }
+  }
+
+  const result = ingestFile({ file, declaredOrigin, chainDir, keyPath, band, settle, bucketColumn });
+
+  // Judge against prior trusted snapshots BEFORE archiving this run, so the
+  // breached guard is recorded in the snapshot we write.
+  const trustedKeys = [...new Set([...trusted, importerHex])].sort();
+  const chain = readChain(chainPath);
+  const receipts = loadReceipts(chainDir);
+  const items = loadSnapshots(chainDir, { trustedKeys });
+  const judgment = judgeCrossRun(receipts, chain, items.map((item) => item.snapshot));
+  const breached = Object.keys(judgment.breached).length ? judgment.breached : null;
+  archiveRunSnapshot(chainDir, chain, receipts, {
+    privateKey: loadPrivateKey(keyPath),
+    trustedKeys,
+    breached,
+  });
+
+  return {
+    ...result,
+    caveats: judgment.caveats,
+    details: judgment.details,
+    breached: judgment.breached,
+    compared: items.length > 0,
+  };
+}

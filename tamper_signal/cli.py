@@ -19,6 +19,7 @@ import os
 import sys
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 from .canonical import (
     decimal_to_plain_string,
@@ -47,6 +48,10 @@ from .wrapper import (
 # wrapper.py now (alongside the programmatic ingest_file), but stay importable
 # from tamper_signal.cli for callers and tests that referenced them here.
 __all__ = ["DEFAULT_BAND", "DEFAULT_SETTLE_HOURS", "parse_band", "parse_settle", "main"]
+
+# Where replace-mode ingest preserves the prior chain (content-addressed by tail).
+# Like history/, this is CLI-local and never published, so `serve` 404s it too.
+ARCHIVE_DIRNAME = "archive"
 
 
 def cmd_keygen(args: argparse.Namespace) -> int:
@@ -82,15 +87,112 @@ def _is_unsnapshotted_reset(chain_dir: str) -> bool:
         return True
 
 
+def _archive_prior_chain(chain_dir: str) -> Path | None:
+    """Before a replace reset, copy the prior chain.json and its receipts into
+    <chain_dir>/archive/<tail>/ so the prior chain is preserved, not silently
+    overwritten (R9). Content-addressed by the prior chain's tail hash: the same
+    prior chain re-archives idempotently and a different prior chain never
+    collides. Returns the archive directory, or None when there is nothing to
+    archive. Never raises (archiving is best-effort audit, never blocks ingest).
+    """
+    import shutil
+
+    chain_path = Path(chain_dir) / CHAIN_FILENAME
+    if not chain_path.is_file():
+        return None
+    from .history import chain_tail_hash
+
+    try:
+        chain = read_chain(str(chain_path))
+        tail = chain_tail_hash(chain_dir, chain)
+    except (OSError, ValueError):
+        return None
+    dest = Path(chain_dir) / ARCHIVE_DIRNAME / tail
+    if dest.exists():
+        return dest  # this exact prior chain is already archived
+    try:
+        dest.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(chain_path, dest / CHAIN_FILENAME)
+        for name in chain.get("receipts", []):
+            src = Path(chain_dir) / name
+            if src.is_file():
+                shutil.copy2(src, dest / name)
+    except OSError:
+        return None
+    return dest
+
+
+def _cmd_ingest_period(args: argparse.Namespace) -> int:
+    """`ingest --as period`: continue the chain's run history under a trusted
+    signer. Refuses an untrusted signer rather than appending silently."""
+    from .wrapper import UntrustedSignerError, append_period
+
+    # Like replace, compute the unsnapshotted-reset condition and preserve the
+    # prior chain before append_period's ingest overwrites chain.json. (A refused
+    # untrusted import leaves the prior chain untouched, so the archive copy is an
+    # idempotent no-op in that case.)
+    unsnapshotted_reset = _is_unsnapshotted_reset(args.out)
+    _archive_prior_chain(args.out)
+
+    trusted = [h for h in (load_public_key_hex(p) for p in (args.pub or [])) if h]
+    try:
+        result = append_period(
+            args.file,
+            origin=args.origin,
+            chain_dir=args.out,
+            key_path=args.key,
+            trusted_pub_hexes=trusted,
+            band=args.band,
+            settle=args.settle,
+            bucket_column=args.bucket_column,
+            sheet=args.sheet,
+        )
+    except UntrustedSignerError as exc:
+        print(f"✗ Refusing to append a period: {exc}", file=sys.stderr)
+        return 1
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+
+    if unsnapshotted_reset:
+        print(
+            "warning: previous run was never verified; its totals will not enter history",
+            file=sys.stderr,
+        )
+
+    manifest = result["manifest"]
+    totals = manifest["control_totals"]
+    print(f"Imported next period: {manifest['source']['filename']}")
+    print(f"  evidence_hash {manifest['source']['evidence_hash']}")
+    print(f"  semantic_hash {manifest['semantic_hash']}")
+    print(f"  rows {totals['row_count']}, columns {totals['column_count']}")
+    caveats = result.get("caveats") or []
+    if caveats:
+        print("  the light is yellow, a human should look:")
+        for caveat in caveats:
+            print(f"    - {caveat}")
+        return 2
+    if result.get("compared"):
+        print("  in band against the prior run (the light stays green)")
+    else:
+        print("  recorded as the first period (no prior run to compare)")
+    return 0
+
+
 def cmd_ingest(args: argparse.Namespace) -> int:
     if os.environ.get("TAMPER_SIGNAL_KEY"):
         # The env var silently outranks --key; say so where it matters.
         print("Signing with TAMPER_SIGNAL_KEY from the environment (overrides --key)", file=sys.stderr)
 
+    if getattr(args, "mode", "replace") == "period":
+        return _cmd_ingest_period(args)
+
     # Compute the unsnapshotted-reset condition from the OUTGOING chain before
     # ingest_file overwrites chain.json; emit the warning only after ingest
     # validation passes (below), so an invalid flag exits 1 with no warning.
     unsnapshotted_reset = _is_unsnapshotted_reset(args.out)
+    # Preserve the prior chain before the reset overwrites it (R9).
+    _archive_prior_chain(args.out)
 
     # ingest_file parses the tolerance declaration, builds and signs the source
     # manifest, and RESETS chain.json to it -- the same call a Python pipeline
@@ -563,14 +665,18 @@ def _serve_handler_class(directory: str):
     """The request handler `receipts serve` uses, bound to a directory.
 
     CORS is open and caching is off for every response. Anything under
-    history/ is 404'd: run snapshots are CLI-local memory, not published
-    receipts (and they leak run cadence and per-day totals).
+    history/ or archive/ is 404'd: run snapshots and archived prior chains are
+    CLI-local memory, not published receipts (they leak run cadence, per-day
+    totals, and the reset/migration trail).
     """
     import http.server
 
     from .history import HISTORY_DIRNAME
 
-    history_dir = (Path(directory) / HISTORY_DIRNAME).resolve()
+    blocked_dirs = [
+        (Path(directory) / HISTORY_DIRNAME).resolve(),
+        (Path(directory) / ARCHIVE_DIRNAME).resolve(),
+    ]
 
     class Handler(http.server.SimpleHTTPRequestHandler):
         def __init__(self, *handler_args, **handler_kwargs) -> None:
@@ -582,14 +688,14 @@ def _serve_handler_class(directory: str):
             super().end_headers()
 
         def send_head(self):  # covers GET and HEAD
-            # Resolve the translated filesystem path so neither /history/...
-            # nor a traversal spelling of it can reach the snapshot files.
+            # Resolve the translated filesystem path so neither /history/... nor
+            # /archive/... (nor a traversal spelling of them) can reach the files.
             try:
                 target = Path(self.translate_path(self.path)).resolve()
             except (OSError, ValueError):
                 self.send_error(404, "Not found")
                 return None
-            if target == history_dir or history_dir in target.parents:
+            if any(target == d or d in target.parents for d in blocked_dirs):
                 self.send_error(404, "Not found")
                 return None
             return super().send_head()
@@ -647,11 +753,50 @@ def cmd_export(args: argparse.Namespace) -> int:
         print("  The Data tab only shows attested data. Re-run the pipeline or fix --data.", file=sys.stderr)
         return 1
 
+    if getattr(args, "bundle", False):
+        return _write_verified_bundle(args, chain, chain_dir, data_hash)
+
     out_path = Path(args.out) if args.out else chain_dir / "table.json"
     out_path.write_text(_json.dumps(document, indent=2) + "\n", encoding="utf-8")
     print(f"Exported verified table: {out_path}")
     print(f"  rows {len(document['rows'])}, columns {len(document['headers'])}")
     print(f"  semantic_hash {data_hash} (matches final receipt)")
+    return 0
+
+
+def _write_verified_bundle(
+    args: argparse.Namespace, chain: dict[str, Any], chain_dir: Path, data_hash: str
+) -> int:
+    """Write a verified bundle: the original data file plus chain.json and its
+    receipt files, packaged so a recipient can `receipts verify chain.json`
+    offline.
+
+    Stores entries uncompressed and byte-for-byte (LF preserved), because
+    chain.json's receipt_hashes commit to the raw bytes of each receipt file —
+    any re-serialization would verify as a broken chain on the recipient's side.
+    The data file is included verbatim, so the bundle carries the original file,
+    not the canonicalized table.
+    """
+    import zipfile
+
+    data_path = Path(args.data)
+    chain_path = Path(args.chain)
+    receipt_names = list(chain.get("receipts", []))
+
+    out_path = Path(args.out) if args.out else chain_dir / f"{data_path.stem}-verified.zip"
+
+    # Mirror the on-disk chain_dir layout flat at the bundle root so an unzip +
+    # `receipts verify chain.json` resolves receipts the same way it does locally.
+    with zipfile.ZipFile(out_path, "w", compression=zipfile.ZIP_STORED) as bundle:
+        bundle.writestr(data_path.name, data_path.read_bytes())
+        bundle.writestr(CHAIN_FILENAME, chain_path.read_bytes())
+        for name in receipt_names:
+            bundle.writestr(name, (chain_dir / name).read_bytes())
+
+    print(f"Exported verified bundle: {out_path}")
+    print(f"  data {data_path.name}, {len(receipt_names)} receipts + {CHAIN_FILENAME}")
+    print(f"  semantic_hash {data_hash} (matches final receipt)")
+    print(f"  recipient: unzip, then `receipts verify {CHAIN_FILENAME}`")
     return 0
 
 
@@ -1344,6 +1489,21 @@ def build_parser() -> argparse.ArgumentParser:
         help="Column to key period buckets off (signed into the tolerance "
         "declaration; must be a date-shaped column)",
     )
+    p_ingest.add_argument(
+        "--as",
+        dest="mode",
+        choices=["replace", "period"],
+        default="replace",
+        help="replace (default): re-sign a fresh chain (the prior chain is archived). "
+        "period: continue the chain's run history as the next period (trusted signer only)",
+    )
+    p_ingest.add_argument(
+        "--pub",
+        action="append",
+        default=[],
+        help="Public key to trust for --as period (repeatable); needed when the "
+        "importer's key differs from the chain's signing key",
+    )
     p_ingest.set_defaults(func=cmd_ingest)
 
     p_verify = sub.add_parser(
@@ -1407,8 +1567,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_export.add_argument("--chain", default="receipts/chain.json", help="Path to chain.json")
     p_export.add_argument("--data", required=True, help="Data file that must match the final receipt")
-    p_export.add_argument("--out", default=None, help="Output path (default: <chain dir>/table.json)")
+    p_export.add_argument(
+        "--out",
+        default=None,
+        help="Output path (default: <chain dir>/table.json, or <data stem>-verified.zip with --bundle)",
+    )
     p_export.add_argument("--sheet", default=None, help="Worksheet name (xlsx only, optional)")
+    p_export.add_argument(
+        "--bundle",
+        action="store_true",
+        help="Write a verified bundle (zip of the data file + chain.json + receipts) for offline re-verification",
+    )
     p_export.set_defaults(func=cmd_export)
 
     p_diff = sub.add_parser(

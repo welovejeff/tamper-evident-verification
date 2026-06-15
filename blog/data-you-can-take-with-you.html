@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Data you can take with you · Tamper Signal</title>
+<meta name="description" content="Every BI tool gives you a Download button; none give you the proof. A verified bundle carries the data and its receipts together, so a CSV you export re-verifies as JSON and the light stays green on someone else's machine." />
+<meta name="author" content="Jeff MacDonald" />
+<meta property="og:type" content="article" />
+<meta property="article:author" content="https://github.com/welovejeff" />
+<meta property="og:title" content="Data you can take with you" />
+<meta property="og:description" content="A Download button drops the proof at the door. A verified bundle takes the data out with its receipts, re-checkable offline." />
+<meta property="og:image" content="https://tampersignal.com/docs/media/thumbs/post-take-your-data.jpg" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:image" content="https://tampersignal.com/docs/media/thumbs/post-take-your-data.jpg" />
+<link rel="canonical" href="https://tampersignal.com/blog/data-you-can-take-with-you.html" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='%2334d399'/%3E%3C/svg%3E" />
+<link rel="stylesheet" href="blog.css" />
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Data you can take with you",
+  "description": "Every BI tool gives you a Download button; none give you the proof. A verified bundle carries the data and its receipts together, so a CSV you export re-verifies as JSON and the light stays green on someone else's machine.",
+  "image": "https://tampersignal.com/docs/media/thumbs/post-take-your-data.jpg",
+  "datePublished": "2026-06-14",
+  "dateModified": "2026-06-14",
+  "author": { "@type": "Person", "name": "Jeff MacDonald", "url": "https://github.com/welovejeff" },
+  "publisher": {
+    "@type": "Organization",
+    "name": "Tamper Signal",
+    "logo": { "@type": "ImageObject", "url": "https://tampersignal.com/docs/media/og-card.png" }
+  },
+  "mainEntityOfPage": { "@type": "WebPage", "@id": "https://tampersignal.com/blog/data-you-can-take-with-you.html" }
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://tampersignal.com/" },
+    { "@type": "ListItem", "position": 2, "name": "Blog", "item": "https://tampersignal.com/blog/" },
+    { "@type": "ListItem", "position": 3, "name": "Data you can take with you" }
+  ]
+}
+</script>
+</head>
+<body>
+
+<div class="top">
+  <div class="wrap">
+    <a class="logo-stacked" href="/" aria-label="Tamper Signal — home">
+      <span class="ls-rail" aria-hidden="true"><i class="r"></i><i class="y"></i><i class="g"></i></span>
+      <span class="ls-words">TAMPER<br>SIGNAL</span>
+    </a>
+    <nav>
+      <a href="/#demo">live demo</a>
+      <a href="/#how">how it works</a>
+      <a href="/docs/">docs</a>
+      <a href="/blog/">blog</a>
+      <a href="/#explore">explore</a>
+      <a href="https://github.com/welovejeff/tamper-evident-verification">github</a>
+    </nav>
+  </div>
+</div>
+
+<article class="post">
+  <div class="wrap">
+    <a class="post-back" href="/blog/">← all posts</a>
+    <h1>Data you can take with you</h1>
+    <p class="post-meta">By <a href="https://github.com/welovejeff" rel="author">Jeff MacDonald</a> · June 2026 · 1.7.0</p>
+    <img class="post-hero" src="/docs/media/thumbs/post-take-your-data.jpg" alt="A matte charcoal parcel lifting away, a glowing green wax-sealed tag still attached to it" width="1600" height="900" />
+
+    <p>Every BI tool has a Download button. You click it, a CSV lands in your downloads folder, and the proof stays behind. Whatever the dashboard knew about where those numbers came from, the chain of code they survived, the totals that matched at every step, none of it makes the trip. The file you carry out is an unattested blob, indistinguishable from one someone typed by hand. The trust ended at the button.</p>
+
+    <p>That is the seam this whole project exists to close, and it should not reopen the moment data leaves the page. So the rule for Tamper Signal is the obvious one: if the data is verified on the dashboard, it should still be verifiable after you take it. The proof travels with the data, or it was never really yours to take.</p>
+
+    <h2>The download button drops the proof at the door</h2>
+
+    <p>A bare export is a claim with no way to check it. You hand a colleague a spreadsheet, they open it, and they have exactly your word that it is the data the dashboard showed. They cannot tell a faithful export from one that lost a row on the way out, because there is nothing attached that would know. The number sits in a cell looking like fact, the same way it looked on the chart, with the same silence underneath it.</p>
+
+    <p>A receipt fixes that at the register: you do not take the total on faith, you read the line items. A verified export should work the same way. The data leaves with the receipts that prove it, and the person who receives it checks for themselves rather than trusting the sender.</p>
+
+    <h2>A bundle the recipient can check</h2>
+
+    <p>So that is what <code>receipts export --bundle</code> writes: a verified bundle, a zip holding the data file plus <code>chain.json</code> and its receipts, kept byte for byte. There is no service to call and no account to make. Whoever receives it unzips it and runs the same verification the dashboard ran, on their own machine, offline.</p>
+
+    <pre><code>receipts export --bundle
+# the recipient, anywhere, with no access to your dashboard:
+unzip report-verified.zip && receipts verify chain.json</code></pre>
+
+    <p>In the browser it is a button. The verified <a href="/blog/show-your-work.html">Data tab</a> grows a "Take your data" control that builds the bundle client-side from the rows it already proved, or hands you a bare rows-only file when you only want the data. The bundle is offered only when the light is green or yellow, because a bundle is a claim of verifiability and the tab will not make that claim about data that does not hold up. A rows-only file is the data without its receipt, and the tab says so where you pick it, so the unverified one is never the one you reach for by accident.</p>
+
+    <p>The quietly nice part is the format. Tamper Signal's fingerprint is taken over the <em>data</em>, not the bytes, so it is the same whether the data is a CSV, a TSV, JSON, or NDJSON. Export your report as a CSV, hand it to someone who re-ingests it as JSON, and the hash matches and the light stays green. The proof does not care what shape you carry the data in, which is the entire point of a format you are allowed to leave with.</p>
+
+    <h2>Take it, change it, bring it back</h2>
+
+    <p>Portability that only goes one direction is half a feature. If you can take the data out, fix a row, and re-verify it, you should be able to bring it back in as the new source of truth. <code>receipts ingest --as replace</code> does that: it re-signs a fresh chain from the corrected file and archives the old one, so the prior chain is preserved rather than quietly overwritten. <code>--as period</code> does the gentler thing for a recurring report: it records the file as the next period and judges it against the run history through <a href="/blog/your-data-is-supposed-to-move.html">the tolerance band you already declared</a>, so a normal refresh stays green and a settled number that moved earns a yellow caveat.</p>
+
+    <p>Bringing data back is where honesty matters most, so re-attestation is never silent. Importing signs under your key and records who re-attested and when. Continuing a chain's history works only under a signer that chain already trusts; an unfamiliar key is refused rather than waved through, because the alternative is letting anyone graft their data onto someone else's green history and call it continuous. You can take the data anywhere. You cannot launder it back in.</p>
+
+    <h2>What the round trip cannot carry</h2>
+
+    <p>The honest part, because skipping it would make this the kind of copy this project exists to mock. A bundle proves continuity, not correctness. It proves the data you are holding is the data the chain signed, unchanged, and it lets the recipient confirm that for themselves. It says nothing about whether the source was right to begin with. Garbage exported faithfully is still garbage, and it will verify green the whole way.</p>
+
+    <p>Two smaller caveats, stated plainly. The browser export reconstructs the data from what it verified, so the file you get is the attested data in a real, openable format, but it is sorted and normalized rather than a byte-for-byte copy of your original upload. And because the fingerprint reads numeric text as the number it is, a round trip collapses <code>030</code> to <code>30</code> and <code>30.00</code> to <code>30</code>; if a leading zero is load-bearing, it is an identifier, not a number, and it belongs in a column that reads as text.</p>
+
+    <h2>Data you can take with you</h2>
+
+    <p>None of this needs a server. You export a bundle the way you mounted the light: one command, or one button, pointed at the chain file the rest of Tamper Signal already writes. MIT licensed, Python 3.11+ or Node 18.17+, and the data your dashboard verified becomes data you can hand to anyone and they can verify too. If you want to watch a CSV come out one side and re-verify green as JSON on the other, <a href="/">the live demo</a> does exactly that.</p>
+
+    <p class="post-end">Take the data. The proof comes with it.</p>
+  </div>
+</article>
+
+<aside class="related" aria-label="Related reading">
+  <div class="wrap">
+    <p class="related-k">Related reading</p>
+    <ul class="related-list">
+      <li>
+        <a href="/blog/show-your-work.html">Show your work</a>
+        <p>Why every dashboard built on verified data should put the raw verified table one click from the charts.</p>
+      </li>
+      <li>
+        <a href="/blog/your-data-is-supposed-to-move.html">Your data is supposed to move</a>
+        <p>Tolerance bands and run history, the machinery a re-imported period is judged against.</p>
+      </li>
+    </ul>
+  </div>
+</aside>
+
+<footer>
+  <div class="wrap">
+    <span>MIT licensed</span>
+    <span>·</span>
+    <a href="/blog/">blog</a>
+    <span>·</span>
+    <a href="/docs/faq.html">FAQ</a>
+    <span>·</span>
+    <a href="https://github.com/welovejeff/tamper-evident-verification">github.com/welovejeff/tamper-evident-verification</a>
+    <span>·</span>
+    <a href="/">tampersignal.com</a>
+  </div>
+</footer>
+
+</body>
+</html>

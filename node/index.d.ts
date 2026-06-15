@@ -446,6 +446,45 @@ export interface RebuildChainOptions {
  */
 export function rebuildChain(options: RebuildChainOptions): Promise<DataRecord[]>;
 
+/** Thrown by appendPeriod when the importer's key is not trusted by the chain. */
+export class UntrustedSignerError extends Error {}
+
+export interface AppendPeriodOptions {
+  /** Path to the source file (.csv/.tsv/.json/.ndjson/.jsonl). */
+  file: string;
+  declaredOrigin?: string;
+  chainDir?: string;
+  keyPath?: string;
+  /** Public key hexes to trust in addition to the chain's own key (--pub). */
+  trustedPubHexes?: string[];
+  /** Override the inherited tolerance band, e.g. "5%" or "0.05". */
+  band?: string | null;
+  /** Override the inherited settling window, e.g. "72h" or "3d". */
+  settle?: string | null;
+  /** Override the inherited bucket column. */
+  bucketColumn?: string | null;
+}
+
+export interface AppendPeriodResult extends IngestFileResult {
+  /** Cross-run judgment caveats (yellow), empty when in band. */
+  caveats: string[];
+  /** Additive caveat detail records. */
+  details: unknown[];
+  /** Baseline-advancement guard recorded in the archived snapshot. */
+  breached: Record<string, string[]>;
+  /** True when a prior trusted snapshot was found to compare against. */
+  compared: boolean;
+}
+
+/**
+ * Import a file as the next period of an existing chain's run history. Continues
+ * history only under a trusted signer (the chain's key or one in
+ * `trustedPubHexes`); an untrusted signer throws UntrustedSignerError. Inherits
+ * the prior run's signed tolerance unless overridden, judges the new run against
+ * prior trusted snapshots, and archives the snapshot with the breached guard.
+ */
+export function appendPeriod(options: AppendPeriodOptions): AppendPeriodResult;
+
 // --- CLI --json payload shapes ---------------------------------------------
 // Documented contracts for the `diff --json` and `log --json` stdout payloads.
 // Byte-identical across the Node and Python CLIs.

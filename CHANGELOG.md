@@ -2,6 +2,20 @@
 
 All notable changes to Tamper Signal are recorded here. The Python (`tamper-signal` on PyPI) and JavaScript (`tamper-signal` on npm) packages are versioned in lockstep and produce interchangeable chains.
 
+## 1.7.0
+
+Data portability: take the attested data out with its proof, and bring an updated file back.
+
+### Added
+
+- **`receipts export --bundle` / `tamper-signal export --bundle`** writes a verified bundle: a store-only zip holding the data file plus `chain.json` and its receipts, byte for byte, so a recipient runs `receipts verify chain.json` offline. Bare `export` still writes `table.json`.
+- **"Take your data" in the verified Data tab** (`mountReceiptTable`): a client-side export of the attested data as a verified bundle or a bare rows-only file, in csv/tsv/json/ndjson (xlsx routes through the Python CLI). The bundle is offered only when the data is attested and the light is green or yellow; rows-only always reads as unverified.
+- **`receipts ingest --as replace|period` / `tamper-signal ingest --as ...`** imports a file to update the source. `replace` (default) re-signs a fresh chain and archives the prior one under `receipts/archive/<tail>/`. `period` continues the chain's run history as the next period, judged against prior snapshots through the prior run's signed tolerance band; it requires a trusted signer (`--pub` to trust a key other than the chain's) and refuses an untrusted one rather than appending silently.
+
+### Notes
+
+- The Semantic hash is format-agnostic, so a CSV exported from a bundle re-verifies as JSON and the light stays green. Numeric-looking text canonicalizes to its number, so leading zeros and trailing decimals do not survive a round trip.
+
 ## 1.6.0
 
 Period-over-period continuity: the receipt chain gains a memory and a sense of normal, so the light stays trustworthy on the pipelines people actually run on a schedule.

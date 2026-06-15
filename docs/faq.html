@@ -105,6 +105,16 @@
       "@type": "Question",
       "name": "Is it free, and what are the requirements?",
       "acceptedAnswer": { "@type": "Answer", "text": "Yes, open source under the MIT license. It needs Python 3.11+ or Node 18.17+. There is no paid tier, no account, and no server to run." }
+    },
+    {
+      "@type": "Question",
+      "name": "Can I take the data out, with the proof?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Yes. receipts export --bundle writes a verified bundle: a zip of the data file plus chain.json and its receipts, kept byte for byte, so the recipient runs receipts verify chain.json and gets the same light, offline. The Data tab's \"Take your data\" control does the same in the browser, as a bundle or a bare rows-only file marked unverified. Because the semantic hash is format-agnostic, a CSV you export re-verifies as JSON and the light stays green; numeric-looking text canonicalizes to its number, so leading zeros and trailing decimals do not survive a round trip." }
+    },
+    {
+      "@type": "Question",
+      "name": "How do I bring an updated file back in?",
+      "acceptedAnswer": { "@type": "Answer", "text": "receipts ingest --as replace (the default) re-signs a fresh chain and archives the prior one. --as period continues the chain's run history as the next period, judged against prior runs through the prior run's signed tolerance band. A period continues only under a trusted signer (pass --pub to trust a key other than the chain's); an untrusted signer is refused rather than appended silently." }
     }
   ]
 }
@@ -226,6 +236,12 @@
 
     <h3>How do I put the light in my dashboard?</h3>
     <p>Mount one of the browser surfaces and point it at your chain file. The inline status light, the badge, the Data tab, and the inspector console each re-verify the whole chain in the viewer's browser with Web Crypto, no server-side trust. They ship for plain HTML, React, and any framework via a custom element. See <a href="/docs/mounting.html">Mounting the signal</a>, or the case for a verified table in <a href="/blog/show-your-work.html">Show your work</a>.</p>
+
+    <h3>Can I take the data out, with the proof?</h3>
+    <p>Yes, that is the point. <code>receipts export --bundle</code> writes a verified bundle: a zip of the data file plus <code>chain.json</code> and its receipts, kept byte for byte, so whoever receives it runs <code>receipts verify chain.json</code> and gets the same light, offline. The Data tab's "Take your data" control does the same in the browser, as a bundle or a bare rows-only file (csv/tsv/json/ndjson; spreadsheets go through the Python CLI). A rows-only file is the data without its receipt, and the tab marks it unverified at the point you pick it. Because the semantic hash is format-agnostic, a CSV you export re-verifies as JSON and the light stays green. One caveat: numeric-looking text canonicalizes to its number, so leading zeros and trailing decimals do not survive a round trip.</p>
+
+    <h3>How do I bring an updated file back in?</h3>
+    <p><code>receipts ingest --as replace</code> (the default) re-signs a fresh chain from the file and archives the prior one. <code>--as period</code> continues the chain's run history as the next period, judged against prior runs through the prior run's signed tolerance band. A period continues only under a trusted signer (pass <code>--pub</code> to trust a key other than the chain's); an untrusted signer is refused rather than appended silently, because re-attestation is never silent.</p>
 
     <h2 id="trust">Trust and security</h2>
 

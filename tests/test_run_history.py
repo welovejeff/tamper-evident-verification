@@ -322,6 +322,39 @@ def test_serve_404s_history_and_serves_chain_with_cors(tmp_path, monkeypatch):
             thread.join(timeout=5)
 
 
+def test_serve_404s_archive(tmp_path, monkeypatch):
+    import http.client
+    import socketserver
+    import threading
+
+    from tamper_signal.cli import _serve_handler_class
+
+    receipts_dir = _seed(tmp_path, monkeypatch)
+    # A second ingest (replace) archives the prior chain under receipts/archive/.
+    assert main(["ingest", "export.csv", "--origin", "t"]) == 0
+    archived = list((receipts_dir / "archive").glob("*/chain.json"))
+    assert archived, "expected a prior chain in receipts/archive/"
+    rel = archived[0].relative_to(receipts_dir).as_posix()
+
+    handler = _serve_handler_class(str(receipts_dir.resolve()))
+    with socketserver.TCPServer(("127.0.0.1", 0), handler) as httpd:
+        port = httpd.server_address[1]
+        thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+        thread.start()
+        try:
+            conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+            for url in (f"/{rel}", "/archive/", "/archive"):
+                conn.request("GET", url)
+                response = conn.getresponse()
+                response.read()
+                assert response.status == 404, url
+                assert response.getheader("Access-Control-Allow-Origin") == "*"
+            conn.close()
+        finally:
+            httpd.shutdown()
+            thread.join(timeout=5)
+
+
 # ---------------------------------------------------------------------------
 # ingest warning before an un-archived reset
 # ---------------------------------------------------------------------------

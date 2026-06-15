@@ -5,12 +5,12 @@
 //   tamper-signal keygen --out keys/
 //   tamper-signal ingest export.csv --origin "..." --key keys/signing.key --out receipts/
 //   tamper-signal verify receipts/chain.json [--pub keys/signing.pub] [--data current.csv] [--warn-drift]
-//   tamper-signal export receipts/chain.json --data current.csv [--out receipts/table.json]
+//   tamper-signal export receipts/chain.json --data current.csv [--out receipts/table.json] [--bundle]
 //
 // Exit codes are the traffic light: 0 green, 1 red, 2 yellow.
 
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { parseArgs } from "node:util";
 import process from "node:process";
@@ -30,6 +30,7 @@ import {
 import { decimalToPlainString, parseDecimal } from "./canonical.js";
 import { generateKeys, loadPrivateKey, loadPublicKeyHex, publicHexFromPrivate } from "./keys.js";
 import { loadRecords } from "./load.js";
+import { makeStoredZip } from "./zip.js";
 import {
   CHAIN_FILENAME,
   SOURCE_RECEIPT_NAME,
@@ -42,7 +43,7 @@ import {
   verifyChain,
 } from "./receipts.js";
 import { controlTotals, groupedNumericColumns, structuredTotalsDelta } from "./totals.js";
-import { ingestFile } from "./wrapper.js";
+import { UntrustedSignerError, appendPeriod, ingestFile } from "./wrapper.js";
 
 const USAGE = `usage: tamper-signal <command>
 
@@ -50,12 +51,18 @@ commands:
   keygen --out keys/                         generate an Ed25519 signing keypair
   ingest <file> --origin "..." [--key keys/signing.key] [--out receipts/]
                 [--band 5%] [--settle 72h] [--bucket-column <name>]
+                [--as replace|period] [--pub key.pub ...]
                                              create a signed source manifest
                                              (.csv, .tsv, .json, .ndjson);
                                              --band/--settle/--bucket-column
                                              sign a tolerance declaration into
                                              the manifest (band default 0.05,
-                                             settle default 72h)
+                                             settle default 72h). --as replace
+                                             (default) re-signs a fresh chain
+                                             (prior chain archived); --as period
+                                             continues run history under a
+                                             trusted signer (--pub to trust a
+                                             key other than the chain's)
   verify <chain.json> [--pub key.pub ...] [--data <file>] [--warn-drift] [--json]
                                              verify a chain (exit 0 green, 1 red, 2 yellow)
   diff [A] [B] [--chain receipts/] [--json]  compare two runs: per-stage
@@ -76,10 +83,12 @@ commands:
                                              collapse last-wins); each metric
                                              shows its value and the delta vs
                                              the previous row. Read-only; exit 0
-  export <chain.json> --data <file> [--out receipts/table.json]
+  export <chain.json> --data <file> [--out receipts/table.json] [--bundle]
                                              write the canonical table document
                                              (refuses unless --data matches the
-                                             final receipt)
+                                             final receipt); --bundle writes a
+                                             verified zip (data + chain.json +
+                                             receipts) for offline re-verification
 `;
 
 function cmdKeygen(args) {
@@ -112,6 +121,96 @@ function isUnsnapshottedReset(chainDir) {
   }
 }
 
+// Before a replace reset, copy the prior chain.json and its receipts into
+// <chainDir>/archive/<tail>/ so the prior chain is preserved, not silently
+// overwritten (R9). Content-addressed by the prior chain tail; idempotent and
+// collision-free. Best-effort: never throws, never blocks ingest.
+function archivePriorChain(chainDir) {
+  const chainPath = join(chainDir, CHAIN_FILENAME);
+  if (!existsSync(chainPath)) return;
+  let chain;
+  let tail;
+  try {
+    chain = readChain(chainPath);
+    tail = chainTailHash(chainDir, chain);
+  } catch {
+    return;
+  }
+  const dest = join(chainDir, "archive", tail);
+  if (existsSync(dest)) return;
+  try {
+    mkdirSync(dest, { recursive: true });
+    copyFileSync(chainPath, join(dest, CHAIN_FILENAME));
+    for (const name of chain.receipts ?? []) {
+      const src = join(chainDir, name);
+      if (existsSync(src)) copyFileSync(src, join(dest, name));
+    }
+  } catch {
+    // best-effort audit trail; ingest proceeds regardless
+  }
+}
+
+// `ingest --as period`: continue the chain's run history under a trusted signer.
+function cmdIngestPeriod(values, file) {
+  // Like replace, compute the unsnapshotted-reset condition and preserve the
+  // prior chain before appendPeriod's ingest overwrites chain.json. A refused
+  // untrusted import leaves the prior chain untouched, so the archive is an
+  // idempotent no-op in that case.
+  const unsnapshottedReset = isUnsnapshottedReset(values.out);
+  archivePriorChain(values.out);
+
+  const trusted = (values.pub ?? []).map((p) => loadPublicKeyHex(p)).filter(Boolean);
+  let result;
+  try {
+    result = appendPeriod({
+      file,
+      declaredOrigin: values.origin,
+      chainDir: values.out,
+      keyPath: values.key,
+      trustedPubHexes: trusted,
+      band: values.band ?? null,
+      settle: values.settle ?? null,
+      bucketColumn: values["bucket-column"] ?? null,
+    });
+  } catch (err) {
+    if (err instanceof UntrustedSignerError) {
+      console.error(`✗ Refusing to append a period: ${err.message}`);
+      return 1;
+    }
+    console.error(err.message);
+    return 1;
+  }
+  if (unsnapshottedReset) {
+    console.error("warning: previous run was never verified; its totals will not enter history");
+  }
+  const totals = result.manifest.control_totals;
+  console.log(`Imported next period: ${result.manifest.source.filename}`);
+  console.log(`  evidence_hash ${result.manifest.source.evidence_hash}`);
+  console.log(`  semantic_hash ${result.manifest.semantic_hash}`);
+  console.log(`  rows ${totals.row_count}, columns ${totals.column_count}`);
+  const grouped = groupedNumericColumns(result.records);
+  if (grouped.length) {
+    console.error("");
+    for (const { column, example } of grouped) {
+      console.error(`  warning: column "${column}" looks numeric (e.g. "${example}") but is missing from numeric_sums.`);
+    }
+    console.error("  Grouped numbers don't parse as plain decimals, so these columns are left out of the control totals'");
+    console.error("  numeric_sums -- a data-receipt-column on them can never flag a change. Add a normalize step that");
+    console.error("  strips the separators before ingest. Only plain decimals (no thousands grouping) are summed.");
+  }
+  if (result.caveats.length) {
+    console.log("  the light is yellow, a human should look:");
+    for (const caveat of result.caveats) console.log(`    - ${caveat}`);
+    return 2;
+  }
+  console.log(
+    result.compared
+      ? "  in band against the prior run (the light stays green)"
+      : "  recorded as the first period (no prior run to compare)",
+  );
+  return 0;
+}
+
 function cmdIngest(args) {
   const { values, positionals } = parseArgs({
     args,
@@ -123,6 +222,8 @@ function cmdIngest(args) {
       band: { type: "string" },
       settle: { type: "string" },
       "bucket-column": { type: "string" },
+      as: { type: "string", default: "replace" },
+      pub: { type: "string", multiple: true, default: [] },
     },
   });
   const file = positionals[0];
@@ -134,10 +235,13 @@ function cmdIngest(args) {
     // The env var silently outranks --key; say so where it matters.
     console.error("Signing with TAMPER_SIGNAL_KEY from the environment (overrides --key)");
   }
+  if ((values.as ?? "replace") === "period") return cmdIngestPeriod(values, file);
   // Compute the unsnapshotted-reset condition from the OUTGOING chain before
   // ingestFile overwrites chain.json; emit the warning only after ingest
   // validation passes (below), so an invalid flag exits 1 with no warning.
   const unsnapshottedReset = isUnsnapshottedReset(values.out);
+  // Preserve the prior chain before the reset overwrites it (R9).
+  archivePriorChain(values.out);
   // ingestFile resets the chain to a fresh source manifest; the same call is
   // the programmatic entry point and the foundation of rebuildChain. Invalid
   // tolerance values and a non-qualifying --bucket-column throw before
@@ -909,6 +1013,7 @@ function cmdExport(args) {
     options: {
       data: { type: "string" },
       out: { type: "string" },
+      bundle: { type: "boolean" },
     },
   });
   const chainPath = positionals[0];
@@ -949,6 +1054,28 @@ function cmdExport(args) {
     console.error(`  found    data hash   ${dataHash}`);
     console.error("  The Data tab only shows attested data. Re-run the pipeline or fix --data.");
     return 1;
+  }
+
+  if (values.bundle) {
+    // Verified bundle: the original data file plus chain.json and its receipts,
+    // packaged so a recipient can `tamper-signal verify chain.json` offline.
+    // Entry bytes are stored verbatim (chain.json's receipt_hashes commit to the
+    // raw receipt bytes), mirroring the on-disk chain_dir layout flat at the root.
+    const dataName = basename(values.data);
+    const receiptNames = chain.receipts ?? [];
+    const entries = [
+      { name: dataName, bytes: readFileSync(values.data) },
+      { name: CHAIN_FILENAME, bytes: readFileSync(chainPath) },
+      ...receiptNames.map((name) => ({ name, bytes: readFileSync(join(chainDir, name)) })),
+    ];
+    const stem = dataName.replace(/\.[^.]+$/, "");
+    const bundlePath = values.out || join(chainDir, `${stem}-verified.zip`);
+    writeFileSync(bundlePath, makeStoredZip(entries));
+    console.log(`Exported verified bundle: ${bundlePath}`);
+    console.log(`  data ${dataName}, ${receiptNames.length} receipts + ${CHAIN_FILENAME}`);
+    console.log(`  semantic_hash ${dataHash} (matches final receipt)`);
+    console.log(`  recipient: unzip, then \`tamper-signal verify ${CHAIN_FILENAME}\``);
+    return 0;
   }
 
   const outPath = values.out || join(chainDir, "table.json");
