@@ -8,7 +8,7 @@ Data portability: take the attested data out with its proof, and bring an update
 
 ### Added
 
-- **`receipts export --bundle` / `tamper-signal export --bundle`** writes a verified bundle: a store-only zip holding the data file plus `chain.json` and its receipts, byte for byte, so a recipient runs `receipts verify chain.json` offline. Bare `export` still writes `table.json`.
+- **`receipts export --bundle` / `tamper-signal export --bundle`** writes a verified bundle: a store-only zip holding the data file plus `chain.json` and its receipts, byte for byte, plus a `README.md` of verify instructions, so a recipient who has never used Tamper Signal can run `receipts verify chain.json` offline. Bare `export` still writes `table.json`.
 - **"Take your data" in the verified Data tab** (`mountReceiptTable`): a client-side export of the attested data as a verified bundle or a bare rows-only file, in csv/tsv/json/ndjson (xlsx routes through the Python CLI). The bundle is offered only when the data is attested and the light is green or yellow; rows-only always reads as unverified.
 - **`receipts ingest --as replace|period` / `tamper-signal ingest --as ...`** imports a file to update the source. `replace` (default) re-signs a fresh chain and archives the prior one under `receipts/archive/<tail>/`. `period` continues the chain's run history as the next period, judged against prior snapshots through the prior run's signed tolerance band; it requires a trusted signer (`--pub` to trust a key other than the chain's) and refuses an untrusted one rather than appending silently.
 
