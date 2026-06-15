@@ -45,6 +45,34 @@
       "synced": true,
       "variant": "b",
       "vector_id": "0cdb1fbe-100b-5726-9459-7dcd9a48c7e3"
+    },
+    "takedata-a": {
+      "image_size": {
+        "height": 800,
+        "width": 1280
+      },
+      "local_path": "docs/media/thumbs/_gen/takedata-a.jpg",
+      "model": "fal-ai/recraft/v3/text-to-image",
+      "prompt": "A matte charcoal 3D parcel or export box mid-lift in the center, a small glowing emerald-green wax-sealed tag attached to it by a short cord, as if the data is leaving with its receipt still attached. Minimalist 3D product render, near-black blue-black background, soft studio lighting, matte charcoal rubberized material, gentle soft shadows, subtle radial vignette, generous negative space, single centered hero object, one emerald-green glow as the only saturated light source with a soft bloom halo, shallow depth of field, premium and restrained, no text, no lettering, no logos, high detail, octane render.",
+      "request_id": "019ec919-a08c-7181-ade8-e765cc8a5e04",
+      "result_url": "https://v3b.fal.media/files/b/0a9e56ac/gzyGIzZ8i9XpU_U2z3eKO_image.webp",
+      "slot": "takedata",
+      "style_id": "65e64f0a-d9a5-4fee-96fc-7acc7ab1d9be",
+      "variant": "a"
+    },
+    "takedata-b": {
+      "image_size": {
+        "height": 800,
+        "width": 1280
+      },
+      "local_path": "docs/media/thumbs/_gen/takedata-b.jpg",
+      "model": "fal-ai/recraft/v3/text-to-image",
+      "prompt": "A matte charcoal 3D parcel or export box mid-lift in the center, a small glowing emerald-green wax-sealed tag attached to it by a short cord, as if the data is leaving with its receipt still attached. Minimalist 3D product render, near-black blue-black background, soft studio lighting, matte charcoal rubberized material, gentle soft shadows, subtle radial vignette, generous negative space, single centered hero object, one emerald-green glow as the only saturated light source with a soft bloom halo, shallow depth of field, premium and restrained, no text, no lettering, no logos, high detail, octane render.",
+      "request_id": "019ec919-c4a6-7b23-878b-3507a702a98d",
+      "result_url": "https://v3b.fal.media/files/b/0a9e56af/HXj_LW2lkrnG1ysPgKXXO_image.webp",
+      "slot": "takedata",
+      "style_id": "65e64f0a-d9a5-4fee-96fc-7acc7ab1d9be",
+      "variant": "b"
     }
   }
 }
