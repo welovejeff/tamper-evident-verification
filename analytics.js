@@ -67,9 +67,6 @@
     f.parentNode.insertBefore(j, f);
   })(window, document, 'dataLayer', GTM_ID);
 
-  // Nothing more to do if the visitor already decided.
-  if (stored === 'granted' || stored === 'denied') return;
-
   function persist(choice) {
     try { localStorage.setItem(STORAGE_KEY, choice); } catch (e) { /* ignore */ }
   }
@@ -114,7 +111,7 @@
     text.style.cssText = 'flex:1 1 280px;min-width:240px;';
     text.innerHTML = 'We use privacy-respecting analytics to understand what’s useful. ' +
       'Nothing is stored until you allow it. ' +
-      '<a href="/docs/faq.html" style="color:#34d399;text-decoration:underline;">Learn more</a>.';
+      '<a href="/privacy.html" style="color:#34d399;text-decoration:underline;">Learn more</a>.';
 
     var actions = document.createElement('div');
     actions.style.cssText = 'display:flex;gap:8px;flex:0 0 auto;';
@@ -141,9 +138,43 @@
     document.body.appendChild(banner);
   }
 
+  // Reopen the banner so a visitor can change a previous choice.
+  function openSettings() { if (!banner) buildBanner(); }
+  window.tsOpenCookieSettings = openSettings;
+
+  // Any element marked data-ts-cookie-settings reopens the banner.
+  document.addEventListener('click', function (e) {
+    var el = e.target && e.target.closest && e.target.closest('[data-ts-cookie-settings]');
+    if (el) { e.preventDefault(); openSettings(); }
+  });
+
+  // Add a "Manage cookies" control to the footer. JS-only by design: it
+  // controls a JS banner, so there is nothing to show when JS is off.
+  function injectFooterLink() {
+    var gh = document.querySelector('footer a[href*="github.com/welovejeff"]');
+    var foot = gh ? gh.parentNode
+                  : (document.querySelector('footer .wrap') || document.querySelector('footer'));
+    if (!foot || foot.querySelector('[data-ts-cookie-settings]')) return;
+    var sep = document.createElement('span');
+    sep.textContent = '·';
+    var link = document.createElement('a');
+    link.href = '#';
+    link.textContent = 'Manage cookies';
+    link.setAttribute('data-ts-cookie-settings', '');
+    foot.appendChild(document.createTextNode(' '));
+    foot.appendChild(sep);
+    foot.appendChild(document.createTextNode(' '));
+    foot.appendChild(link);
+  }
+
+  function onReady() {
+    injectFooterLink();
+    if (stored !== 'granted' && stored !== 'denied') buildBanner();
+  }
+
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', buildBanner);
+    document.addEventListener('DOMContentLoaded', onReady);
   } else {
-    buildBanner();
+    onReady();
   }
 })();

@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<!-- Site analytics & tagging (GTM + Consent Mode v2). Config lives in /analytics.js -->
+<script src="/analytics.js"></script>
+<title>Privacy · Tamper Signal</title>
+<meta name="description" content="How tampersignal.com handles analytics and cookies: privacy-respecting, consent-first, and nothing stored until you allow it." />
+<meta property="og:title" content="Privacy · Tamper Signal" />
+<meta property="og:description" content="How tampersignal.com handles analytics and cookies: consent-first, nothing stored until you allow it." />
+<meta property="og:image" content="https://tampersignal.com/docs/media/og-card.png" />
+<link rel="canonical" href="https://tampersignal.com/privacy.html" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='%2334d399'/%3E%3C/svg%3E" />
+<style>
+  :root {
+    --bg: #0b0f14;
+    --panel: #11161d;
+    --border: #1f2937;
+    --text: #e5e7eb;
+    --dim: #8b98a5;
+    --green: #34d399;
+    --mono: ui-monospace, 'SF Mono', Menlo, Monaco, 'Cascadia Code', monospace;
+    --sans: -apple-system, 'SF Pro Display', 'Segoe UI', Roboto, Helvetica, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    line-height: 1.65;
+  }
+  a { color: var(--green); }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 0 24px; }
+  header.top { border-bottom: 1px solid var(--border); padding: 18px 0; }
+  header.top .wrap { display: flex; align-items: center; gap: 10px; }
+  .mark { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; letter-spacing: .02em; text-decoration: none; color: var(--text); }
+  .mark i { width: 10px; height: 10px; border-radius: 50%; background: var(--green); display: inline-block; box-shadow: 0 0 10px var(--green); }
+  main { padding: 48px 0 64px; }
+  h1 { font-size: 2rem; margin: 0 0 6px; }
+  .lede { color: var(--dim); margin: 0 0 8px; }
+  .updated { color: var(--dim); font-size: .85rem; font-family: var(--mono); margin: 0 0 36px; }
+  h2 { font-size: 1.2rem; margin: 36px 0 10px; }
+  p { margin: 0 0 14px; }
+  ul { margin: 0 0 14px; padding-left: 22px; }
+  li { margin: 0 0 8px; }
+  code { font-family: var(--mono); font-size: .9em; background: var(--panel); border: 1px solid var(--border); border-radius: 5px; padding: 1px 6px; }
+  .callout { background: var(--panel); border: 1px solid var(--border); border-left: 3px solid var(--green); border-radius: 8px; padding: 16px 18px; margin: 0 0 14px; }
+  button.linklike { background: none; border: none; color: var(--green); font: inherit; padding: 0; cursor: pointer; text-decoration: underline; }
+  footer { border-top: 1px solid var(--border); padding: 24px 0; color: var(--dim); font-size: .9rem; }
+  footer a { color: var(--dim); }
+  footer a:hover { color: var(--text); }
+  footer .wrap > * { margin-right: 4px; }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="mark" href="/"><i aria-hidden="true"></i>TAMPER SIGNAL</a>
+  </div>
+</header>
+
+<main>
+  <div class="wrap">
+    <h1>Privacy</h1>
+    <p class="lede">Trust receipts, not vibes — and that includes how this site treats you.</p>
+    <p class="updated">Last updated: 2026-06-16</p>
+
+    <div class="callout">
+      <strong>The short version.</strong> This site uses privacy-respecting analytics to understand
+      what’s useful. Nothing that identifies you is stored until you click <em>Allow analytics</em> in
+      the consent banner. Decline and we collect nothing. You can change your mind any time via
+      <button type="button" class="linklike" data-ts-cookie-settings>Manage&nbsp;cookies</button>.
+    </div>
+
+    <h2>Who runs this site</h2>
+    <p>
+      <strong>tampersignal.com</strong> is the website for Tamper Signal, an open-source project for
+      signed receipts on data pipelines. The site is a set of static pages hosted on GitHub Pages.
+      There are no user accounts, no logins, and no forms that collect personal information.
+    </p>
+
+    <h2>What we collect</h2>
+    <p>
+      With your consent, we use <strong>Google Analytics 4</strong>, loaded through
+      <strong>Google Tag Manager</strong>, to measure aggregate, anonymized usage — which pages are
+      visited, roughly where visitors come from, and what’s popular. We use this only to decide what to
+      improve. We do <strong>not</strong> sell your data, and we don’t use it to build advertising
+      profiles about you.
+    </p>
+
+    <h2>Consent comes first</h2>
+    <p>
+      We use Google <strong>Consent Mode v2</strong>, configured to <strong>deny</strong> analytics and
+      advertising storage by default. In plain terms: when you arrive, the analytics tag loads but is
+      blocked from storing or reading cookies until you choose. You’ll see a banner with two options:
+    </p>
+    <ul>
+      <li><strong>Allow analytics</strong> — analytics cookies are set and aggregate measurement begins.</li>
+      <li><strong>Decline</strong> — no analytics cookies are set and nothing is measured.</li>
+    </ul>
+
+    <h2>Cookies and local storage</h2>
+    <p>
+      We store your consent choice in your browser’s <code>localStorage</code> under the key
+      <code>ts_consent</code> (a single value: <code>granted</code> or <code>denied</code>). This is a
+      preference, not a tracker, and it never leaves your browser — it’s what lets us remember not to
+      ask you again.
+    </p>
+    <p>
+      Only <em>after</em> you click <em>Allow analytics</em> does Google Analytics set its own cookies
+      (for example <code>_ga</code>) to count returning vs. new visits. If you decline, those cookies
+      are never set.
+    </p>
+
+    <h2>Changing or withdrawing consent</h2>
+    <p>
+      Click <button type="button" class="linklike" data-ts-cookie-settings>Manage&nbsp;cookies</button>
+      here or in the footer of any page to reopen the banner and change your choice. You can also clear
+      site data for tampersignal.com in your browser, or use private/incognito browsing, and you’ll be
+      asked fresh next time.
+    </p>
+
+    <h2>Third parties</h2>
+    <p>
+      Google Analytics and Google Tag Manager are provided by Google. When analytics is enabled, your
+      browser communicates with Google’s servers. Google’s handling of that data is governed by their
+      own
+      <a href="https://policies.google.com/privacy" rel="noopener noreferrer" target="_blank">privacy policy</a>.
+      The site is served by GitHub Pages, which may process standard request logs as described in
+      GitHub’s privacy statement.
+    </p>
+
+    <h2>Your rights</h2>
+    <p>
+      Because we don’t collect names, emails, or accounts, we hold no personal profile to look up,
+      export, or delete. The controls above (decline, withdraw consent, clear site data) put you in
+      charge of all analytics data collection on this site.
+    </p>
+
+    <h2>Contact</h2>
+    <p>
+      Questions about this policy can be raised on the project’s
+      <a href="https://github.com/welovejeff/tamper-evident-verification/issues" rel="noopener noreferrer" target="_blank">GitHub issues</a>.
+    </p>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>MIT licensed</span>
+    <span>·</span>
+    <a href="/">tampersignal.com</a>
+    <span>·</span>
+    <a href="/docs/faq.html">FAQ</a>
+    <span>·</span>
+    <a href="https://github.com/welovejeff/tamper-evident-verification">github.com/welovejeff/tamper-evident-verification</a>
+  </div>
+</footer>
+</body>
+</html>
