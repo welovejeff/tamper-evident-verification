@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<!-- Site analytics & tagging (GTM + Consent Mode v2). Config lives in /analytics.js -->
+<script src="/analytics.js"></script>
+<title>Why vibe-coded data pipelines fail silently — and how to catch it · Tamper Signal</title>
+<meta name="description" content="AI can write a working data pipeline in minutes, but it can't prove the pipeline didn't drop rows, double-count, or coerce a column on the way to your dashboard. The failures that matter look like success — here's how a signed receipt catches them." />
+<meta name="author" content="Jeff MacDonald" />
+<meta property="og:type" content="article" />
+<meta property="article:author" content="https://github.com/welovejeff" />
+<meta property="og:title" content="Why vibe-coded data pipelines fail silently — and how to catch it" />
+<meta property="og:description" content="AI-written data code drops rows and double-counts without ever crashing. Why your tests can't catch the failure that matters, and how a signed receipt proves your numbers still descend from the source." />
+<meta property="og:image" content="https://tampersignal.com/docs/media/thumbs/stoplight.jpg" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:image" content="https://tampersignal.com/docs/media/thumbs/stoplight.jpg" />
+<link rel="canonical" href="https://tampersignal.com/blog/vibe-coded-pipelines-fail-silently.html" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='%2334d399'/%3E%3C/svg%3E" />
+<link rel="stylesheet" href="blog.css" />
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Why vibe-coded data pipelines fail silently — and how to catch it",
+  "description": "AI can write a working data pipeline in minutes, but it can't prove the pipeline didn't drop rows, double-count, or coerce a column on the way to your dashboard. The failures that matter look like success — here's how a signed receipt catches them.",
+  "image": "https://tampersignal.com/docs/media/thumbs/stoplight.jpg",
+  "datePublished": "2026-06-17",
+  "dateModified": "2026-06-17",
+  "author": { "@type": "Person", "name": "Jeff MacDonald", "url": "https://github.com/welovejeff" },
+  "publisher": {
+    "@type": "Organization",
+    "name": "Tamper Signal",
+    "logo": { "@type": "ImageObject", "url": "https://tampersignal.com/docs/media/og-card.png" }
+  },
+  "mainEntityOfPage": { "@type": "WebPage", "@id": "https://tampersignal.com/blog/vibe-coded-pipelines-fail-silently.html" }
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://tampersignal.com/" },
+    { "@type": "ListItem", "position": 2, "name": "Blog", "item": "https://tampersignal.com/blog/" },
+    { "@type": "ListItem", "position": 3, "name": "Why vibe-coded pipelines fail silently" }
+  ]
+}
+</script>
+</head>
+<body>
+
+<div class="top">
+  <div class="wrap">
+    <a class="logo-stacked" href="/" aria-label="Tamper Signal — home">
+      <span class="ls-rail" aria-hidden="true"><i class="r"></i><i class="y"></i><i class="g"></i></span>
+      <span class="ls-words">TAMPER<br>SIGNAL</span>
+    </a>
+    <nav>
+      <a href="/#demo">live demo</a>
+      <a href="/#how">how it works</a>
+      <a href="/docs/">docs</a>
+      <a href="/blog/">blog</a>
+      <a href="/#explore">explore</a>
+      <a href="https://github.com/welovejeff/tamper-evident-verification">github</a>
+    </nav>
+  </div>
+</div>
+
+<article class="post">
+  <div class="wrap">
+    <a class="post-back" href="/blog/">← all posts</a>
+    <h1>Why vibe-coded pipelines fail silently</h1>
+    <p class="post-meta">By <a href="https://github.com/welovejeff" rel="author">Jeff MacDonald</a> · June 2026</p>
+    <img class="post-hero" src="/docs/media/thumbs/stoplight.jpg" alt="A green, yellow, and red status light on a dark panel" width="1600" height="900" />
+
+    <p>You described the pipeline to an assistant. Read this export, drop the test accounts, join orders to customers, roll it up by week. It wrote the whole thing in one pass. You ran it. No stack trace, no red text, the dashboard rendered, and the numbers look about right. The only question that matters is whether "about right" and "right" are the same number, and nothing in front of you can tell the difference.</p>
+
+    <p>That gap is not a knock on the assistant. It is genuinely good at writing this code, and most days the code is fine. But "it ran" and "it is correct" are different claims, and a data pipeline is exactly the kind of program where the distance between them is invisible. The pipeline that quietly returns the wrong answer looks identical to the one that returns the right one. Same shape, same column names, a plausible total. Green the whole way down.</p>
+
+    <h2>The failures that don't crash</h2>
+
+    <p>AI-written data code rarely fails loudly. It fails the way data fails: quietly. A join fans out against a column that was not as unique as anyone assumed, and a count doubles. A filter meant to drop test accounts also drops the real rows that happened to carry a null, and the total comes up short by an amount no eye will catch. A column of long order IDs gets read as floating point, and the last digits round into a number that is still a number, just not the right one.</p>
+
+    <p>None of these throw. There is nothing to catch, because from the program's point of view nothing went wrong: it was asked to produce a table and it produced a table. Dropped rows, a double-count from a bad join, a silent type coercion — these are the three failure modes this whole project exists for, and they share one property that makes them dangerous. They all look like success. The pipeline is green. The number is wrong. Both of those are true at the same time, and only one of them is on your screen.</p>
+
+    <h2>Why your tests can't catch the one that matters</h2>
+
+    <p>The standard answer is: write tests. Add a not-null check, assert the row count is within a few percent of yesterday, validate the schema with Great Expectations or a dbt test. Do all of that. It is good practice and it catches real bugs. But look closely at what those checks have in common: every one of them guards against a failure you already thought of. You assert the count is within tolerance because a count burned you once. You check for nulls in that column because a null slipped through before. A test suite is a tidy list of your past surprises.</p>
+
+    <p>The failure that hurts is the next one. It is the coercion you did not imagine, the join you did not know would fan out, the row that this morning's refresh will drop for the first time. You cannot write an assertion against a change you have not pictured yet, and a vibe-coded pipeline is, almost by definition, full of code whose exact behavior you did not picture — that was the point of describing it instead of writing it. Testing prevents the failures you anticipated. It says nothing about continuity against the ones you did not.</p>
+
+    <table class="cmp">
+      <caption>What actually catches a change you didn't predict</caption>
+      <thead><tr><th>Approach</th><th>Catches an unanticipated change</th><th>Proves continuity end to end</th><th>Travels with the data</th><th>No server or database</th></tr></thead>
+      <tbody>
+        <tr><td>Eyeballing the dashboard</td><td>no</td><td>no</td><td>no</td><td>n/a</td></tr>
+        <tr><td>Row-count &amp; schema assertions</td><td>only the ones you wrote</td><td>no</td><td>no</td><td>varies</td></tr>
+        <tr><td>Data observability alerts</td><td>sometimes, after the fact</td><td>no</td><td>no</td><td>needs infra</td></tr>
+        <tr><td>Signed receipt</td><td>yes</td><td>yes</td><td>yes</td><td>yes</td></tr>
+      </tbody>
+    </table>
+
+    <h2>A receipt proves continuity, not correctness</h2>
+
+    <p>Here is the honest part, because skipping it would make this the kind of copy this project exists to mock. A receipt cannot tell you the export was right. If the source data is wrong before the pipeline touches it, the chain will faithfully verify wrong numbers and the light will stay green. Garbage that was exported faithfully is still garbage, and it will sit in a perfectly verified table looking like fact.</p>
+
+    <p>What a receipt proves is narrower, and it is the part you currently cannot prove at all: that the numbers on the dashboard descend, unbroken, from the export you started with, through the exact code that ran, unchanged. It catches the <em>pipeline</em> changing the data. It does not, and cannot, vouch for the data the pipeline was handed. Continuity, not correctness. Any tool that claims both is selling you a feeling, and the second you need to defend a number in a meeting, a feeling is worth nothing.</p>
+
+    <h2>How to catch it, one line per stage</h2>
+
+    <p>The mechanism is a signed receipt at every step of the pipeline, reduced to a single green, yellow, or red light. It installs with pip or npm, needs no database and no server, and the private key never has to leave your machine.</p>
+
+    <pre><code># Python 3.11+ (or: npm install tamper-signal for Node 18.17+)
+pip install tamper-signal
+receipts init                # writes keys/ and an empty receipts/</code></pre>
+
+    <p>Pin the original export in place. <code>ingest</code> records the hash of the raw bytes and the semantic hash of the data, then signs a source receipt, so from here on there is a fixed point to descend from.</p>
+
+    <pre><code>receipts ingest sample_export.xlsx --origin "May finance export, emailed Monday"</code></pre>
+
+    <p>Now wrap each transform the assistant wrote. One decorator turns any function that takes records and returns records into a signed stage. The wrapper verifies the tail of the chain <em>first</em>, refuses to run if its input does not match what the previous stage signed, runs your code, then signs and appends a new receipt. A silent change cannot pass through unattested, because every stage checks the one before it before it does anything.</p>
+
+    <pre><code>from tamper_signal import receipt_step
+
+@receipt_step(chain_dir="receipts/", key_path="keys/signing.key")
+def aggregate(rows):
+    # the join and rollup the assistant wrote, untouched
+    return rolled_up</code></pre>
+
+    <p>Then reduce the whole chain to a light. Add <code>--data</code> to also confirm the file your dashboard actually reads still matches the final receipt. The exit code <em>is</em> the light, so the same command gates a CI job: <code>0</code> green, <code>2</code> yellow, <code>1</code> red.</p>
+
+    <pre><code>receipts verify receipts/chain.json --pub keys/signing.pub --data dashboard.xlsx</code></pre>
+    <pre><code>✓ The light is green, the data is clean.
+  3 receipts · 2 transforms · source → clean → aggregate</code></pre>
+
+    <p>And the part that earns the whole thing: when something does move, the light does not just turn red, it names the link. If a refresh drops rows or the assistant's next edit fans out a join, you do not go spelunking through 48,000 rows. The receipt points at the exact stage and quantifies the drift.</p>
+
+    <pre><code>✗ CHAIN BROKEN at link 1 → 2 (transform_aggregate)</code></pre>
+
+    <p>That is the difference between a test suite and a receipt. The tests told you about the failures you had already met. The receipt tells you the moment any value stops descending from the source, including the failure you never thought to check for. It is the same standard the rest of <a href="/">Tamper Signal</a> holds, pointed at the pipeline itself: you do not take the total on faith, you keep the line items and the signatures that prove they add up.</p>
+
+    <p>If you want to watch a green chain go red and name the broken link, the <a href="/">live demo</a> runs the whole story in your browser, the <a href="/docs/quickstart.html">quickstart</a> gets you there by hand in about five minutes, and the <a href="/docs/faq.html">FAQ</a> is blunt about what it does and does not prove.</p>
+
+    <p class="post-end">The assistant can write the pipeline. A receipt is how you find out whether to believe it.</p>
+  </div>
+</article>
+
+<aside class="related" aria-label="Related reading">
+  <div class="wrap">
+    <p class="related-k">Related reading</p>
+    <ul class="related-list">
+      <li>
+        <a href="/blog/your-vibe-coded-dashboard-needs-receipts.html">Your vibe-coded dashboard needs receipts</a>
+        <p>The same argument aimed one layer up: why dashboards lie so quietly, and what it feels like when yours can finally prove itself.</p>
+      </li>
+      <li>
+        <a href="/blog/show-your-work.html">Show your work: every dashboard needs a Data tab</a>
+        <p>A chart asks you to believe; a table lets you check. Put the raw verified rows one click from the picture.</p>
+      </li>
+    </ul>
+  </div>
+</aside>
+
+<footer>
+  <div class="wrap">
+    <span>MIT licensed</span>
+    <span>·</span>
+    <a href="/blog/">blog</a>
+    <span>·</span>
+    <a href="/docs/faq.html">FAQ</a>
+    <span>·</span>
+    <a href="/privacy.html">privacy</a>
+    <span>·</span>
+    <a href="https://github.com/welovejeff/tamper-evident-verification">github.com/welovejeff/tamper-evident-verification</a>
+    <span>·</span>
+    <a href="/">tampersignal.com</a>
+  </div>
+</footer>
+
+</body>
+</html>
