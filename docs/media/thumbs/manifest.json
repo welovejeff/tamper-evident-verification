@@ -73,6 +73,34 @@
       "slot": "takedata",
       "style_id": "65e64f0a-d9a5-4fee-96fc-7acc7ab1d9be",
       "variant": "b"
+    },
+    "vibesilent-a": {
+      "image_size": {
+        "height": 800,
+        "width": 1280
+      },
+      "local_path": "docs/media/thumbs/_gen/vibesilent-a.jpg",
+      "model": "fal-ai/recraft/v3/text-to-image",
+      "prompt": "A single matte charcoal 3D pipeline segment floating in the center with small translucent data cubes flowing through it; one cube has silently slipped out through a hairline seam and is falling away unnoticed, while a small emerald-green wax-sealed receipt tag hangs from the pipe as the only glowing element, as if quietly auditing the flow. Minimalist 3D product render, near-black blue-black background, soft studio lighting, matte charcoal rubberized material, gentle soft shadows, subtle radial vignette, generous negative space, single centered hero object, one emerald-green glow as the only saturated light source with a soft bloom halo, shallow depth of field, premium and restrained, no text, no lettering, no logos, high detail, octane render.",
+      "request_id": "019ed679-02ce-7e81-8435-251dcef76893",
+      "result_url": "https://v3b.fal.media/files/b/0a9eae50/NqKT2Bp8l7hRf-1wgYp9t_image.webp",
+      "slot": "vibesilent",
+      "style_id": "65e64f0a-d9a5-4fee-96fc-7acc7ab1d9be",
+      "variant": "a"
+    },
+    "vibesilent-b": {
+      "image_size": {
+        "height": 800,
+        "width": 1280
+      },
+      "local_path": "docs/media/thumbs/_gen/vibesilent-b.jpg",
+      "model": "fal-ai/recraft/v3/text-to-image",
+      "prompt": "A single matte charcoal 3D pipeline segment floating in the center with small translucent data cubes flowing through it; one cube has silently slipped out through a hairline seam and is falling away unnoticed, while a small emerald-green wax-sealed receipt tag hangs from the pipe as the only glowing element, as if quietly auditing the flow. Minimalist 3D product render, near-black blue-black background, soft studio lighting, matte charcoal rubberized material, gentle soft shadows, subtle radial vignette, generous negative space, single centered hero object, one emerald-green glow as the only saturated light source with a soft bloom halo, shallow depth of field, premium and restrained, no text, no lettering, no logos, high detail, octane render.",
+      "request_id": "019ed679-2505-7cc2-b270-ad26051e1597",
+      "result_url": "https://v3b.fal.media/files/b/0a9eae51/IrON_lIGJGLe74uMjIL9N_image.webp",
+      "slot": "vibesilent",
+      "style_id": "65e64f0a-d9a5-4fee-96fc-7acc7ab1d9be",
+      "variant": "b"
     }
   }
 }

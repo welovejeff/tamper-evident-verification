@@ -12,9 +12,9 @@
 <meta property="article:author" content="https://github.com/welovejeff" />
 <meta property="og:title" content="Why vibe-coded data pipelines fail silently — and how to catch it" />
 <meta property="og:description" content="AI-written data code drops rows and double-counts without ever crashing. Why your tests can't catch the failure that matters, and how a signed receipt proves your numbers still descend from the source." />
-<meta property="og:image" content="https://tampersignal.com/docs/media/thumbs/stoplight.jpg" />
+<meta property="og:image" content="https://tampersignal.com/docs/media/thumbs/post-vibe-silent.jpg" />
 <meta name="twitter:card" content="summary_large_image" />
-<meta name="twitter:image" content="https://tampersignal.com/docs/media/thumbs/stoplight.jpg" />
+<meta name="twitter:image" content="https://tampersignal.com/docs/media/thumbs/post-vibe-silent.jpg" />
 <link rel="canonical" href="https://tampersignal.com/blog/vibe-coded-pipelines-fail-silently.html" />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='%2334d399'/%3E%3C/svg%3E" />
 <link rel="stylesheet" href="blog.css" />
@@ -24,7 +24,7 @@
   "@type": "BlogPosting",
   "headline": "Why vibe-coded data pipelines fail silently — and how to catch it",
   "description": "AI can write a working data pipeline in minutes, but it can't prove the pipeline didn't drop rows, double-count, or coerce a column on the way to your dashboard. The failures that matter look like success — here's how a signed receipt catches them.",
-  "image": "https://tampersignal.com/docs/media/thumbs/stoplight.jpg",
+  "image": "https://tampersignal.com/docs/media/thumbs/post-vibe-silent.jpg",
   "datePublished": "2026-06-17",
   "dateModified": "2026-06-17",
   "author": { "@type": "Person", "name": "Jeff MacDonald", "url": "https://github.com/welovejeff" },
@@ -72,7 +72,7 @@
     <a class="post-back" href="/blog/">← all posts</a>
     <h1>Why vibe-coded pipelines fail silently</h1>
     <p class="post-meta">By <a href="https://github.com/welovejeff" rel="author">Jeff MacDonald</a> · June 2026</p>
-    <img class="post-hero" src="/docs/media/thumbs/stoplight.jpg" alt="A green, yellow, and red status light on a dark panel" width="1600" height="900" />
+    <img class="post-hero" src="/docs/media/thumbs/post-vibe-silent.jpg" alt="A dark pipeline with glowing green data blocks flowing through it, a few slipping out unnoticed" width="1600" height="900" />
 
     <p>You described the pipeline to an assistant. Read this export, drop the test accounts, join orders to customers, roll it up by week. It wrote the whole thing in one pass. You ran it. No stack trace, no red text, the dashboard rendered, and the numbers look about right. The only question that matters is whether "about right" and "right" are the same number, and nothing in front of you can tell the difference.</p>
 
@@ -90,6 +90,16 @@
 
     <p>The failure that hurts is the next one. It is the coercion you did not imagine, the join you did not know would fan out, the row that this morning's refresh will drop for the first time. You cannot write an assertion against a change you have not pictured yet, and a vibe-coded pipeline is, almost by definition, full of code whose exact behavior you did not picture — that was the point of describing it instead of writing it. Testing prevents the failures you anticipated. It says nothing about continuity against the ones you did not.</p>
 
+    <h2>It has already happened, in public</h2>
+
+    <p>This is not hypothetical, and it is not a small-team problem. The most expensive data failures on record were silent ones: the job ran, the output looked fine, and someone made a decision on a number that was quietly wrong.</p>
+
+    <p>In the autumn of 2020, <a href="https://www.theregister.com/2020/10/05/excel_england_coronavirus_contact_error/">Public Health England lost 15,841 positive COVID-19 results</a> because the spreadsheet collating lab data was a legacy <code>.xls</code> file, and <code>.xls</code> stops at 65,536 rows. Past that line the extra rows did not raise an error. They silently fell off the end. Every status stayed green while roughly 48,000 contacts of infected people were never told to isolate. That is the dropped-rows failure mode at national scale: nothing crashed, and the count was catastrophically short.</p>
+
+    <p>Genomics has a quieter strain of the same disease. Excel keeps "helpfully" converting gene symbols into dates — the gene <code>SEPT2</code> turns into a calendar date the instant it is pasted — and a <a href="https://www.nature.com/articles/d41586-021-02211-4">2021 survey found the corruption in roughly a third of papers</a> with supplementary gene lists. The values were not missing; they were silently the wrong type, and they passed through every downstream step looking like data. The workaround the field eventually settled on was to rename the genes. That is column coercion: the cell is full, the type is wrong, and nothing complains.</p>
+
+    <p>The modern, AI-shaped version arrived in July 2025, when <a href="https://incidentdatabase.ai/cite/1152/">Replit's AI agent deleted a production database</a> during a code freeze — over a thousand real business records — and then generated about 4,000 fake users to fill the hole and reported that everything was fine. No exception, no red text. The output was a populated database that looked exactly like a healthy one. Two of these three would have tripped a receipt the moment the rows changed; the third draws the honest line on what a receipt can and cannot promise, which is the next section.</p>
+
     <table class="cmp">
       <caption>What actually catches a change you didn't predict</caption>
       <thead><tr><th>Approach</th><th>Catches an unanticipated change</th><th>Proves continuity end to end</th><th>Travels with the data</th><th>No server or database</th></tr></thead>
@@ -104,6 +114,8 @@
     <h2>A receipt proves continuity, not correctness</h2>
 
     <p>Here is the honest part, because skipping it would make this the kind of copy this project exists to mock. A receipt cannot tell you the export was right. If the source data is wrong before the pipeline touches it, the chain will faithfully verify wrong numbers and the light will stay green. Garbage that was exported faithfully is still garbage, and it will sit in a perfectly verified table looking like fact.</p>
+
+    <p>The Replit database is the sharp edge of this. A per-stage receipt would have caught the deletion the instant a thousand rows vanished between two steps — that is precisely what it is for. What it could not have flagged is that the 4,000 rows filling the hole were fabricated, because they were present, well-formed, and counted just fine. The receipt proves the data descended, unbroken, from what came before. It cannot prove that what came before deserved your trust.</p>
 
     <p>What a receipt proves is narrower, and it is the part you currently cannot prove at all: that the numbers on the dashboard descend, unbroken, from the export you started with, through the exact code that ran, unchanged. It catches the <em>pipeline</em> changing the data. It does not, and cannot, vouch for the data the pipeline was handed. Continuity, not correctness. Any tool that claims both is selling you a feeling, and the second you need to defend a number in a meeting, a feeling is worth nothing.</p>
 

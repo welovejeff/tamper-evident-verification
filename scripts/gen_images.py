@@ -64,6 +64,12 @@ SLOTS = {
                 "center, a small glowing emerald-green wax-sealed tag attached "
                 "to it by a short cord, as if the data is leaving with its "
                 "receipt still attached.",
+    "vibesilent": "A single matte charcoal 3D pipeline segment floating in the "
+                  "center with small translucent data cubes flowing through it; "
+                  "one cube has silently slipped out through a hairline seam and "
+                  "is falling away unnoticed, while a small emerald-green "
+                  "wax-sealed receipt tag hangs from the pipe as the only "
+                  "glowing element, as if quietly auditing the flow.",
 }
 
 SIZE = {"width": 1280, "height": 800}  # 16:10, matches the card thumb aspect
