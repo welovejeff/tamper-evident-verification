@@ -46,6 +46,34 @@
       "variant": "b",
       "vector_id": "0cdb1fbe-100b-5726-9459-7dcd9a48c7e3"
     },
+    "guiltyclean-a": {
+      "image_size": {
+        "height": 800,
+        "width": 1280
+      },
+      "local_path": "docs/media/thumbs/_gen/guiltyclean-a.jpg",
+      "model": "fal-ai/recraft/v3/text-to-image",
+      "prompt": "A short row of matte charcoal 3D wax-sealed receipt tags linked together in a chain, each connected to the next by a small hoop, every wax seal a glowing emerald-green dot, the final seal in the chain the brightest, conveying an unbroken chain of custody, centered with generous negative space. Minimalist 3D product render, near-black blue-black background, soft studio lighting, matte charcoal rubberized material, gentle soft shadows, subtle radial vignette, generous negative space, single centered hero object, one emerald-green glow as the only saturated light source with a soft bloom halo, shallow depth of field, premium and restrained, no text, no lettering, no logos, high detail, octane render.",
+      "request_id": "019ef5eb-0c27-7b70-ac07-4cf1df49e025",
+      "result_url": "https://v3b.fal.media/files/b/0a9f7c6d/3GgVDr-9AID_d3S-VuzLu_image.webp",
+      "slot": "guiltyclean",
+      "style_id": "65e64f0a-d9a5-4fee-96fc-7acc7ab1d9be",
+      "variant": "a"
+    },
+    "guiltyclean-b": {
+      "image_size": {
+        "height": 800,
+        "width": 1280
+      },
+      "local_path": "docs/media/thumbs/_gen/guiltyclean-b.jpg",
+      "model": "fal-ai/recraft/v3/text-to-image",
+      "prompt": "A short row of matte charcoal 3D wax-sealed receipt tags linked together in a chain, each connected to the next by a small hoop, every wax seal a glowing emerald-green dot, the final seal in the chain the brightest, conveying an unbroken chain of custody, centered with generous negative space. Minimalist 3D product render, near-black blue-black background, soft studio lighting, matte charcoal rubberized material, gentle soft shadows, subtle radial vignette, generous negative space, single centered hero object, one emerald-green glow as the only saturated light source with a soft bloom halo, shallow depth of field, premium and restrained, no text, no lettering, no logos, high detail, octane render.",
+      "request_id": "019ef5eb-347b-7ff2-b36a-81abd084f8e1",
+      "result_url": "https://v3b.fal.media/files/b/0a9f7c66/kdkQZ0eUvgdYnuSNIibJ5_image.webp",
+      "slot": "guiltyclean",
+      "style_id": "65e64f0a-d9a5-4fee-96fc-7acc7ab1d9be",
+      "variant": "b"
+    },
     "takedata-a": {
       "image_size": {
         "height": 800,

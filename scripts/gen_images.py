@@ -64,6 +64,11 @@ SLOTS = {
                 "center, a small glowing emerald-green wax-sealed tag attached "
                 "to it by a short cord, as if the data is leaving with its "
                 "receipt still attached.",
+    "guiltyclean": "A short row of matte charcoal 3D wax-sealed receipt tags "
+                   "linked together in a chain, each connected to the next by a "
+                   "small hoop, every wax seal a glowing emerald-green dot, the "
+                   "final seal in the chain the brightest, conveying an unbroken "
+                   "chain of custody, centered with generous negative space.",
     "vibesilent": "A single matte charcoal 3D pipeline segment floating in the "
                   "center with small translucent data cubes flowing through it; "
                   "one cube has silently slipped out through a hairline seam and "

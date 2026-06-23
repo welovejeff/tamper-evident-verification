@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<!-- Site analytics & tagging (GTM + Consent Mode v2). Config lives in /analytics.js -->
+<script src="/analytics.js"></script>
+<title>Guilty until proven clean: a chain of custody for AI-built dashboards · Tamper Signal</title>
+<meta name="description" content="Content provenance is dying in the social feed, but in your delivery pipeline you control the channel. A chain-of-custody SOP for social-media data, plus how to wire Tamper Signal into an AI vibe-coded visualization in Python or Node." />
+<meta name="author" content="Jeff MacDonald" />
+<meta property="og:type" content="article" />
+<meta property="article:author" content="https://github.com/welovejeff" />
+<meta property="og:title" content="Guilty until proven clean: a chain of custody for AI-built dashboards" />
+<meta property="og:description" content="Provenance is dying in the social feed, but in your delivery pipeline you control the channel. The SOP and the library that make AI-driven data work trustable." />
+<meta property="og:image" content="https://tampersignal.com/docs/media/thumbs/post-guilty-clean.jpg" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:image" content="https://tampersignal.com/docs/media/thumbs/post-guilty-clean.jpg" />
+<link rel="canonical" href="https://tampersignal.com/blog/guilty-until-proven-clean.html" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='%2334d399'/%3E%3C/svg%3E" />
+<link rel="stylesheet" href="blog.css" />
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Guilty until proven clean: a chain of custody for AI-built dashboards",
+  "description": "Content provenance is dying in the social feed, but in your delivery pipeline you control the channel. A chain-of-custody SOP for social-media data, plus how to wire Tamper Signal into an AI vibe-coded visualization in Python or Node.",
+  "image": "https://tampersignal.com/docs/media/thumbs/post-guilty-clean.jpg",
+  "datePublished": "2026-06-23",
+  "dateModified": "2026-06-23",
+  "author": { "@type": "Person", "name": "Jeff MacDonald", "url": "https://github.com/welovejeff" },
+  "publisher": {
+    "@type": "Organization",
+    "name": "Tamper Signal",
+    "logo": { "@type": "ImageObject", "url": "https://tampersignal.com/docs/media/og-card.png" }
+  },
+  "mainEntityOfPage": { "@type": "WebPage", "@id": "https://tampersignal.com/blog/guilty-until-proven-clean.html" }
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://tampersignal.com/" },
+    { "@type": "ListItem", "position": 2, "name": "Blog", "item": "https://tampersignal.com/blog/" },
+    { "@type": "ListItem", "position": 3, "name": "Guilty until proven clean" }
+  ]
+}
+</script>
+</head>
+<body>
+
+<div class="top">
+  <div class="wrap">
+    <a class="logo-stacked" href="/" aria-label="Tamper Signal — home">
+      <span class="ls-rail" aria-hidden="true"><i class="r"></i><i class="y"></i><i class="g"></i></span>
+      <span class="ls-words">TAMPER<br>SIGNAL</span>
+    </a>
+    <nav>
+      <a href="/#demo">live demo</a>
+      <a href="/#how">how it works</a>
+      <a href="/docs/">docs</a>
+      <a href="/blog/">blog</a>
+      <a href="/#explore">explore</a>
+      <a href="https://github.com/welovejeff/tamper-evident-verification">github</a>
+    </nav>
+  </div>
+</div>
+
+<article class="post">
+  <div class="wrap">
+    <a class="post-back" href="/blog/">← all posts</a>
+    <h1>Guilty until proven clean: a chain of custody for AI-built dashboards</h1>
+    <p class="post-meta">By <a href="https://github.com/welovejeff" rel="author">Jeff MacDonald</a> · June 2026</p>
+    <img class="post-hero" src="/docs/media/thumbs/post-guilty-clean.jpg" alt="A row of wax-sealed receipt discs threaded onto a chain on a dark surface, each seal glowing emerald green, an unbroken chain of custody" width="1600" height="900" />
+
+    <p>A photographer posts a real image and gets accused of using AI. They didn't do anything wrong. The tools just got good enough that "that's AI" became the default suspicion, and now the honest person has to prove a negative.</p>
+
+    <p>If you ship data work, that is already your problem. You point an AI assistant at a month of TikTok exports, describe the dashboard you want, and have it running by the afternoon. It is genuinely great work. Then your client asks the only question that matters: "how do I know these numbers are real?" And you realize you cannot actually answer. The pipeline that built the dashboard is a stack of AI-written transforms nobody re-checked against 48,000 rows.</p>
+
+    <p>That is the trust gap that will throttle AI-driven workflows. Not whether AI can build the thing, it obviously can, but whether anyone downstream can believe what it built. Every AI-built deliverable is now guilty until proven clean.</p>
+
+    <h2>Why provenance works here when it fails everywhere else</h2>
+
+    <p>The whole industry is trying to solve content provenance right now, and on the open internet it is losing. Content Credentials get stripped from images the instant they hit Instagram or X, because the platform re-encodes every upload. Invisible watermarks like SynthID are being defeated by free, open-source tools. The reason is simple: out in the feed, nobody controls the channel the data travels through.</p>
+
+    <p>A client deliverable is the mirror image of that problem. You control every hop. The export comes from the platform, lands in a file, passes through transforms you wrote, and renders in a dashboard you deploy. Each step is a place you can seal. Provenance that is hopeless in the wild is completely achievable inside a delivery pipeline, because the channel is yours end to end.</p>
+
+    <p>What makes the channel trustable is a chain of custody: a record at every hop of what came in, what code touched it, and what came out, signed so it cannot be quietly edited after the fact. That is exactly what Tamper Signal produces. And to be clear about what it does and does not do: this proves continuity, not correctness. It can't tell you the data is right, but it can prove nobody changed it between the source and the chart.</p>
+
+    <h2>The SOP: chain of custody for social-media data</h2>
+
+    <p>Adopt this as a team standard for any deliverable built on downloaded platform data. The point is that custody is sealed at intake and never broken, so the producer can hand a client proof instead of a promise. The commands below use the Python <code>receipts</code> CLI; every step has a <code>tamper-signal</code> equivalent in Node (anchoring is Python-only today), and the chains are interchangeable.</p>
+
+    <p><strong>1. Acquire at the source, and only there.</strong> Download the export directly from the platform (TikTok Analytics, Meta Business Suite, the X export, and so on). Do not hand-edit the file. The moment someone opens the xlsx and "just fixes one cell," custody is broken before it started.</p>
+
+    <p><strong>2. Seal it at intake.</strong> Ingest the untouched export immediately. The origin string is the custody label, so write it for a human who will read it during a dispute:</p>
+
+    <pre><code>receipts init
+receipts ingest tiktok_may2026.xlsx \
+  --origin "TikTok Analytics, @brandhandle, 2026-05-01 to 2026-05-31, downloaded 2026-06-01 by J. Rivera" \
+  --key keys/signing.key --out receipts/</code></pre>
+
+    <p>The source export is now the first link in the chain. Everything downstream has to descend from it.</p>
+
+    <p><strong>3. Transform only through wrapped stages.</strong> Every cleaning and aggregation step signs a receipt. No off-chain edits, ever. The wrapper verifies the existing chain first and refuses to run on data that does not descend from the previous stage's output, so an out-of-band edit cannot slip in unnoticed. If a step genuinely cannot fit the records-in, records-out contract, leave it unwrapped and label that stage as not attested. Never fabricate a receipt for work the chain did not observe.</p>
+
+    <p><strong>4. For recurring reports, declare what "normal movement" means.</strong> A weekly refresh legitimately changes the numbers. Declare a tolerance at intake so settled periods are locked while recent ones can still settle:</p>
+
+    <pre><code>receipts ingest weekly.csv --origin "weekly refresh" \
+  --band 5% --settle 72h --bucket-column day --key keys/signing.key --out receipts/</code></pre>
+
+    <p>The declaration is signed into the source, so nobody can quietly loosen the band after the fact.</p>
+
+    <p><strong>5. Export the attested table.</strong> A dashboard built on verified data should be able to show that data, not just charts on top of it.</p>
+
+    <pre><code>receipts export --chain receipts/chain.json --data dashboard_data.xlsx</code></pre>
+
+    <p>This writes <code>receipts/table.json</code> and refuses unless the data matches the final receipt, so the Data tab only ever shows attested rows.</p>
+
+    <p><strong>6. Verify before anything ships.</strong> This is the gate. Green ships, yellow gets human eyes, red does not leave the building.</p>
+
+    <pre><code>receipts verify receipts/chain.json --pub keys/signing.pub --data dashboard_data.xlsx</code></pre>
+
+    <div class="verdict"><span class="lt g" aria-hidden="true"></span><p><strong>The light is green, the data is clean.</strong> Every link verifies, every signature checks. Ship it.</p></div>
+    <div class="verdict"><span class="lt y" aria-hidden="true"></span><p><strong>The light is yellow, a human should look.</strong> A coverage gap, an unrecognized key, or <a href="/blog/your-data-is-supposed-to-move.html">declared drift</a>. Resolve before delivery.</p></div>
+    <div class="verdict"><span class="lt r" aria-hidden="true"></span><p><strong>The light is red, the chain is broken.</strong> It names the exact link and the totals delta, for example <code>row_count 48212 -&gt; 48190 (-22)</code>. Fix the pipeline, do not ship.</p></div>
+
+    <p><strong>7. Anchor when a client or auditor is on the other end.</strong> The local key proves the chain was not edited, but whoever holds the key could re-sign a fresh chain. For client-facing work, anchor the chain in the public Sigstore transparency log so existence-at-a-time is provable in a dispute:</p>
+
+    <pre><code>receipts anchor
+receipts verify receipts/chain.json --anchor</code></pre>
+
+    <p><strong>8. Deliver with the light in the dashboard.</strong> Mount the signal so the client's own browser re-verifies the whole chain on page load, with no trust in you required. <strong>9. Keep the keys straight:</strong> the private key never leaves the producer's machine or CI secret store and is always gitignored; the public key and the receipts travel with the deliverable. The client verifies against the public key and never needs yours.</p>
+
+    <h2>Implementing it in a vibe-coded visualization</h2>
+
+    <p>This is the part that makes the SOP real instead of aspirational, and it is deliberately light. Two phases: wire the four touchpoints in development, then make verification a build gate in deployment. Pick your stack, the chains are interchangeable.</p>
+
+    <div class="codeswitch" data-lang="py">
+      <div class="codeswitch-tabs" role="tablist" aria-label="Implementation language">
+        <button class="cs-tab" type="button" role="tab" data-lang="py" aria-selected="true">Python</button>
+        <button class="cs-tab" type="button" role="tab" data-lang="js" aria-selected="false">Node / JS</button>
+      </div>
+
+      <h3 class="cs-h">In development</h3>
+
+      <p>Install, scaffold, and wire the four touchpoints into the pipeline your AI assistant already wrote.</p>
+
+      <div class="lang-py">
+        <pre><code>pip install tamper-signal
+receipts init                 # keys, gitignore safety, receipts/</code></pre>
+      </div>
+      <div class="lang-js">
+        <pre><code>npm install tamper-signal
+npx tamper-signal keygen --out keys/   # receipts/ is created on first ingest</code></pre>
+        <p>Note: the Node reader takes <code>.csv / .tsv / .json / .ndjson</code>, not <code>.xlsx</code>. The social export usually arrives as xlsx, so convert it to CSV first, or ingest it once with the Python CLI; the resulting chain verifies interchangeably on the JS side.</p>
+      </div>
+
+      <p><strong>Ingest the source</strong> to seal custody at intake.</p>
+
+      <div class="lang-py">
+        <pre><code>receipts ingest tiktok_may2026.xlsx \
+  --origin "TikTok export, @brandhandle, May 2026" \
+  --key keys/signing.key --out receipts/</code></pre>
+      </div>
+      <div class="lang-js">
+        <pre><code>npx tamper-signal ingest tiktok_may2026.csv \
+  --origin "TikTok export, @brandhandle, May 2026" --out receipts/</code></pre>
+      </div>
+
+      <p><strong>Wrap each transform</strong> so every stage signs a receipt. The wrapper verifies the chain tail first and refuses to extend a broken chain.</p>
+
+      <div class="lang-py">
+        <pre><code>from tamper_signal import receipt_step
+
+@receipt_step(chain_dir="receipts/", key_path="keys/signing.key")
+def drop_blank_campaigns(records):
+    return [r for r in records if r.get("campaign_name")]</code></pre>
+      </div>
+      <div class="lang-js">
+        <pre><code>import { rebuildChain } from "tamper-signal";
+
+const normalize = (records) =&gt; records.map(toNumbers);
+const dropBlankCampaign = (records) =&gt;
+  records.filter((r) =&gt; r.campaign_name);
+
+// Re-ingests the source (resetting the chain), then runs the stages in order.
+await rebuildChain({
+  file: "tiktok_may2026.csv",
+  stages: [normalize, dropBlankCampaign],
+  chainDir: "receipts/",
+  keyPath: "keys/signing.key",
+});</code></pre>
+      </div>
+
+      <p><strong>Export the attested table</strong> so the Data tab shows the verified rows the charts came from.</p>
+
+      <div class="lang-py">
+        <pre><code>receipts export --chain receipts/chain.json --data dashboard_data.xlsx</code></pre>
+      </div>
+      <div class="lang-js">
+        <pre><code>npx tamper-signal export receipts/chain.json --data dashboard_data.csv</code></pre>
+      </div>
+
+      <p><strong>Mount the light</strong> in the dashboard header. The browser surface is the same package on both stacks; serve the <code>receipts/</code> directory statically and the badge re-verifies in the viewer's browser, zero config, because the chain embeds its own public key.</p>
+
+      <pre><code>&lt;script type="module"&gt;
+  import { mountTamperSignal } from "/static/light.js";
+  mountTamperSignal(document.querySelector("header"), "/receipts/chain.json");
+&lt;/script&gt;</code></pre>
+
+      <p>React hosts can use <code>&lt;TamperSignal chain="/receipts/chain.json" /&gt;</code> from <code>tamper-signal/react</code>; any framework or plain HTML can use the <code>&lt;tamper-signal chain="/receipts/chain.json"&gt;&lt;/tamper-signal&gt;</code> element instead. When you think you are done, prove it:</p>
+
+      <div class="lang-py">
+        <pre><code>receipts doctor   # checks Python version, key is gitignored, chain verifies</code></pre>
+      </div>
+      <div class="lang-js">
+        <pre><code>npx tamper-signal verify receipts/chain.json   # exit 0 = healthy; confirm the key is gitignored yourself</code></pre>
+      </div>
+
+      <p>If you are handing this to a coding agent, you do not have to wire it by hand. Point the agent at the repo and say "add tamper signal." The <code>AGENTS.md</code> runbook walks it through install, keygen, ingest, wrapping transforms, mounting the signal, and verifying, in order, every step checkable.</p>
+
+      <h3 class="cs-h">In deployment</h3>
+
+      <p>Verification becomes a build gate so a broken chain can never reach production. Sign in CI with the private key as a repo secret (<code>TAMPER_SIGNAL_KEY</code>, the PEM contents) so no key file touches disk. Red (exit 1) fails the build; yellow (exit 2) surfaces a warning without blocking.</p>
+
+      <div class="lang-py">
+        <pre><code># .github/workflows/tamper-signal.yml
+name: tamper-signal
+on: [push]
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install tamper-signal
+      - run: receipts verify receipts/chain.json --json</code></pre>
+      </div>
+      <div class="lang-js">
+        <pre><code># .github/workflows/tamper-signal.yml
+name: tamper-signal
+on: [push]
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "20" }
+      - run: npm ci
+      - run: npx tamper-signal verify receipts/chain.json --json</code></pre>
+      </div>
+
+      <p>Anchoring runs non-interactively in GitHub Actions using its ambient OIDC credential, so every deployed chain can also be publicly timestamped (Python CLI today). That is the whole adoption cost: one wrapper per transform, one verify in CI, one tag in the header.</p>
+    </div>
+
+    <p>In return, the deliverable carries its own proof. The client clicks the light and checks for themselves, and the analyst stops having to prove a negative. The accusation that broke the photographer, "how do I know this is real," gets a one-word answer: green.</p>
+
+    <p class="post-end">Trust receipts, not vibes.</p>
+  </div>
+</article>
+
+<aside class="related" aria-label="Related reading">
+  <div class="wrap">
+    <p class="related-k">Related reading</p>
+    <ul class="related-list">
+      <li>
+        <a href="/blog/your-vibe-coded-dashboard-needs-receipts.html">Your vibe-coded dashboard needs receipts</a>
+        <p>The mechanism in full: how a signed receipt at every step catches the silent error your tests never imagined.</p>
+      </li>
+      <li>
+        <a href="/blog/show-your-work.html">Show your work</a>
+        <p>A chart asks you to believe; a table lets you check. Why every delivered dashboard needs a Data tab.</p>
+      </li>
+    </ul>
+  </div>
+</aside>
+
+<footer>
+  <div class="wrap">
+    <span>MIT licensed</span>
+    <span>·</span>
+    <a href="/blog/">blog</a>
+    <span>·</span>
+    <a href="/docs/faq.html">FAQ</a>
+    <span>·</span>
+    <a href="/privacy.html">privacy</a>
+    <span>·</span>
+    <a href="https://github.com/welovejeff/tamper-evident-verification">github.com/welovejeff/tamper-evident-verification</a>
+    <span>·</span>
+    <a href="/">tampersignal.com</a>
+  </div>
+</footer>
+
+<script>
+  // Language tab switcher: one toggle drives every code block in the section.
+  document.querySelectorAll(".codeswitch").forEach(function (box) {
+    var tabs = box.querySelectorAll(".cs-tab");
+    tabs.forEach(function (tab) {
+      tab.addEventListener("click", function () {
+        box.setAttribute("data-lang", tab.getAttribute("data-lang"));
+        tabs.forEach(function (t) {
+          t.setAttribute("aria-selected", String(t === tab));
+        });
+      });
+    });
+  });
+</script>
+
+</body>
+</html>
