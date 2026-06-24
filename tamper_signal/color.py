@@ -77,8 +77,9 @@ def light(verdict: str, stream: TextIO | None = None) -> str:
     return _paint("●", _VERDICT_COLOR.get(verdict, ""), stream)
 
 
-# Fixed first-run banner. Byte-identical to node/color.js. Shown only on a
-# color-capable terminal, so piped/non-TTY output is unchanged.
+# Fixed first-run banner for `receipts init`. Python-only: the Node CLI has no
+# init/demo command. Shown only on a color-capable terminal, so piped/non-TTY
+# output is unchanged.
 _BANNER = (
     "┌─ Tamper Signal ──────────────┐\n"
     "│ signed receipts · green light │\n"
