@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tamper-signal"
-version = "1.7.0"
+version = "1.7.1"
 description = "Tamper Signal: signed receipts at every pipeline stage, with verifiable continuity and the exact broken link when there isn't."
 readme = "README.md"
 license = {text = "MIT"}

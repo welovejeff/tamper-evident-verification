@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Ideation: a 1.7.1 release for Tamper Signal</title>
+<style>
+  :root {
+    --bg: #0b0f14; --panel: #11161d; --panel2: #141b24; --border: #1f2937;
+    --chrome: #161d26; --text: #e5e7eb; --dim: #8b98a5; --faint: #3d4854; --row: #18202b;
+    --green: #34d399; --red: #f87171; --amber: #fbbf24; --cyan: #67e8f9;
+    --mono: ui-monospace, 'SF Mono', Menlo, Monaco, 'Cascadia Code', monospace;
+    --sans: -apple-system, 'SF Pro Display', 'Segoe UI', Roboto, Helvetica, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); line-height: 1.6; font-size: 15.5px; }
+  .page { max-width: 940px; margin: 0 auto; padding: 0 22px 80px; }
+  a { color: var(--cyan); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code { font-family: var(--mono); font-size: 0.88em; background: var(--panel); border: 1px solid var(--border); border-radius: 5px; padding: 1px 6px; color: var(--dim); }
+  p { max-width: 72ch; }
+
+  header.doc { padding: 56px 0 22px; border-bottom: 1px solid var(--border); }
+  .eyebrow { font: 11px var(--mono); color: var(--faint); letter-spacing: 2px; text-transform: uppercase; margin: 0 0 14px; }
+  h1 { font-size: clamp(28px, 5vw, 42px); letter-spacing: -1px; line-height: 1.1; margin: 0 0 16px; }
+  .lede { color: var(--dim); font-size: 18px; max-width: 64ch; margin: 0 0 22px; }
+  .meta { display: flex; flex-wrap: wrap; gap: 8px 10px; font: 12px var(--mono); }
+  .meta .m { border: 1px solid var(--border); border-radius: 999px; padding: 3px 11px; color: var(--dim); background: var(--panel); }
+  .meta .m b { color: var(--text); font-weight: 600; }
+
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; margin: 26px 0 0; }
+  .stat { border: 1px solid var(--border); border-radius: 12px; background: var(--panel); padding: 14px 16px; }
+  .stat .n { font: 22px/1 var(--mono); color: var(--text); }
+  .stat .l { font-size: 12px; color: var(--dim); margin-top: 6px; }
+
+  h2.section { font-size: 13px; font-family: var(--mono); letter-spacing: 2px; text-transform: uppercase; color: var(--faint); margin: 52px 0 18px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+
+  .ground p { margin: 0 0 14px; color: #cdd5dd; }
+  .ground h3 { font-size: 15px; margin: 22px 0 8px; color: var(--text); }
+  .ground ul { margin: 0 0 14px; padding-left: 20px; color: #cdd5dd; max-width: 76ch; }
+  .ground li { margin: 0 0 7px; }
+  .axes-note { font: 13px var(--mono); color: var(--dim); border: 1px dashed var(--faint); border-radius: 10px; padding: 12px 16px; background: rgba(103,232,249,0.03); }
+
+  .jump { list-style: none; margin: 0 0 26px; padding: 16px 18px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); }
+  .jump li { display: flex; gap: 12px; align-items: baseline; padding: 5px 0; font-size: 14.5px; }
+  .jump .rk { font: 12px var(--mono); color: var(--faint); width: 18px; flex: none; }
+  .jump a { color: var(--text); }
+  .jump .tag { margin-left: auto; font: 11px var(--mono); color: var(--dim); white-space: nowrap; }
+  .tier-row { font: 11px var(--mono); letter-spacing: 1.5px; text-transform: uppercase; color: var(--faint); padding: 14px 0 2px; border-top: 1px dashed var(--faint); margin-top: 6px; }
+  .tier-row:first-child { border-top: none; margin-top: 0; padding-top: 4px; }
+
+  article.idea { border: 1px solid var(--border); border-radius: 16px; background: var(--panel); padding: 24px 24px 22px; margin: 0 0 20px; scroll-margin-top: 20px; }
+  article.idea.lead { border-color: rgba(52,211,153,0.4); box-shadow: 0 0 0 1px rgba(52,211,153,0.08); }
+  article.idea .top { display: flex; gap: 14px; align-items: baseline; flex-wrap: wrap; }
+  .rank-chip { font: 12px var(--mono); color: var(--green); border: 1px solid rgba(52,211,153,0.3); background: rgba(52,211,153,0.06); border-radius: 8px; padding: 3px 9px; flex: none; }
+  article.idea h3 { font-size: 21px; letter-spacing: -0.3px; margin: 0; line-height: 1.2; }
+  .lead-flag { font: 11px var(--mono); letter-spacing: 1px; text-transform: uppercase; color: var(--green); border: 1px solid rgba(52,211,153,0.3); background: rgba(52,211,153,0.06); border-radius: 999px; padding: 3px 10px; }
+  .idea .pills { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 0; }
+  .pill { font: 11px var(--mono); letter-spacing: 0.4px; border-radius: 999px; padding: 3px 10px; border: 1px solid var(--border); color: var(--dim); background: var(--panel2); }
+  .pill.conf-hi { color: var(--green); border-color: rgba(52,211,153,0.32); }
+  .pill.conf-md { color: var(--amber); border-color: rgba(251,191,36,0.32); }
+  .pill.cx { color: var(--cyan); border-color: rgba(103,232,249,0.28); }
+  .pill.basis { color: #c4b5fd; border-color: rgba(196,181,253,0.3); }
+  .idea .field { margin: 16px 0 0; }
+  .idea .field .lab { font: 11px var(--mono); letter-spacing: 1px; text-transform: uppercase; color: var(--faint); display: block; margin: 0 0 5px; }
+  .idea .field p { margin: 0 0 10px; color: #cdd5dd; }
+  .idea .field p:last-child { margin: 0; }
+  .idea .field.basis p { color: var(--text); }
+  .idea .basis .btag { font-family: var(--mono); font-size: 0.85em; color: #c4b5fd; }
+  .idea .field.down p { color: var(--dim); }
+  figure.viz { margin: 18px 0 4px; border: 1px solid var(--border); border-radius: 12px; background: var(--chrome); padding: 16px; overflow-x: auto; }
+  figure.viz svg { display: block; margin: 0 auto; max-width: 100%; height: auto; }
+  figure.viz figcaption { font: 12px var(--mono); color: var(--faint); margin-top: 10px; text-align: center; }
+
+  .tbl-scroll { overflow-x: auto; }
+  table.rej { border-collapse: collapse; width: 100%; font-size: 14px; }
+  table.rej th, table.rej td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--border); }
+  table.rej th { font: 11px var(--mono); color: var(--faint); letter-spacing: 1px; text-transform: uppercase; }
+  table.rej td { color: #cdd5dd; }
+  table.rej td.idea-c { color: var(--text); white-space: nowrap; }
+  table.rej tr:hover td { background: rgba(255,255,255,0.015); }
+
+  footer.composition-signal { margin-top: 48px; padding-top: 20px; border-top: 1px solid var(--border); font: 12px var(--mono); color: var(--faint); }
+  footer.composition-signal code { background: none; border: none; padding: 0; color: var(--dim); }
+</style>
+</head>
+<body>
+<div class="page">
+
+<header class="doc">
+  <p class="eyebrow">Ideation &middot; Point release</p>
+  <h1>What belongs in Tamper Signal 1.7.1</h1>
+  <p class="lede">1.7.0 shipped data portability. A 1.7.1 is the patch that follows: regression guards for the two bugs that recently reached users, honesty fixes on silent behavior, agent-native parity, and a few named deferrals small enough to land without a spec bump.</p>
+  <div class="meta">
+    <span class="m"><b>Date</b> 2026-06-23</span>
+    <span class="m"><b>Topic</b> release-1.7.1</span>
+    <span class="m"><b>Focus</b> fixes, polish, small capabilities</span>
+    <span class="m"><b>Mode</b> repo-grounded</span>
+    <span class="m"><b>Base</b> v1.7.0</span>
+  </div>
+  <div class="stats">
+    <div class="stat"><div class="n">30</div><div class="l">raw candidates</div></div>
+    <div class="stat"><div class="n">12</div><div class="l">survivors</div></div>
+    <div class="stat"><div class="n">5</div><div class="l">topic axes</div></div>
+    <div class="stat"><div class="n">2</div><div class="l">recent user-facing bugs</div></div>
+  </div>
+</header>
+
+<section class="ground">
+  <h2 class="section">Codebase Context</h2>
+  <p>Tamper Signal (v1.7.0) signs a receipt on every stage of a data pipeline; <code>receipts verify</code> collapses the chain to a traffic light: green intact, yellow asks for eyes, red broken at a named link with a totals delta. Two stacks produce interchangeable chains: Python (<code>tamper-signal</code> on PyPI) and Node (<code>tamper-signal</code> on npm), kept byte-identical by golden vectors. The honest claim is fixed: it proves <em>continuity, not correctness</em>. The CLI surface is mature: <code>keygen / ingest / verify / init / doctor / export / diff / log / anchor / serve / demo</code>. There are zero open GitHub issues and the codebase carries almost no TODO/FIXME debt.</p>
+  <p>The signal for a point release does not come from a backlog. It comes from three places: the two bugs that escaped the green suite and reached users, the items the maintainer explicitly deferred in the CHANGELOG, and the rough edges of what 1.7.0 just shipped.</p>
+  <h3>The two bugs that motivate the top tier</h3>
+  <ul>
+    <li><b>Browser ZIP writer drift</b> (<code>docs/solutions/.../browser-zip-writer-drift-no-parity-test.md</code>): the inline ZIP writer in <code>badge/table.js</code> drifted from the canonical <code>node/zip.js</code> and shipped a malformed <code>0000-00-00</code> bundle timestamp. <code>npm test</code> stayed green because the inline copy has no test. The fix added a byte-parity test; the lesson is that <em>other</em> hand-duplicated browser logic still has none.</li>
+    <li><b>Sigstore OIDC issuer mismatch</b> (<code>docs/solutions/.../sigstore-federated-oidc-issuer-certificate-mismatch.md</code>): every browser-login anchor failed its own verify, because the stored issuer was the token's and the verifier compares the certificate's. 83 Python + 28 Node tests passed throughout; the test boundary was monkeypatched, so no test exercised a real Fulcio cert. Only a live staging smoke test caught it.</li>
+  </ul>
+  <p>Both are already fixed. Both reveal the same systemic gap: the suite is green on paths it never exercises. That gap, not the individual bugs, is the strongest thing a 1.7.1 can close.</p>
+
+  <h2 class="section">Topic Axes</h2>
+  <div class="axes-note">
+    Decomposed into four orthogonal surfaces. Each survivor falls on one.<br>
+    <b>A &middot; Test &amp; correctness hardening</b> &mdash; dual-tree parity, monkeypatch blind spots, smoke + release gates.<br>
+    <b>B &middot; Deferred small capabilities</b> &mdash; the CHANGELOG's own "deferred to a future release" list.<br>
+    <b>C &middot; 1.7.0 surface polish</b> &mdash; bundle / export / ingest rough edges a real recipient hits.<br>
+    <b>D &middot; CLI &amp; agent-native ergonomics</b> &mdash; <code>--json</code> parity, exit-code contract, blaming error messages.<br>
+    <b>E &middot; Human-facing presentation</b> &mdash; color, hierarchy, and delight in the terminal (added on request, 2026-06-23).
+  </div>
+  <p style="color:var(--dim);font-size:14px;">Prior art: <code>docs/ideation/2026-06-11-open-ideation.html</code> was the open roadmap sweep; its lead bets (continuity, data portability, Sigstore) have since shipped as 1.5&ndash;1.7.0. Several items it cut as "too tactical for a step-function sweep" or "ship opportunistically" are exactly point-release sized, and resurface below as concrete, grounded candidates.</p>
+</section>
+
+<section>
+  <h2 class="section">Ranked Ideas</h2>
+  <ul class="jump">
+    <li class="tier-row">Tier 1 &middot; Regression prevention (the two shipped bugs)</li>
+    <li><span class="rk">1</span><a href="#i1">Byte-parity tests for the hand-duplicated browser logic</a><span class="tag">axis A</span></li>
+    <li><span class="rk">2</span><a href="#i2">Close the test blind spots + add the two release gates</a><span class="tag">axis A</span></li>
+    <li class="tier-row">Tier 2 &middot; Correctness &amp; honesty fixes</li>
+    <li><span class="rk">3</span><a href="#i3">Stop mis-blaming <code>ingest --as period</code> with no chain</a><span class="tag">axis D</span></li>
+    <li><span class="rk">4</span><a href="#i4">Make silent numeric normalization visible</a><span class="tag">axis B/C/D</span></li>
+    <li><span class="rk">5</span><a href="#i5"><code>verify</code> names a transforms-only chain</a><span class="tag">axis D</span></li>
+    <li class="tier-row">Tier 3 &middot; Agent-native &amp; contract parity</li>
+    <li><span class="rk">6</span><a href="#i6">Finish the <code>--json</code> surface: ingest, export, doctor</a><span class="tag">axis D</span></li>
+    <li><span class="rk">7</span><a href="#i7">Unify and document the exit-code contract</a><span class="tag">axis D</span></li>
+    <li class="tier-row">Tier 4 &middot; Small new capabilities (named deferrals)</li>
+    <li><span class="rk">8</span><a href="#i8"><code>receipts suggest-bands</code> read-only advisor</a><span class="tag">axis B</span></li>
+    <li><span class="rk">9</span><a href="#i9"><code>--history-keep N</code> retention pruning</a><span class="tag">axis B</span></li>
+    <li class="tier-row">Tier 5 &middot; 1.7.0 bundle polish</li>
+    <li><span class="rk">10</span><a href="#i10">Bundle recipient on-ramp: filename, dual-stack, ingest path</a><span class="tag">axis C</span></li>
+    <li><span class="rk">11</span><a href="#i11">Bundle robustness: clobber guard + readable browser errors</a><span class="tag">axis C</span></li>
+    <li class="tier-row">Tier 6 &middot; Human-facing polish (user-requested)</li>
+    <li><span class="rk">12</span><a href="#i12">A delightful, colorful CLI &mdash; the traffic light made literal</a><span class="tag">axis E</span></li>
+  </ul>
+
+  <!-- 1 -->
+  <article class="idea lead" id="i1">
+    <div class="top">
+      <span class="rank-chip">01</span>
+      <h3>Byte-parity tests for the hand-duplicated browser logic</h3>
+      <span class="lead-flag">Lead</span>
+    </div>
+    <div class="pills">
+      <span class="pill conf-hi">confidence: high</span>
+      <span class="pill cx">complexity: low&ndash;med</span>
+      <span class="pill basis">basis: badge/badge.js</span>
+    </div>
+    <figure class="viz">
+      <svg viewBox="0 0 660 200" role="img" aria-label="Three hand-written copies of shared logic; only the node copy is tested">
+        <style>
+          .lbl{font:12px ui-monospace,monospace;fill:#cdd5dd}.sub{font:10px ui-monospace,monospace;fill:#8b98a5}
+          .box{fill:#141b24;stroke:#1f2937;rx:8}.ok{stroke:#34d399}.bad{stroke:#f87171}
+          .t{font:11px ui-monospace,monospace}
+        </style>
+        <text x="20" y="26" class="lbl">shared logic, three hand-written copies (browser can't import node/)</text>
+        <rect class="box ok" x="20" y="46" width="195" height="74" rx="8"/>
+        <text x="34" y="72" class="lbl">node/ &middot; totals.js, receipts.js</text>
+        <text x="34" y="92" class="sub">canonical reference</text>
+        <text x="34" y="108" class="t" fill="#34d399">&#10003; node --test covers it</text>
+        <rect class="box bad" x="232" y="46" width="195" height="74" rx="8"/>
+        <text x="246" y="72" class="lbl">badge/badge.js (inline)</text>
+        <text x="246" y="92" class="sub">totalsDelta, accessors, key-norm</text>
+        <text x="246" y="108" class="t" fill="#f87171">&#10007; runs only in browser DOM</text>
+        <rect class="box bad" x="444" y="46" width="195" height="74" rx="8"/>
+        <text x="458" y="72" class="lbl">static/*.js (wheel copy)</text>
+        <text x="458" y="92" class="sub">cp of badge/*.js</text>
+        <text x="458" y="108" class="t" fill="#fbbf24">&#9888; sync-guarded, not logic-tested</text>
+        <text x="20" y="158" class="sub">node/receipts.js:262 literally says "update all three in lockstep" &mdash; a human process, not an automated guard.</text>
+        <text x="20" y="178" class="sub">The zip-date bug lived in exactly this gap. A data:-URL parity test (like the new zip one) pins each copy with no DOM.</text>
+      </svg>
+      <figcaption>One copy tested, two trusted to a code comment. The drift axis no test watches.</figcaption>
+    </figure>
+    <div class="field">
+      <span class="lab">What it is</span>
+      <p>Extend the byte-parity discipline the zip fix introduced to the <em>other</em> logic hand-duplicated into <code>badge/badge.js</code>: <code>totalsDelta</code> (the badge copy lacks the Decimal arithmetic of <code>node/totals.js</code>), the receipt-field accessors (<code>outputHashOf/inputHashOf/totalsOf/stageNameOf</code>, hardened in <code>node/receipts.js</code> but bare in the badge), and the three-way trusted-key normalization shared by Python, node, and the badge. Each gets a <code>node --test</code> that slices the inline block out of the source, imports it via a <code>data:</code> URL, and asserts byte-identical output to the canonical copy for degenerate inputs.</p>
+    </div>
+    <div class="field basis">
+      <span class="lab">Basis</span>
+      <p><span class="btag">badge/badge.js:65&ndash;104</span> (accessors + totalsDelta), <span class="btag">badge/badge.js:198</span> (key-norm), <span class="btag">node/receipts.js:262</span> ("update all three in lockstep" comment), pattern from <span class="btag">node/test/zip.test.js</span>.</p>
+    </div>
+    <div class="field">
+      <span class="lab">Why it leads 1.7.1</span>
+      <p>This is the exact prevention the zip-drift learning doc asks for, generalized: "any logic hand-duplicated across the node/ and browser trees needs a byte-parity test." The comment admitting the duplication is unfenced is still load-bearing. This is the cheapest insurance against the next bundle that ships wrong to a stranger.</p>
+    </div>
+    <div class="field down">
+      <span class="lab">Adversarial note</span>
+      <p>Risk is doing this once and calling the axis closed. The deliverable is a <em>reusable</em> harness (source-slice + <code>data:</code> import) so the fourth copy added later is cheap to pin, plus a one-line rule in AGENTS.md.</p>
+    </div>
+  </article>
+
+  <!-- 2 -->
+  <article class="idea" id="i2">
+    <div class="top"><span class="rank-chip">02</span><h3>Close the test blind spots, add the two release gates</h3></div>
+    <div class="pills">
+      <span class="pill conf-hi">confidence: high</span>
+      <span class="pill cx">complexity: med</span>
+      <span class="pill basis">basis: anchor.py / release.yml</span>
+    </div>
+    <div class="field">
+      <span class="lab">What it is</span>
+      <p>A small bundle of targeted guards for the paths the green suite never exercised. (a) Unit-test <code>_certificate_issuer</code>'s fallback directly: an unknown Fulcio OID must return <code>None</code>, not a wrong value, and the V2 extension must win over the legacy one when both are present. (b) Add the reverse interop test &mdash; a node-signed chain verified by the Python CLI end to end, not just Python&rarr;node plus golden vectors. (c) A loader-enumeration guard that fails the suite when a new <code>load_*</code> is added to <code>canonical.py</code> without joining the cross-format identical-hash test. (d) A named static-sync step in <code>release.yml</code> before publish, so a missed <code>cp</code> during a hotfix fails loudly at the gate. (e) A documented (not-CI) <code>scripts/smoke_anchor_staging.sh</code> for the interactive anchor round-trip.</p>
+    </div>
+    <div class="field basis">
+      <span class="lab">Basis</span>
+      <p><span class="btag">tamper_signal/anchor.py:78&ndash;91</span> (broad <code>except</code> &rarr; silent fallback), <span class="btag">node/test/interop.test.js:22&ndash;43</span> (one-directional), <span class="btag">tests/test_integrations.py</span> (sync guard buried in the matrix), the sigstore doc's "run a live round-trip smoke test for every IdP path before release."</p>
+    </div>
+    <div class="field">
+      <span class="lab">Why 1.7.1</span>
+      <p>Each item is the literal "Prevention" bullet from one of the two learning docs, none of which produced an artifact you can run. They are individually tiny; together they convert "we know the lesson" into "the suite enforces it."</p>
+    </div>
+    <div class="field down">
+      <span class="lab">Adversarial note</span>
+      <p>The smoke script can't run in CI (browser OIDC), so its value depends on a human actually running it pre-release. Pair it with a release-checklist line so it is not optional-by-forgetting.</p>
+    </div>
+  </article>
+
+  <!-- 3 -->
+  <article class="idea" id="i3">
+    <div class="top"><span class="rank-chip">03</span><h3>Stop mis-blaming <code>ingest --as period</code> when no chain exists</h3></div>
+    <div class="pills">
+      <span class="pill conf-hi">confidence: high</span>
+      <span class="pill cx">complexity: low</span>
+      <span class="pill basis">basis: wrapper.py:227</span>
+    </div>
+    <div class="field">
+      <span class="lab">What it is</span>
+      <p>Continuing a period chain that does not exist yet raises <code>UntrustedSignerError</code>, and the CLI prints the "Refusing to append a period" trust preamble. But a missing <code>chain.json</code> is not a trust problem &mdash; it is "start a chain first." Re-map that condition to a usage error (<code>ValueError</code> or a dedicated subclass) with a message that points at <code>ingest --as replace</code>.</p>
+    </div>
+    <div class="field basis">
+      <span class="lab">Basis</span>
+      <p><span class="btag">tamper_signal/wrapper.py:227&ndash;230</span> (raise site), <span class="btag">tamper_signal/cli.py:184&ndash;186</span> (catch + preamble).</p>
+    </div>
+    <div class="field">
+      <span class="lab">Why 1.7.1</span>
+      <p>The product's honesty rule is that yellow asks for eyes and never blames; a red trust accusation for a first-run usage mistake is the same category error pointed at the user. One raise site, one catch clause, no exit-code or behavior change.</p>
+    </div>
+  </article>
+
+  <!-- 4 -->
+  <article class="idea" id="i4">
+    <div class="top"><span class="rank-chip">04</span><h3>Make silent numeric normalization visible</h3></div>
+    <div class="pills">
+      <span class="pill conf-hi">confidence: high</span>
+      <span class="pill cx">complexity: low&ndash;med</span>
+      <span class="pill basis">basis: canonical.py + node/cli.js</span>
+    </div>
+    <div class="field">
+      <span class="lab">What it is</span>
+      <p>Canonicalization silently coerces numeric-looking text: <code>"030"</code> and <code>"30.00"</code> hash as <code>30</code>, so leading zeros and trailing decimals die on a round trip and the light stays green. Separately, grouped numbers like <code>"289,084"</code> are excluded from <code>numeric_sums</code> &mdash; and the node CLI already warns about this while the Python CLI says nothing (a one-stack asymmetry). Fix the whole story: a pre-scan at ingest that names affected columns in a <code>warnings</code> list (visible in <code>--json</code> and stderr), reaching parity with node; plus a one-sentence caveat in <code>export</code> output and the browser download note.</p>
+    </div>
+    <div class="field basis">
+      <span class="lab">Basis</span>
+      <p><span class="btag">tamper_signal/canonical.py:72,164&ndash;165</span> (coercion site), <span class="btag">node/cli.js:316&ndash;325</span> (warning the Python side lacks at <span class="btag">cli.py:257&ndash;272</span>), <span class="btag">tests/test_portability_integrity.py:77&ndash;83</span> (the round-trip is tested but never surfaced to the user).</p>
+    </div>
+    <div class="field">
+      <span class="lab">Why 1.7.1</span>
+      <p>A green light over a value that quietly changed is the precise thing this product exists to prevent. The behavior is correct and documented; the gap is that the person clicking Download is never told. Additive output only, and it closes a real cross-stack inconsistency.</p>
+    </div>
+  </article>
+
+  <!-- 5 -->
+  <article class="idea" id="i5">
+    <div class="top"><span class="rank-chip">05</span><h3><code>verify</code> names a transforms-only chain instead of implying full coverage</h3></div>
+    <div class="pills">
+      <span class="pill conf-md">confidence: medium</span>
+      <span class="pill cx">complexity: low</span>
+      <span class="pill basis">basis: cli.py:470</span>
+    </div>
+    <div class="field">
+      <span class="lab">What it is</span>
+      <p>A chain that holds only a source manifest and no <code>@receipt_step</code> stages verifies green with no hint that it covers the ingest but none of the transforms. Add a caveat (or stderr notice) when <code>transforms == 0</code> that names the gap, without changing the green verdict &mdash; the same "ask for eyes" posture yellow already takes.</p>
+    </div>
+    <div class="field basis">
+      <span class="lab">Basis</span>
+      <p><span class="btag">tamper_signal/cli.py:470&ndash;474</span> &mdash; the <code>--json</code> payload already emits <code>"stages": ["source"]</code> and <code>"transforms": 0</code>; the data to detect the gap is in scope.</p>
+    </div>
+    <div class="field">
+      <span class="lab">Why 1.7.1</span>
+      <p>This is the prior doc's "name the missing stage" reject, now concretely sized at ~3 lines. A producer who forgot to wrap their pipeline gets a falsely reassuring green; naming it is squarely the product's job.</p>
+    </div>
+    <div class="field down">
+      <span class="lab">Adversarial note</span>
+      <p>Decide deliberately: a source-only chain is a legitimate use (attesting a dataset with no transforms). So this is a <em>notice</em>, not a yellow trip &mdash; tripping yellow would punish a valid pattern and erode trust in the light.</p>
+    </div>
+  </article>
+
+  <!-- 6 -->
+  <article class="idea" id="i6">
+    <div class="top"><span class="rank-chip">06</span><h3>Finish the <code>--json</code> surface: ingest, export, doctor</h3></div>
+    <div class="pills">
+      <span class="pill conf-hi">confidence: high</span>
+      <span class="pill cx">complexity: low</span>
+      <span class="pill basis">basis: cli.py (3 cmds)</span>
+    </div>
+    <div class="field">
+      <span class="lab">What it is</span>
+      <p><code>verify</code> and <code>anchor</code> emit <code>--json</code>; <code>ingest</code>, <code>export</code>, and <code>doctor</code> still print only human text, so an agent or CI loop must scrape. Add <code>--json</code> to all three. The payloads already exist as local variables: <code>doctor</code> holds <code>checks: list[tuple[name, ok, fix]]</code> + <code>warns</code>; <code>ingest</code> has <code>result["manifest"]</code> (semantic hash, row/column counts, tolerance); <code>export</code> has the path, row count, and data hash. While here, add the declared <code>band</code>/<code>settle_hours</code> to <code>log --json</code>, which already has the snapshots in hand.</p>
+    </div>
+    <div class="field basis">
+      <span class="lab">Basis</span>
+      <p><span class="btag">tamper_signal/cli.py:583&ndash;695</span> (doctor), <span class="btag">cli.py:216&ndash;272</span> (ingest), <span class="btag">cli.py:756&ndash;798</span> (export), <span class="btag">cli.py:1344&ndash;1362</span> (log json), pattern from <span class="btag">cli.py:1564</span> (verify --json).</p>
+    </div>
+    <div class="field">
+      <span class="lab">Why 1.7.1</span>
+      <p>AGENTS.md sells an agent-native workflow but the JSON surface is half-built. Any action a human takes at the CLI an agent should take structurally &mdash; this is the parity gap, and the data is already assembled at each site.</p>
+    </div>
+  </article>
+
+  <!-- 7 -->
+  <article class="idea" id="i7">
+    <div class="top"><span class="rank-chip">07</span><h3>Unify and document the exit-code contract</h3></div>
+    <div class="pills">
+      <span class="pill conf-md">confidence: medium</span>
+      <span class="pill cx">complexity: low</span>
+      <span class="pill basis">basis: cli.py (3 cmds)</span>
+    </div>
+    <div class="field">
+      <span class="lab">What it is</span>
+      <p><code>verify</code> advertises the traffic light as exit codes 0/1/2; the rest are inconsistent. <code>ingest --as period</code> can exit 2 (yellow) but never says so in its help. <code>diff</code> exits 0 whether runs are identical or wildly different. <code>doctor</code> exits 0 even with warnings, so an agent can't tell "clean" from "clean with warnings." Document the <code>ingest</code> exit contract in help, give <code>doctor</code> a warnings-only exit 2, and add an opt-in <code>--exit-on-diff</code> to <code>diff</code> (opt-in to avoid breaking <code>if receipts diff; then</code> callers).</p>
+    </div>
+    <div class="field basis">
+      <span class="lab">Basis</span>
+      <p><span class="btag">tamper_signal/cli.py:1527&ndash;1533</span> (ingest help, no exit note), <span class="btag">cli.py:694&ndash;695</span> (doctor returns 0/1 only), <code>cmd_diff</code> return path (always 0 on valid compare).</p>
+    </div>
+    <div class="field">
+      <span class="lab">Why 1.7.1</span>
+      <p>The traffic-light exit convention is a selling point; it should hold across every command an agent scripts. Mostly one-line changes plus help text.</p>
+    </div>
+    <div class="field down">
+      <span class="lab">Adversarial note</span>
+      <p>Changing <code>diff</code>'s default exit would silently break existing pipelines &mdash; hence opt-in. The <code>doctor</code> warnings-only&rarr;2 change is safe because the common all-clean path stays 0.</p>
+    </div>
+  </article>
+
+  <!-- 8 -->
+  <article class="idea" id="i8">
+    <div class="top"><span class="rank-chip">08</span><h3><code>receipts suggest-bands</code> &mdash; read-only band advisor</h3></div>
+    <div class="pills">
+      <span class="pill conf-md">confidence: medium</span>
+      <span class="pill cx">complexity: med</span>
+      <span class="pill basis">basis: CHANGELOG 1.6.0</span>
+    </div>
+    <div class="field">
+      <span class="lab">What it is</span>
+      <p>A pure-read command that scans <code>receipts/history/</code> via the existing <code>load_snapshots</code> and reports, per metric, the observed max period-over-period movement, then prints suggested <code>--band</code> / <code>--settle</code> values a producer can paste into their next <code>ingest</code>. No writes, no signatures, no verdict change.</p>
+    </div>
+    <div class="field basis">
+      <span class="lab">Basis</span>
+      <p>CHANGELOG 1.6.0, "Deferred: a <code>suggest-bands</code> helper." Math mirrors the existing <span class="btag">history.py:660&ndash;818</span> judgment arithmetic; no line of it exists yet.</p>
+    </div>
+    <div class="field">
+      <span class="lab">Why 1.7.1</span>
+      <p>The strongest <em>new-capability</em> candidate: the maintainer named it, it is read-only (~30 lines over already-tested primitives), and it removes the main friction in adopting tolerance bands &mdash; guessing the numbers. The only open call is output shape (human text vs <code>--json</code>; do both).</p>
+    </div>
+  </article>
+
+  <!-- 9 -->
+  <article class="idea" id="i9">
+    <div class="top"><span class="rank-chip">09</span><h3><code>--history-keep N</code> retention pruning</h3></div>
+    <div class="pills">
+      <span class="pill conf-md">confidence: medium</span>
+      <span class="pill cx">complexity: low</span>
+      <span class="pill basis">basis: CHANGELOG 1.6.0</span>
+    </div>
+    <div class="field">
+      <span class="lab">What it is</span>
+      <p>Every non-red verify archives a snapshot to <code>receipts/history/</code> with no cap, so a scheduled pipeline grows unbounded. Add <code>--history-keep N</code> (or a project config field) that, after judgment completes, unlinks the oldest snapshots beyond N. Content-addressed filenames sorted by <code>created_at</code> make the delete trivially safe.</p>
+    </div>
+    <div class="field basis">
+      <span class="lab">Basis</span>
+      <p>CHANGELOG 1.6.0, "Deferred: history retention/pruning." Hook point is <span class="btag">cli.py:289</span> (<code>_archive_after_verify</code>, already called after judgment); implementation is a sorted-delete in <code>history.py</code>.</p>
+    </div>
+    <div class="field">
+      <span class="lab">Why 1.7.1</span>
+      <p>The one operational pain a real scheduled user hits, with a safe and contained fix. Prune strictly after judgment so an in-flight cross-run comparison never loses a snapshot it was about to read.</p>
+    </div>
+  </article>
+
+  <!-- 10 -->
+  <article class="idea" id="i10">
+    <div class="top"><span class="rank-chip">10</span><h3>Bundle recipient on-ramp: filename, dual-stack, ingest path</h3></div>
+    <div class="pills">
+      <span class="pill conf-md">confidence: medium</span>
+      <span class="pill cx">complexity: low</span>
+      <span class="pill basis">basis: cli.py + badge/table.js</span>
+    </div>
+    <div class="field">
+      <span class="lab">What it is</span>
+      <p>A cluster of small fixes to the 1.7.0 bundle for its actual purpose &mdash; being sent to a stranger. The bundled <code>README.md</code> tells the recipient to <code>receipts verify chain.json</code> but never how to bring the data into their own chain with <code>ingest --as period</code>; add that section. The browser export hardcodes the data file as <code>data.&lt;ext&gt;</code>, so a recipient who wants to ingest must guess the name &mdash; embed the original filename from the chain's source manifest instead. And the export stdout names only the Python command; mirror the README's dual-stack (<code>pip</code> / <code>npm</code>) wording.</p>
+    </div>
+    <div class="field basis">
+      <span class="lab">Basis</span>
+      <p><span class="btag">tamper_signal/cli.py:61&ndash;88</span> (bundle README constant), <span class="btag">cli.py:834</span> (Python-only stdout), <span class="btag">badge/table.js:374&ndash;386</span> (hardcoded <code>data.&lt;ext&gt;</code>), mirrored in <span class="btag">badge/table.js:251&ndash;277</span>.</p>
+    </div>
+    <div class="field">
+      <span class="lab">Why 1.7.1</span>
+      <p>1.7.0's headline is "take your data out and bring it back," but the recipient's round trip has dead ends. These are doc-text and one-line filename changes with zero protocol risk.</p>
+    </div>
+  </article>
+
+  <!-- 11 -->
+  <article class="idea" id="i11">
+    <div class="top"><span class="rank-chip">11</span><h3>Bundle robustness: clobber guard + readable browser errors</h3></div>
+    <div class="pills">
+      <span class="pill conf-md">confidence: medium</span>
+      <span class="pill cx">complexity: low</span>
+      <span class="pill basis">basis: cli.py:820 + table.js:388</span>
+    </div>
+    <div class="field">
+      <span class="lab">What it is</span>
+      <p>Two small hardening fixes. <code>export --bundle</code> writes <code>&lt;stem&gt;-verified.zip</code> unconditionally, silently replacing a bundle a recipient may already hold a hash for; add an "exists, pass <code>--out</code> or <code>--force</code>" guard. And the browser download handler swallows every fetch failure into "Could not build the download. Try again." &mdash; log the real error and include its message, so a CORS failure or a 404 on a receipt is diagnosable without DevTools.</p>
+    </div>
+    <div class="field basis">
+      <span class="lab">Basis</span>
+      <p><span class="btag">tamper_signal/cli.py:820</span> (unconditional write), <span class="btag">badge/table.js:388&ndash;390</span> (unused caught error <code>_e</code>).</p>
+    </div>
+    <div class="field">
+      <span class="lab">Why 1.7.1</span>
+      <p>For a tool whose entire premise is an audit trail, silently overwriting an attested artifact is the wrong default; and opaque browser errors make self-hosters file bugs that a logged message would have answered. Both are one-liners.</p>
+    </div>
+  </article>
+
+  <!-- 12 -->
+  <article class="idea" id="i12">
+    <div class="top">
+      <span class="rank-chip">12</span>
+      <h3>A delightful, colorful CLI &mdash; the traffic light made literal</h3>
+      <span class="lead-flag" style="color:var(--cyan);border-color:rgba(103,232,249,0.3);background:rgba(103,232,249,0.06);">User pick</span>
+    </div>
+    <div class="pills">
+      <span class="pill conf-md">confidence: medium</span>
+      <span class="pill cx">complexity: med</span>
+      <span class="pill basis">basis: cli.py (no color today)</span>
+    </div>
+    <figure class="viz">
+      <svg viewBox="0 0 660 246" role="img" aria-label="Before and after: plain CLI output versus a colorized traffic-light verdict">
+        <style>
+          .term{font:12px ui-monospace,monospace}.t-dim{fill:#8b98a5}.t-txt{fill:#e5e7eb}
+          .t-g{fill:#34d399}.t-r{fill:#f87171}.t-a{fill:#fbbf24}.cap{font:10px ui-monospace,monospace;fill:#3d4854}
+        </style>
+        <rect x="14" y="14" width="306" height="218" rx="10" fill="#0b0f14" stroke="#1f2937"/>
+        <text x="30" y="40" class="term cap">BEFORE &mdash; plain print()</text>
+        <text x="30" y="70" class="term t-txt">$ receipts verify chain.json</text>
+        <text x="30" y="92" class="term t-txt">&#10003; CHAIN INTACT: 4 stages, green</text>
+        <text x="30" y="114" class="term t-txt">  rows 18,402  cols 7</text>
+        <text x="30" y="148" class="term t-txt">$ receipts verify broken.json</text>
+        <text x="30" y="170" class="term t-txt">&#10007; BROKEN at stage 'normalize'</text>
+        <text x="30" y="192" class="term t-txt">  views 24,889 -> 0</text>
+        <text x="30" y="220" class="term cap">one tone; the verdict is words only</text>
+
+        <rect x="340" y="14" width="306" height="218" rx="10" fill="#0b0f14" stroke="#34d399" stroke-opacity="0.4"/>
+        <text x="356" y="40" class="term cap">AFTER &mdash; color, gated to a TTY</text>
+        <text x="356" y="70" class="term t-txt">$ receipts verify chain.json</text>
+        <text x="356" y="92" class="term"><tspan class="t-g">&#9679; GREEN</tspan><tspan class="t-txt">  chain intact &middot; 4 stages</tspan></text>
+        <text x="356" y="114" class="term t-dim">  rows 18,402   cols 7</text>
+        <text x="356" y="148" class="term t-txt">$ receipts verify broken.json</text>
+        <text x="356" y="170" class="term"><tspan class="t-r">&#9679; RED</tspan><tspan class="t-txt">  broken at </tspan><tspan class="t-txt" font-weight="bold">normalize</tspan></text>
+        <text x="356" y="192" class="term"><tspan class="t-dim">  views </tspan><tspan class="t-r">24,889 &rarr; 0</tspan></text>
+        <text x="356" y="220" class="term cap">light + word + glyph all agree</text>
+      </svg>
+      <figcaption>Color amplifies the metaphor the product already owns. The word and glyph stay, so <code>NO_COLOR</code> and pipes lose nothing.</figcaption>
+    </figure>
+    <div class="field">
+      <span class="lab">What it is</span>
+      <p>A small human-facing presentation layer for the <code>receipts</code> / <code>tamper-signal</code> CLI that makes everyday use legible and genuinely pleasant: the verdict rendered as a colored <code>&#9679;</code> light (green / amber / red) that matches the exit code and the words; dimmed hashes and aligned label columns so output scans at a glance; a confident one-line summary above the quiet detail; and the <code>diff</code> / totals deltas shown with red-down / green-up coloring where the eye most wants it. A first-run flourish on <code>init</code> and <code>demo</code> (a tasteful banner), not on every command.</p>
+    </div>
+    <div class="field basis">
+      <span class="lab">Basis</span>
+      <p><span class="btag">tamper_signal/cli.py</span> uses plain <code>print()</code> with <code>&#10003;</code>/<code>&#10007;</code> glyphs and zero color (no <code>isatty</code>/<code>NO_COLOR</code>/ANSI anywhere today). Deps are only <span class="btag">openpyxl + cryptography</span>; the node CLI is dependency-free &mdash; so the fit is a ~30-line self-contained ANSI helper, not <code>rich</code>/<code>colorama</code>.</p>
+    </div>
+    <div class="field">
+      <span class="lab">Why 1.7.1</span>
+      <p>It is the first thing every human user sees and it has never had a design pass. It pairs cleanly with #6: humans get the colored light, agents get uncolored <code>--json</code>. No protocol, spec, or receipt-byte change &mdash; purely the rendering layer.</p>
+    </div>
+    <div class="field">
+      <span class="lab">The decisions that keep it on-brand (not slop)</span>
+      <p><b>Color is redundant, never the only signal.</b> The verdict word and glyph remain, so colorblind users, <code>NO_COLOR</code>, and piped output lose no information. <b>Gate hard:</b> emit ANSI only when <code>stdout.isatty()</code>, honor <code>NO_COLOR</code> / <code>FORCE_COLOR</code> and a <code>--no-color</code> flag, and <b>never</b> colorize <code>--json</code> or anything redirected to a file. <b>Restraint over confetti:</b> this is a trust tool &mdash; red stays grave and precise, yellow still only asks for eyes; no emoji spray, no fake spinners. <b>Cross-stack parity:</b> same palette and gating in node so the two CLIs read as one product (a presentation sibling of the dual-tree parity work in #1).</p>
+    </div>
+    <div class="field down">
+      <span class="lab">Adversarial note</span>
+      <p>The failure mode is decoration that undercuts gravity, or ANSI bytes leaking into a machine-read stream and corrupting a hash comparison or a CI parser. Both are designed out by the gating rules above; a snapshot test that asserts no ANSI escapes appear under <code>--json</code> or a non-TTY pipe makes it enforceable. Scope risk: a full TUI is 1.8.0+; this is strictly the static-output rendering layer.</p>
+    </div>
+  </article>
+</section>
+
+<section>
+  <h2 class="section">Rejection Summary</h2>
+  <p style="color:var(--dim);font-size:14px;">Cut from 1.7.1, with the reason. The first three are real ideas that belong in 1.8.0, not a patch; the rest fold into survivors or are opportunistic.</p>
+  <div class="tbl-scroll">
+  <table class="rej">
+    <thead><tr><th>Idea</th><th>Where it came from</th><th>Reason cut</th></tr></thead>
+    <tbody>
+      <tr><td class="idea-c">Per-metric band overrides</td><td>CHANGELOG 1.6.0 deferral</td><td>Needs a new signed declaration schema, new judgment branches, node parity, and a spec bump. Genuinely 1.8.0.</td></tr>
+      <tr><td class="idea-c">Browser trend view</td><td>CHANGELOG 1.6.0 deferral</td><td>New browser JS (the badge reads no history today) plus a serving/security decision for <code>receipts/history/</code>, which <code>serve</code> currently 404s. 1.8.0+.</td></tr>
+      <tr><td class="idea-c">Snapshot mini-chain (<code>prev_snapshot_hash</code>)</td><td>CHANGELOG 1.6.0 deferral</td><td>Adds a new <em>signed</em> field; needs a signature-block and spec decision, and run-history is weaker-evidence-by-design. Deserves deliberate design, not a point-release slip-in.</td></tr>
+      <tr><td class="idea-c">Python <code>rebuild_chain()</code> parity</td><td>axis D / AGENTS.md gap</td><td>A real one-stack gap (~40 lines composing existing primitives), but maintenance, not a headline. Ship opportunistically if 1.7.1 has room.</td></tr>
+      <tr><td class="idea-c"><code>log --since</code> / <code>--until</code> filters</td><td>axis B</td><td>Trivially small and nice, but folds into log polish; opportunistic, not a named direction.</td></tr>
+      <tr><td class="idea-c"><code>log --json</code> band field</td><td>axis B</td><td>Folded into survivor #6 (finish the <code>--json</code> surface).</td></tr>
+      <tr><td class="idea-c">Numeric-text caveat (export-only)</td><td>axis C</td><td>Folded into survivor #4, which covers the same coercion at ingest, export, and the node-parity gap together.</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<footer class="composition-signal">
+  Composed 2026-06-23 by <code>ce-ideate</code> from a "what's in 1.7.1" prompt (repo-grounded, base v1.7.0).
+  30 candidates across 4 axes (test hardening, deferred capabilities, 1.7.0 polish, CLI/agent ergonomics);
+  12 survivors after merge + adversarial critique (11 generated + 1 user-added: #12, the colorful CLI). Strongest signal:
+  the two bugs that reached users via paths the green suite never exercised (<code>docs/solutions/logic-errors/</code>) and
+  the CHANGELOG's own deferral list. Selected for 1.7.1 so far: #6 (finish <code>--json</code>) + #12 (delightful CLI).
+  Next step: <code>ce-brainstorm</code> #6 and #12 into a scoped milestone.
+</footer>
+
+</div>
+</body>
+</html>

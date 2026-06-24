@@ -233,3 +233,15 @@ test("log renders a real built history end to end", () => {
   assert.ok(payload.runs.length >= 1);
   assert.ok(payload.runs.every((r) => r.unsigned === false));
 });
+
+test("log --json surfaces band/settle per run, only where declared", () => {
+  const s0 = snapshot({ createdAt: "2026-05-01T00:00:00Z", rowCount: 100, tail: "aa".repeat(32) });
+  const s1 = snapshot({ createdAt: "2026-05-02T00:00:00Z", rowCount: 110, tail: "bb".repeat(32) });
+  s1.tolerance = { band: "0.05", settle_hours: 72, bucket_column: "day" };
+  const receipts = writeHistory([s0, s1]);
+
+  const runs = JSON.parse(runLog(receipts, ["--json"]).stdout).runs; // oldest first
+  assert.ok(!("band" in runs[0]) && !("settle_hours" in runs[0]));
+  assert.equal(runs[1].band, "0.05");
+  assert.equal(runs[1].settle_hours, 72);
+});
