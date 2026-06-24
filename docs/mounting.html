@@ -69,6 +69,11 @@
     <h1>Mounting the signal</h1>
     <p class="lede">The light is most useful where the numbers live: on the dashboard itself. Everything here re-verifies the chain in the viewer's own browser using Web Crypto, with no build step, no framework requirement, and no server state. There are four surfaces; pick by how much you want to show.</p>
 
+    <div class="callout note">
+      <span class="co-label">Serve the page over HTTP</span>
+      <p>Every surface <code>fetch()</code>es the chain (and <code>table.json</code>), which the browser blocks on a <code>file://</code> page. Opening <code>index.html</code> directly leaves the signal silently unverified. Serve the page over HTTP: any static server works, and <code>receipts serve</code> is the one-liner for local dev. For a truly offline recipient, send a verified bundle (<code>receipts export --bundle</code>) and verify with the CLI instead.</p>
+    </div>
+
     <h2 id="surfaces">The four surfaces</h2>
     <div class="tbl-scroll">
       <table class="ref">
@@ -86,7 +91,7 @@
     <p>A dark, monospace pill that shows the traffic light and expands to a popover: a per-stage table when green, the caveat list when yellow, the broken link and totals delta when red.</p>
     <pre><code><span class="c">&lt;!-- serve receipts/ statically, then mount in the header --&gt;</span>
 <span class="k">&lt;script</span> type=<span class="s">"module"</span><span class="k">&gt;</span>
-  <span class="k">import</span> { mountTamperSignal } <span class="k">from</span> <span class="s">"/static/light.js"</span>;
+  <span class="k">import</span> { mountTamperSignal } <span class="k">from</span> <span class="s">"/badge/light.js"</span>;
   mountTamperSignal(document.querySelector(<span class="s">"header"</span>), <span class="s">"/receipts/chain.json"</span>);
 <span class="k">&lt;/script&gt;</span></code></pre>
     <p>With a bundler it is the same call from the package:</p>
@@ -126,13 +131,16 @@ renderReceiptBadge(el, <span class="s">"/receipts/chain.json"</span>, pubKeyHex)
     <h2 id="table">The data tab</h2>
     <p>Renders the attested table from <code>table.json</code>, re-hashes it in the viewer's browser, and compares against the final receipt. A verified data tab means the rows on screen are byte for byte the attested data, not a fresh query that might disagree.</p>
     <pre><code><span class="c"># 1. export the canonical table (Python or Node)</span>
-<span class="k">receipts</span> export --chain receipts/chain.json --data dashboard.xlsx
+<span class="k">receipts</span> export receipts/chain.json --data dashboard.xlsx
 
 <span class="c"># 2. mount it</span>
 <span class="k">&lt;script</span> type=<span class="s">"module"</span><span class="k">&gt;</span>
-  <span class="k">import</span> { mountReceiptTable } <span class="k">from</span> <span class="s">"/static/table.js"</span>;
+  <span class="k">import</span> { mountReceiptTable } <span class="k">from</span> <span class="s">"/badge/table.js"</span>;
   mountReceiptTable(document.querySelector(<span class="s">"#data-tab"</span>), <span class="s">"/receipts/chain.json"</span>);
 <span class="k">&lt;/script&gt;</span></code></pre>
+    <p>Or the web component, the parallel of <code>&lt;tamper-signal&gt;</code> for the badge. Importing <code>tamper-signal/table</code> registers <code>&lt;tamper-signal-table&gt;</code>:</p>
+    <pre><code><span class="k">&lt;script</span> type=<span class="s">"module"</span> src=<span class="s">"/badge/table.js"</span><span class="k">&gt;&lt;/script&gt;</span>
+&lt;tamper-signal-table chain=<span class="s">"/receipts/chain.json"</span>&gt;&lt;/tamper-signal-table&gt;</code></pre>
 
     <h2 id="console">The console</h2>
     <p>The chain as an inspectable pipeline: each link carries the hash it proved, a break severs the link with a break card pinned in place, coverage gaps show up as ghost nodes, and the event log mirrors <code>receipts verify</code> line by line. Every attach helper serves it automatically at <code>/tamper-signal/console</code>.</p>

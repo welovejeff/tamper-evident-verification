@@ -12,6 +12,7 @@
 import { createHash } from "node:crypto";
 import { copyFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import process from "node:process";
 
@@ -90,6 +91,9 @@ commands:
                                              final receipt); --bundle writes a
                                              verified zip (data + chain.json +
                                              receipts) for offline re-verification
+  assets [--out badge/]                      copy the bundled browser assets
+                                             (light.js, badge.js, element.js,
+                                             table.js, console.js) into a project
 `;
 
 // Shipped inside every verified bundle so a recipient can verify it without
@@ -1208,12 +1212,50 @@ function cmdExport(args) {
   return 0;
 }
 
+// The browser assets ship in the package's badge/ directory (see package.json
+// "files"). Mirror the Python `receipts assets`: copy them into a project so an
+// integrator never has to dig them out of node_modules by hand.
+const ASSET_NAMES = ["light.js", "badge.js", "element.js", "table.js", "console.js"];
+
+function cmdAssets(args) {
+  const { values } = parseArgs({
+    args,
+    options: {
+      out: { type: "string" },
+      json: { type: "boolean", default: false },
+    },
+  });
+  const srcDir = join(dirname(fileURLToPath(import.meta.url)), "..", "badge");
+  const outDir = values.out || "badge/";
+  const copied = [];
+  mkdirSync(outDir, { recursive: true });
+  for (const name of ASSET_NAMES) {
+    const src = join(srcDir, name);
+    if (!existsSync(src)) continue;
+    copyFileSync(src, join(outDir, name));
+    copied.push(name);
+  }
+  if (!copied.length) {
+    if (values.json) printJson({ ok: false, error: "No bundled browser assets found in the package." });
+    else console.error("No bundled browser assets found in the package.");
+    return 1;
+  }
+  if (values.json) {
+    printJson({ out: outDir, files: copied });
+    return 0;
+  }
+  console.log(`Copied ${copied.length} browser assets into ${outDir}`);
+  for (const name of copied) console.log(`  ${name}`);
+  console.log(`Import them at the path you serve them, e.g. "/${basename(outDir.replace(/\/+$/, ""))}/light.js".`);
+  return 0;
+}
+
 const [, , command, ...rawRest] = process.argv;
 // --no-color is global: honor it at any position and strip it so each command's
 // strict parser does not reject it. NO_COLOR / FORCE_COLOR env are honored too.
 if (rawRest.includes("--no-color")) color.setNoColor(true);
 const rest = rawRest.filter((arg) => arg !== "--no-color");
-const commands = { keygen: cmdKeygen, ingest: cmdIngest, verify: cmdVerify, diff: cmdDiff, log: cmdLog, export: cmdExport };
+const commands = { keygen: cmdKeygen, ingest: cmdIngest, verify: cmdVerify, diff: cmdDiff, log: cmdLog, export: cmdExport, assets: cmdAssets };
 if (!command || !(command in commands)) {
   console.error(USAGE);
   process.exit(command ? 1 : 0);

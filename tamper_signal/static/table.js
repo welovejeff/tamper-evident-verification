@@ -519,3 +519,67 @@ export function mountReceiptTable(containerEl, chainUrl, tableUrl, opts) {
     },
   };
 }
+
+// <tamper-signal-table>: the verified Data tab as a custom element, the parallel
+// of <tamper-signal> for the badge. Importing this module (tamper-signal/table,
+// or vendored badge/table.js) registers the element, so one tag works in plain
+// HTML, Vue, Svelte, Angular, or anything else that renders DOM.
+//
+//   <script type="module" src="/badge/table.js"></script>
+//   <tamper-signal-table chain="/receipts/chain.json"></tamper-signal-table>
+//
+// Attributes:
+//   chain     URL of chain.json (required; nothing mounts without it)
+//   table     URL of table.json (optional; defaults to table.json beside chain)
+//   max-rows  rows rendered before the "show all" footer (default 500)
+class TamperSignalTableElement extends HTMLElement {
+  static get observedAttributes() {
+    return ["chain", "table", "max-rows"];
+  }
+
+  constructor() {
+    super();
+    this._handle = null;
+  }
+
+  connectedCallback() {
+    this._mount();
+  }
+
+  disconnectedCallback() {
+    this._unmount();
+  }
+
+  attributeChangedCallback() {
+    if (this.isConnected) this._mount();
+  }
+
+  // The mount handle, for hosts that want refresh()/destroy().
+  get table() {
+    return this._handle;
+  }
+
+  _unmount() {
+    if (this._handle) {
+      this._handle.destroy();
+      this._handle = null;
+    }
+  }
+
+  _mount() {
+    this._unmount();
+    const chain = this.getAttribute("chain");
+    if (!chain) return; // nothing to verify yet; attribute may arrive later
+    const tableUrl = this.getAttribute("table") || undefined;
+    const maxRows = Number(this.getAttribute("max-rows"));
+    this._handle = mountReceiptTable(this, chain, tableUrl, {
+      maxRows: Number.isFinite(maxRows) && maxRows > 0 ? maxRows : undefined,
+    });
+  }
+}
+
+if (typeof customElements !== "undefined" && !customElements.get("tamper-signal-table")) {
+  customElements.define("tamper-signal-table", TamperSignalTableElement);
+}
+
+export { TamperSignalTableElement };

@@ -2,7 +2,7 @@
 
 # The light is green, the data is clean.
 
-[![PyPI](https://img.shields.io/pypi/v/tamper-signal)](https://pypi.org/project/tamper-signal/) [![npm](https://img.shields.io/npm/v/tamper-signal)](https://www.npmjs.com/package/tamper-signal) [![Socket Badge (npm)](https://badge.socket.dev/npm/package/tamper-signal/1.7.1)](https://socket.dev/npm/package/tamper-signal/overview/1.7.1) [![Socket Badge (PyPI)](https://badge.socket.dev/pypi/package/tamper-signal/1.7.1)](https://socket.dev/pypi/package/tamper-signal/overview/1.7.1) [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![PyPI](https://img.shields.io/pypi/v/tamper-signal)](https://pypi.org/project/tamper-signal/) [![npm](https://img.shields.io/npm/v/tamper-signal)](https://www.npmjs.com/package/tamper-signal) [![Socket Badge (npm)](https://badge.socket.dev/npm/package/tamper-signal/1.7.2)](https://socket.dev/npm/package/tamper-signal/overview/1.7.1) [![Socket Badge (PyPI)](https://badge.socket.dev/pypi/package/tamper-signal/1.7.2)](https://socket.dev/pypi/package/tamper-signal/overview/1.7.1) [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 Your social team exports a month of TikTok performance data. Someone vibe-codes a dashboard on top of it with an AI assistant in an afternoon. It looks great. Then a transform silently drops 22 rows, or the model hallucinates an aggregation, and the numbers in front of your boss are wrong. Nothing in that workflow catches it. This is the missing verification layer: every stage of the pipeline signs a receipt for what went in and what came out, and one command (or a badge on the dashboard itself) tells you whether the chain is intact, or exactly where it broke and by how much.
 
@@ -42,6 +42,8 @@ receipts demo
 
 `receipts demo` runs the whole story end to end: generates a deliberately messy sample export, ingests it, runs two AI-written-style transforms, verifies the chain (PASS), then tampers with one spend value and verifies again (FAIL, pinpointing the broken link and the totals delta). It finishes by serving the badge at `http://localhost:8000/badge/badge.html` so you can see green, yellow, and red side by side.
 
+> **`receipts: command not found`?** pip installed the script into a bin directory that is not on PATH (common on the python.org framework Python, the default macOS download). Either run it through the same interpreter, `python3 -m tamper_signal verify ...` (works as a drop-in for every `receipts ...` command), or link it onto PATH once: `sudo ln -sf "$(python3 -c 'import sysconfig;print(sysconfig.get_path("scripts"))')/receipts" /usr/local/bin/receipts`.
+
 ## CLI
 
 ```bash
@@ -52,6 +54,7 @@ receipts diff                 # compare two runs: code-hash changes and totals d
 receipts log                  # archived run history as a per-metric trend across runs (read-only)
 receipts doctor               # integration self-check with actionable fixes
 receipts serve                # serve receipts/ on localhost with CORS (dev only)
+receipts assets --out badge/  # vendor the browser surfaces (light/badge/element/table/console.js) into a project
 ```
 
 `--pub` repeats for key rotation (any trusted key verifies), and `TAMPER_SIGNAL_KEY` can carry the PEM private key in CI so no key file touches disk. `ingest` and `verify --data` accept .xlsx, .csv, .tsv, .json (array of objects), and .ndjson; the semantic hash is identical across formats, so an xlsx ingest verifies against a CSV copy of the same data. `verify` exits with the traffic light: 0 green, 1 red, 2 yellow (verifies, with caveats). Add `--warn-drift` to also flag any control-totals movement across links as a caveat; it is off by default because filters and aggregations legitimately move totals. `--json` emits a structured verdict (schema in `AGENTS.md`) for CI and coding agents.
