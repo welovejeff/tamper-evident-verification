@@ -181,6 +181,12 @@ function archivePriorChain(chainDir) {
   }
 }
 
+// Emit a structured payload on stdout (the established --json convention,
+// shared byte-for-byte with the Python CLI).
+function printJson(payload) {
+  console.log(JSON.stringify(payload, null, 2));
+}
+
 // `ingest --as period`: continue the chain's run history under a trusted signer.
 function cmdIngestPeriod(values, file) {
   // Like replace, compute the unsnapshotted-reset condition and preserve the
@@ -205,16 +211,33 @@ function cmdIngestPeriod(values, file) {
     });
   } catch (err) {
     if (err instanceof UntrustedSignerError) {
-      console.error(`✗ Refusing to append a period: ${err.message}`);
+      if (values.json) printJson({ ok: false, error: `Refusing to append a period: ${err.message}` });
+      else console.error(`✗ Refusing to append a period: ${err.message}`);
       return 1;
     }
-    console.error(err.message);
+    if (values.json) printJson({ ok: false, error: err.message });
+    else console.error(err.message);
     return 1;
   }
   if (unsnapshottedReset) {
     console.error("warning: previous run was never verified; its totals will not enter history");
   }
   const totals = result.manifest.control_totals;
+  if (values.json) {
+    const caveats = result.caveats ?? [];
+    printJson({
+      source: result.manifest.source.filename,
+      evidence_hash: result.manifest.source.evidence_hash,
+      semantic_hash: result.manifest.semantic_hash,
+      row_count: totals.row_count,
+      column_count: totals.column_count,
+      mode: "period",
+      verdict: caveats.length ? "yellow" : "green",
+      caveats,
+      compared: Boolean(result.compared),
+    });
+    return caveats.length ? 2 : 0;
+  }
   console.log(`Imported next period: ${result.manifest.source.filename}`);
   console.log(`  evidence_hash ${result.manifest.source.evidence_hash}`);
   console.log(`  semantic_hash ${result.manifest.semantic_hash}`);
@@ -255,6 +278,7 @@ function cmdIngest(args) {
       "bucket-column": { type: "string" },
       as: { type: "string", default: "replace" },
       pub: { type: "string", multiple: true, default: [] },
+      json: { type: "boolean", default: false },
     },
   });
   const file = positionals[0];
@@ -290,13 +314,26 @@ function cmdIngest(args) {
       bucketColumn: values["bucket-column"] ?? null,
     }));
   } catch (err) {
-    console.error(err.message);
+    if (values.json) printJson({ ok: false, error: err.message });
+    else console.error(err.message);
     return 1;
   }
   if (unsnapshottedReset) {
     console.error("warning: previous run was never verified; its totals will not enter history");
   }
   const totals = manifest.control_totals;
+  if (values.json) {
+    printJson({
+      source: manifest.source.filename,
+      evidence_hash: manifest.source.evidence_hash,
+      semantic_hash: manifest.semantic_hash,
+      row_count: totals.row_count,
+      column_count: totals.column_count,
+      tolerance: manifest.tolerance ?? null,
+      source_manifest: `${values.out.replace(/\/?$/, "/")}${SOURCE_RECEIPT_NAME}`,
+    });
+    return 0;
+  }
   console.log(`Ingested ${basename(file)}`);
   console.log(`  evidence_hash ${manifest.source.evidence_hash}`);
   console.log(`  semantic_hash ${manifest.semantic_hash}`);
@@ -1014,19 +1051,36 @@ function cmdLog(args) {
   const { rows, collapsed } = buildLogPeriods(items, granularity, metrics);
 
   if (values.json) {
-    const payload = {
-      granularity,
-      // Total runs collapsed away by the granularity. Ordered chronological
-      // (oldest first), matching the Python CLI byte-for-byte.
-      collapsed,
-      runs: rows.map((row, index) => ({
+    // The signed tolerance declaration is per-snapshot, display-only; surface
+    // it per run entry (omitted when that run declared none), matching Python.
+    const tolByTail = new Map();
+    for (const snapshot of snapshots) {
+      if (snapshot.tolerance && typeof snapshot.tolerance === "object") {
+        tolByTail.set(snapshot.chain_tail_hash, snapshot.tolerance);
+      }
+    }
+    const runEntry = (row, index) => {
+      const entry = {
         period: row.period,
         created_at: row.created_at,
         tail: row.tail ? row.tail.slice(0, 8) : null,
         unsigned: row.unsigned,
         metrics: logJsonMetrics(rows, index, metrics),
         breached: metrics.filter((m) => row.breached.has(m)).sort(),
-      })),
+      };
+      const tolerance = tolByTail.get(row.tail);
+      if (tolerance && typeof tolerance === "object") {
+        if (tolerance.band != null) entry.band = tolerance.band;
+        if (tolerance.settle_hours != null) entry.settle_hours = tolerance.settle_hours;
+      }
+      return entry;
+    };
+    const payload = {
+      granularity,
+      // Total runs collapsed away by the granularity. Ordered chronological
+      // (oldest first), matching the Python CLI byte-for-byte.
+      collapsed,
+      runs: rows.map(runEntry),
     };
     console.log(JSON.stringify(payload, null, 2));
     return 0;
@@ -1045,6 +1099,7 @@ function cmdExport(args) {
       data: { type: "string" },
       out: { type: "string" },
       bundle: { type: "boolean" },
+      json: { type: "boolean", default: false },
     },
   });
   const chainPath = positionals[0];
@@ -1062,11 +1117,13 @@ function cmdExport(args) {
   try {
     receipts = (chain.receipts ?? []).map((name) => readReceipt(chainDir, name));
   } catch (err) {
-    console.error(`Cannot load chain: ${err.message}`);
+    if (values.json) printJson({ ok: false, error: `Cannot load chain: ${err.message}` });
+    else console.error(`Cannot load chain: ${err.message}`);
     return 1;
   }
   if (!receipts.length) {
-    console.error("Chain is empty; nothing to export against.");
+    if (values.json) printJson({ ok: false, error: "Chain is empty; nothing to export against." });
+    else console.error("Chain is empty; nothing to export against.");
     return 1;
   }
 
@@ -1080,10 +1137,19 @@ function cmdExport(args) {
   const dataHash = createHash("sha256").update(canonicalJsonBytes(document)).digest("hex");
   const expected = outputHashOf(receipts[receipts.length - 1]);
   if (dataHash !== expected) {
-    console.error("✗ Refusing to export: the data does not match the final receipt.");
-    console.error(`  expected output hash ${expected}`);
-    console.error(`  found    data hash   ${dataHash}`);
-    console.error("  The Data tab only shows attested data. Re-run the pipeline or fix --data.");
+    if (values.json) {
+      printJson({
+        ok: false,
+        error: "the data does not match the final receipt",
+        expected_output_hash: expected,
+        data_hash: dataHash,
+      });
+    } else {
+      console.error("✗ Refusing to export: the data does not match the final receipt.");
+      console.error(`  expected output hash ${expected}`);
+      console.error(`  found    data hash   ${dataHash}`);
+      console.error("  The Data tab only shows attested data. Re-run the pipeline or fix --data.");
+    }
     return 1;
   }
 
@@ -1103,6 +1169,16 @@ function cmdExport(args) {
     const stem = dataName.replace(/\.[^.]+$/, "");
     const bundlePath = values.out || join(chainDir, `${stem}-verified.zip`);
     writeFileSync(bundlePath, makeStoredZip(entries));
+    if (values.json) {
+      printJson({
+        output: bundlePath,
+        data: dataName,
+        receipts: receiptNames.length,
+        data_hash: dataHash,
+        bundle: true,
+      });
+      return 0;
+    }
     console.log(`Exported verified bundle: ${bundlePath}`);
     console.log(`  data ${dataName}, ${receiptNames.length} receipts + ${CHAIN_FILENAME}`);
     console.log(`  semantic_hash ${dataHash} (matches final receipt)`);
@@ -1112,6 +1188,16 @@ function cmdExport(args) {
 
   const outPath = values.out || join(chainDir, "table.json");
   writeFileSync(outPath, JSON.stringify(document, null, 2) + "\n");
+  if (values.json) {
+    printJson({
+      output: outPath,
+      row_count: document.rows.length,
+      column_count: document.headers.length,
+      data_hash: dataHash,
+      bundle: false,
+    });
+    return 0;
+  }
   console.log(`Exported verified table: ${outPath}`);
   console.log(`  rows ${document.rows.length}, columns ${document.headers.length}`);
   console.log(`  semantic_hash ${dataHash} (matches final receipt)`);
