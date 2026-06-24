@@ -182,10 +182,16 @@ def _cmd_ingest_period(args: argparse.Namespace) -> int:
             sheet=args.sheet,
         )
     except UntrustedSignerError as exc:
-        print(f"✗ Refusing to append a period: {exc}", file=sys.stderr)
+        if args.json:
+            _print_json({"ok": False, "error": f"Refusing to append a period: {exc}"})
+        else:
+            print(f"✗ Refusing to append a period: {exc}", file=sys.stderr)
         return 1
     except ValueError as exc:
-        print(str(exc), file=sys.stderr)
+        if args.json:
+            _print_json({"ok": False, "error": str(exc)})
+        else:
+            print(str(exc), file=sys.stderr)
         return 1
 
     if unsnapshotted_reset:
@@ -196,6 +202,22 @@ def _cmd_ingest_period(args: argparse.Namespace) -> int:
 
     manifest = result["manifest"]
     totals = manifest["control_totals"]
+    if args.json:
+        _caveats = result.get("caveats") or []
+        _print_json(
+            {
+                "source": manifest["source"]["filename"],
+                "evidence_hash": manifest["source"]["evidence_hash"],
+                "semantic_hash": manifest["semantic_hash"],
+                "row_count": totals["row_count"],
+                "column_count": totals["column_count"],
+                "mode": "period",
+                "verdict": "yellow" if _caveats else "green",
+                "caveats": _caveats,
+                "compared": bool(result.get("compared")),
+            }
+        )
+        return 2 if _caveats else 0
     print(f"Imported next period: {manifest['source']['filename']}")
     print(f"  evidence_hash {manifest['source']['evidence_hash']}")
     print(f"  semantic_hash {manifest['semantic_hash']}")
@@ -211,6 +233,13 @@ def _cmd_ingest_period(args: argparse.Namespace) -> int:
     else:
         print("  recorded as the first period (no prior run to compare)")
     return 0
+
+
+def _print_json(payload: dict) -> None:
+    """Emit a structured payload on stdout (the established --json convention)."""
+    import json as _json
+
+    print(_json.dumps(payload, indent=2))
 
 
 def cmd_ingest(args: argparse.Namespace) -> int:
@@ -245,7 +274,10 @@ def cmd_ingest(args: argparse.Namespace) -> int:
             sheet=args.sheet,
         )
     except ValueError as exc:
-        print(str(exc), file=sys.stderr)
+        if args.json:
+            _print_json({"ok": False, "error": str(exc)})
+        else:
+            print(str(exc), file=sys.stderr)
         return 1
 
     if unsnapshotted_reset:
@@ -257,6 +289,19 @@ def cmd_ingest(args: argparse.Namespace) -> int:
     manifest = result["manifest"]
     tolerance = manifest.get("tolerance")
     totals = manifest["control_totals"]
+    if args.json:
+        _print_json(
+            {
+                "source": manifest["source"]["filename"],
+                "evidence_hash": manifest["source"]["evidence_hash"],
+                "semantic_hash": manifest["semantic_hash"],
+                "row_count": totals["row_count"],
+                "column_count": totals["column_count"],
+                "tolerance": tolerance,
+                "source_manifest": str(Path(args.out) / SOURCE_RECEIPT_NAME),
+            }
+        )
+        return 0
     print(f"Ingested {manifest['source']['filename']}")
     print(f"  evidence_hash {manifest['source']['evidence_hash']}")
     print(f"  semantic_hash {manifest['semantic_hash']}")
@@ -682,12 +727,22 @@ def cmd_doctor(args: argparse.Namespace) -> int:
                 )
             )
 
-    failures = 0
+    failures = sum(1 for _message, ok, _fix in checks if not ok)
+    if args.json:
+        _print_json(
+            {
+                "checks": [
+                    {"name": message, "ok": ok, "fix": fix} for message, ok, fix in checks
+                ],
+                "warnings": warns,
+                "all_passed": failures == 0,
+            }
+        )
+        return 1 if failures else 0
     for message, ok, fix in checks:
         if ok:
             print(f"  ✓ {message}")
         else:
-            failures += 1
             print(f"  ✗ {message}\n      fix: {fix}")
     for warn in warns:
         print(f"  ⚠ {warn}")
@@ -770,10 +825,16 @@ def cmd_export(args: argparse.Namespace) -> int:
     try:
         receipts = [read_receipt(str(chain_dir), name) for name in chain.get("receipts", [])]
     except ValueError as exc:
-        print(f"Cannot load chain: {exc}", file=sys.stderr)
+        if args.json:
+            _print_json({"ok": False, "error": f"Cannot load chain: {exc}"})
+        else:
+            print(f"Cannot load chain: {exc}", file=sys.stderr)
         return 1
     if not receipts:
-        print("Chain is empty; nothing to export against.", file=sys.stderr)
+        if args.json:
+            _print_json({"ok": False, "error": "Chain is empty; nothing to export against."})
+        else:
+            print("Chain is empty; nothing to export against.", file=sys.stderr)
         return 1
 
     records = _load(args.data, sheet=args.sheet)
@@ -781,10 +842,20 @@ def cmd_export(args: argparse.Namespace) -> int:
     data_hash = semantic_hash(records)
     expected = output_hash_of(receipts[-1])
     if data_hash != expected:
-        print("✗ Refusing to export: the data does not match the final receipt.", file=sys.stderr)
-        print(f"  expected output hash {expected}", file=sys.stderr)
-        print(f"  found    data hash   {data_hash}", file=sys.stderr)
-        print("  The Data tab only shows attested data. Re-run the pipeline or fix --data.", file=sys.stderr)
+        if args.json:
+            _print_json(
+                {
+                    "ok": False,
+                    "error": "the data does not match the final receipt",
+                    "expected_output_hash": expected,
+                    "data_hash": data_hash,
+                }
+            )
+        else:
+            print("✗ Refusing to export: the data does not match the final receipt.", file=sys.stderr)
+            print(f"  expected output hash {expected}", file=sys.stderr)
+            print(f"  found    data hash   {data_hash}", file=sys.stderr)
+            print("  The Data tab only shows attested data. Re-run the pipeline or fix --data.", file=sys.stderr)
         return 1
 
     if getattr(args, "bundle", False):
@@ -792,6 +863,17 @@ def cmd_export(args: argparse.Namespace) -> int:
 
     out_path = Path(args.out) if args.out else chain_dir / "table.json"
     out_path.write_text(_json.dumps(document, indent=2) + "\n", encoding="utf-8")
+    if args.json:
+        _print_json(
+            {
+                "output": str(out_path),
+                "row_count": len(document["rows"]),
+                "column_count": len(document["headers"]),
+                "data_hash": data_hash,
+                "bundle": False,
+            }
+        )
+        return 0
     print(f"Exported verified table: {out_path}")
     print(f"  rows {len(document['rows'])}, columns {len(document['headers'])}")
     print(f"  semantic_hash {data_hash} (matches final receipt)")
@@ -828,6 +910,17 @@ def _write_verified_bundle(
         for name in receipt_names:
             bundle.writestr(name, (chain_dir / name).read_bytes())
 
+    if getattr(args, "json", False):
+        _print_json(
+            {
+                "output": str(out_path),
+                "data": data_path.name,
+                "receipts": len(receipt_names),
+                "data_hash": data_hash,
+                "bundle": True,
+            }
+        )
+        return 0
     print(f"Exported verified bundle: {out_path}")
     print(f"  data {data_path.name}, {len(receipt_names)} receipts + {CHAIN_FILENAME}")
     print(f"  semantic_hash {data_hash} (matches final receipt)")
@@ -1342,22 +1435,38 @@ def cmd_log(args: argparse.Namespace) -> int:
     rows, collapsed = _build_log_periods(items, granularity, metrics)
 
     if args.json:
+        # The signed tolerance declaration is a per-snapshot, display-only field;
+        # surface it per run entry (omitted when that run declared none) so a
+        # mixed-history log stays valid and both stacks agree.
+        tol_by_tail = {
+            snapshot.get("chain_tail_hash"): snapshot["tolerance"]
+            for snapshot in snapshots
+            if isinstance(snapshot.get("tolerance"), dict)
+        }
+
+        def _run_entry(index: int, row: dict) -> dict:
+            entry = {
+                "period": row["period"],
+                "created_at": row["created_at"],
+                "tail": (row["tail"][:8] if row["tail"] else None),
+                "unsigned": row["unsigned"],
+                "metrics": _log_json_metrics(rows, index, metrics),
+                "breached": sorted(m for m in metrics if m in row["breached"]),
+            }
+            tolerance = tol_by_tail.get(row["tail"])
+            if isinstance(tolerance, dict):
+                if tolerance.get("band") is not None:
+                    entry["band"] = tolerance["band"]
+                if tolerance.get("settle_hours") is not None:
+                    entry["settle_hours"] = tolerance["settle_hours"]
+            return entry
+
         payload = {
             "granularity": granularity,
             # Total runs collapsed away by the granularity (rendered rows hide
             # this many same-period runs). Ordered chronological (oldest first).
             "collapsed": collapsed,
-            "runs": [
-                {
-                    "period": row["period"],
-                    "created_at": row["created_at"],
-                    "tail": (row["tail"][:8] if row["tail"] else None),
-                    "unsigned": row["unsigned"],
-                    "metrics": _log_json_metrics(rows, index, metrics),
-                    "breached": sorted(m for m in metrics if m in row["breached"]),
-                }
-                for index, row in enumerate(rows)
-            ],
+            "runs": [_run_entry(index, row) for index, row in enumerate(rows)],
         }
         print(_json.dumps(payload, indent=2))
         return 0
@@ -1539,6 +1648,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Public key to trust for --as period (repeatable); needed when the "
         "importer's key differs from the chain's signing key",
     )
+    p_ingest.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit a structured JSON result instead of the text summary",
+    )
     p_ingest.set_defaults(func=cmd_ingest)
 
     p_verify = sub.add_parser(
@@ -1594,6 +1708,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_doctor.add_argument("--key", default="keys/signing.key", help="Private key path")
     p_doctor.add_argument("--chain", default="receipts/chain.json", help="Chain path")
     p_doctor.add_argument("--url", default=None, help="Served chain.json URL to check")
+    p_doctor.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit the check results as JSON instead of the text report",
+    )
     p_doctor.set_defaults(func=cmd_doctor)
 
     p_export = sub.add_parser(
@@ -1612,6 +1731,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--bundle",
         action="store_true",
         help="Write a verified bundle (zip of the data file + chain.json + receipts) for offline re-verification",
+    )
+    p_export.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit a structured JSON result instead of the text summary",
     )
     p_export.set_defaults(func=cmd_export)
 

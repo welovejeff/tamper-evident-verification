@@ -421,6 +421,98 @@ def test_bucket_column_non_qualifying_exits_1_and_writes_nothing(tmp_path, capsy
     assert not (tmp_path / "receipts" / SOURCE_RECEIPT_NAME).exists()
 
 
+# ---------------------------------------------------------------------------
+# receipts ingest --json
+# ---------------------------------------------------------------------------
+def test_ingest_json_emits_structured_result(tmp_path, capsys):
+    assert _ingest_with(tmp_path, DATED_CSV, "--json") == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["source"] == "export.csv"
+    assert payload["tolerance"] is None
+    assert payload["row_count"] >= 1
+    assert payload["column_count"] >= 1
+    assert payload["semantic_hash"]
+    assert payload["source_manifest"].endswith(SOURCE_RECEIPT_NAME)
+
+
+def test_ingest_json_includes_declared_tolerance(tmp_path, capsys):
+    assert _ingest_with(tmp_path, DATED_CSV, "--band", "5%", "--json") == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["tolerance"]["band"] == "0.05"
+    assert payload["tolerance"]["settle_hours"] == 72
+
+
+# ---------------------------------------------------------------------------
+# receipts doctor --json
+# ---------------------------------------------------------------------------
+def test_doctor_json_reports_all_passed(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    main(["init"])
+    _seed_chain(tmp_path)
+    capsys.readouterr()
+    code = main(["doctor", "--json"])
+    payload = json.loads(capsys.readouterr().out)
+    assert code == 0
+    assert payload["all_passed"] is True
+    assert payload["checks"] and all({"name", "ok", "fix"} <= set(c) for c in payload["checks"])
+    assert isinstance(payload["warnings"], list)
+
+
+def test_doctor_json_reports_failure(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    code = main(["doctor", "--json"])
+    payload = json.loads(capsys.readouterr().out)
+    assert code == 1
+    assert payload["all_passed"] is False
+    assert any(not c["ok"] for c in payload["checks"])
+
+
+# ---------------------------------------------------------------------------
+# receipts export --json
+# ---------------------------------------------------------------------------
+def test_export_json_table(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    _seed_chain(tmp_path)
+    data = _matching_data_file(tmp_path)
+    capsys.readouterr()
+    code = main(["export", "--chain", "receipts/chain.json", "--data", str(data), "--json"])
+    payload = json.loads(capsys.readouterr().out)
+    assert code == 0
+    assert payload["bundle"] is False
+    assert payload["row_count"] == len(sample_records())
+    assert payload["data_hash"]
+    assert payload["output"].endswith("table.json")
+
+
+def test_export_bundle_json(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    _seed_chain(tmp_path)
+    data = _matching_data_file(tmp_path)
+    capsys.readouterr()
+    code = main(["export", "--chain", "receipts/chain.json", "--data", str(data), "--bundle", "--json"])
+    payload = json.loads(capsys.readouterr().out)
+    assert code == 0
+    assert payload["bundle"] is True
+    assert payload["receipts"] >= 1
+    assert payload["output"].endswith("-verified.zip")
+
+
+def test_export_json_error_is_structured_and_clean(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    _seed_chain(tmp_path)
+    data = tmp_path / "wrong.json"
+    data.write_text('[{"a": 1}]', encoding="utf-8")
+    capsys.readouterr()
+    code = main(["export", "--chain", "receipts/chain.json", "--data", str(data), "--json"])
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    assert code == 1
+    assert payload["ok"] is False
+    assert "match" in payload["error"]
+    # The structured error replaces the human stderr lines under --json.
+    assert captured.err == ""
+
+
 def test_bucket_column_declares_and_keys_the_period_buckets(tmp_path, capsys):
     # Two qualifying date columns: only the explicit declaration buckets.
     assert _ingest_with(tmp_path, TWO_DATE_CSV, "--bucket-column", "created") == 0

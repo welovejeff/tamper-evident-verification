@@ -340,3 +340,20 @@ def test_end_to_end_over_built_history(tmp_path, monkeypatch, capsys):
     assert len(payload["runs"]) >= 1
     # Signed snapshots verify under the chain key, so they are not unsigned.
     assert all(run["unsigned"] is False for run in payload["runs"])
+
+
+def test_log_json_surfaces_band_and_settle_per_run(tmp_path, capsys):
+    # The signed tolerance declaration is per-snapshot; log --json surfaces it
+    # per run entry, present only on the runs that declared it.
+    receipts = tmp_path / "receipts"
+    s0 = _unsigned(_snapshot(created_at="2026-05-01T00:00:00Z", row_count=100, tail="aa" * 32))
+    s1 = _unsigned(_snapshot(created_at="2026-05-02T00:00:00Z", row_count=110, tail="bb" * 32))
+    s1["tolerance"] = {"band": "0.05", "settle_hours": 72, "bucket_column": "day"}
+    _write_history(receipts, [s0, s1])
+
+    assert main(["log", "--chain", str(receipts), "--json"]) == 0
+    runs = json.loads(capsys.readouterr().out)["runs"]  # oldest first
+
+    assert "band" not in runs[0] and "settle_hours" not in runs[0]
+    assert runs[1]["band"] == "0.05"
+    assert runs[1]["settle_hours"] == 72
