@@ -15,6 +15,7 @@ import { basename, dirname, join } from "node:path";
 import { parseArgs } from "node:util";
 import process from "node:process";
 
+import * as color from "./color.js";
 import { canonicalDocument, canonicalJsonBytes, semanticHash } from "./canonical.js";
 import {
   LOG_GRANULARITIES,
@@ -239,8 +240,8 @@ function cmdIngestPeriod(values, file) {
     return caveats.length ? 2 : 0;
   }
   console.log(`Imported next period: ${result.manifest.source.filename}`);
-  console.log(`  evidence_hash ${result.manifest.source.evidence_hash}`);
-  console.log(`  semantic_hash ${result.manifest.semantic_hash}`);
+  console.log(`  evidence_hash ${color.dim(result.manifest.source.evidence_hash)}`);
+  console.log(`  semantic_hash ${color.dim(result.manifest.semantic_hash)}`);
   console.log(`  rows ${totals.row_count}, columns ${totals.column_count}`);
   const grouped = groupedNumericColumns(result.records);
   if (grouped.length) {
@@ -335,8 +336,8 @@ function cmdIngest(args) {
     return 0;
   }
   console.log(`Ingested ${basename(file)}`);
-  console.log(`  evidence_hash ${manifest.source.evidence_hash}`);
-  console.log(`  semantic_hash ${manifest.semantic_hash}`);
+  console.log(`  evidence_hash ${color.dim(manifest.source.evidence_hash)}`);
+  console.log(`  semantic_hash ${color.dim(manifest.semantic_hash)}`);
   console.log(`  rows ${totals.row_count}, columns ${totals.column_count}`);
   if (manifest.tolerance) {
     const t = manifest.tolerance;
@@ -459,6 +460,9 @@ function cmdVerify(args) {
     };
     console.log(JSON.stringify(payload, null, 2));
   } else {
+    if (color.shouldColor()) {
+      console.log(`${color.light(result.verdict)} ${color.colorize(result.verdict.toUpperCase(), result.verdict)}`);
+    }
     for (const line of result.lines) console.log(line);
   }
   // Archive the run snapshot AFTER the final exit code settled: a red run
@@ -639,14 +643,14 @@ function renderStageDelta(delta) {
   for (const key of ["row_count", "column_count"]) {
     const entry = delta[key];
     if (entry) {
-      const suffix = "delta" in entry ? ` (${signedInt(entry.delta)})` : "";
+      const suffix = "delta" in entry ? ` (${color.signed(signedInt(entry.delta))})` : "";
       lines.push(`${key} ${entry.before} -> ${entry.after}${suffix}`);
     }
   }
   for (const [column, entry] of Object.entries(delta.numeric_sums ?? {})) {
     const before = entry.before !== null ? entry.before : "(added)";
     const after = entry.after !== null ? entry.after : "(removed)";
-    const suffix = "delta" in entry ? ` (${entry.delta})` : "";
+    const suffix = "delta" in entry ? ` (${color.signed(entry.delta)})` : "";
     lines.push(`${column} ${before} -> ${after}${suffix}`);
   }
   for (const [column, entry] of Object.entries(delta.null_counts ?? {})) {
@@ -1181,7 +1185,7 @@ function cmdExport(args) {
     }
     console.log(`Exported verified bundle: ${bundlePath}`);
     console.log(`  data ${dataName}, ${receiptNames.length} receipts + ${CHAIN_FILENAME}`);
-    console.log(`  semantic_hash ${dataHash} (matches final receipt)`);
+    console.log(`  semantic_hash ${color.dim(dataHash)} (matches final receipt)`);
     console.log(`  recipient: unzip, then \`tamper-signal verify ${CHAIN_FILENAME}\``);
     return 0;
   }
@@ -1200,11 +1204,15 @@ function cmdExport(args) {
   }
   console.log(`Exported verified table: ${outPath}`);
   console.log(`  rows ${document.rows.length}, columns ${document.headers.length}`);
-  console.log(`  semantic_hash ${dataHash} (matches final receipt)`);
+  console.log(`  semantic_hash ${color.dim(dataHash)} (matches final receipt)`);
   return 0;
 }
 
-const [, , command, ...rest] = process.argv;
+const [, , command, ...rawRest] = process.argv;
+// --no-color is global: honor it at any position and strip it so each command's
+// strict parser does not reject it. NO_COLOR / FORCE_COLOR env are honored too.
+if (rawRest.includes("--no-color")) color.setNoColor(true);
+const rest = rawRest.filter((arg) => arg !== "--no-color");
 const commands = { keygen: cmdKeygen, ingest: cmdIngest, verify: cmdVerify, diff: cmdDiff, log: cmdLog, export: cmdExport };
 if (!command || !(command in commands)) {
   console.error(USAGE);
