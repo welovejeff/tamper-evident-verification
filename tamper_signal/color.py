@@ -77,6 +77,35 @@ def light(verdict: str, stream: TextIO | None = None) -> str:
     return _paint("●", _VERDICT_COLOR.get(verdict, ""), stream)
 
 
+# Fixed first-run banner. Byte-identical to node/color.js. Shown only on a
+# color-capable terminal, so piped/non-TTY output is unchanged.
+_BANNER = (
+    "┌─ Tamper Signal ──────────────┐\n"
+    "│ signed receipts · green light │\n"
+    "└──────────────────────────────┘"
+)
+
+
+def banner(stream: TextIO | None = None) -> str:
+    """The first-run banner when color is on, else an empty string."""
+    return colorize(_BANNER, "green", stream) if should_color(stream) else ""
+
+
+def colorize(text: str, verdict: str, stream: TextIO | None = None) -> str:
+    """Paint ``text`` in a verdict's color (``green``/``yellow``/``red``)."""
+    return _paint(text, _VERDICT_COLOR.get(verdict, ""), stream)
+
+
+def signed(token: str, stream: TextIO | None = None) -> str:
+    """Color a pre-formatted signed token by its sign (+green, -red)."""
+    text = str(token)
+    if text.startswith("+"):
+        return _paint(text, _GREEN, stream)
+    if text.startswith("-"):
+        return _paint(text, _RED, stream)
+    return text
+
+
 def delta(value: float, stream: TextIO | None = None) -> str:
     """A signed movement value, colored by direction (increase green, decrease red).
 

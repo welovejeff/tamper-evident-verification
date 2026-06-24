@@ -55,6 +55,19 @@ export function light(verdict, stream = process.stdout) {
   return paint("●", VERDICT_COLOR[verdict] ?? "", stream);
 }
 
+// Paint text in a verdict's color ("green"/"yellow"/"red").
+export function colorize(text, verdict, stream = process.stdout) {
+  return paint(text, VERDICT_COLOR[verdict] ?? "", stream);
+}
+
+// Color a pre-formatted signed token by its sign (+green, -red).
+export function signed(token, stream = process.stdout) {
+  const text = String(token);
+  if (text.startsWith("+")) return paint(text, GREEN, stream);
+  if (text.startsWith("-")) return paint(text, RED, stream);
+  return text;
+}
+
 // A signed movement value, colored by direction (increase green, decrease red).
 // The sign is always printed, so direction reads without color and for
 // colorblind users. Direction is a neutral cue, not a verdict.

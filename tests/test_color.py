@@ -91,6 +91,32 @@ def test_delta_keeps_sign_when_color_off():
     assert "\x1b" not in color.delta(12, PIPE)
 
 
+def test_colorize_paints_in_verdict_color(monkeypatch):
+    monkeypatch.setenv("FORCE_COLOR", "1")
+    assert color.colorize("X", "red", PIPE) == f"{color._RED}X{color._RESET}"
+    assert color.colorize("X", "green", PIPE) == f"{color._GREEN}X{color._RESET}"
+
+
+def test_signed_colors_by_sign(monkeypatch):
+    monkeypatch.setenv("FORCE_COLOR", "1")
+    assert color.signed("+3", PIPE) == f"{color._GREEN}+3{color._RESET}"
+    assert color.signed("-3", PIPE) == f"{color._RED}-3{color._RESET}"
+    assert color.signed("0", PIPE) == "0"
+
+
+def test_signed_is_plain_when_off():
+    assert color.signed("+3", PIPE) == "+3"
+    assert "\x1b" not in color.signed("-3", PIPE)
+
+
+def test_banner_only_renders_when_color_on(monkeypatch):
+    assert color.banner(PIPE) == ""
+    monkeypatch.setenv("FORCE_COLOR", "1")
+    rendered = color.banner(PIPE)
+    assert "Tamper Signal" in rendered
+    assert "\x1b" in rendered
+
+
 def test_dim_and_bold_wrap_only_when_on(monkeypatch):
     assert color.dim("abc", PIPE) == "abc"
     assert color.bold("abc", PIPE) == "abc"
