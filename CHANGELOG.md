@@ -2,6 +2,21 @@
 
 All notable changes to Tamper Signal are recorded here. The Python (`tamper-signal` on PyPI) and JavaScript (`tamper-signal` on npm) packages are versioned in lockstep and produce interchangeable chains.
 
+## 1.7.1
+
+A finished CLI: a complete machine surface for agents and a colored, legible terminal for people.
+
+### Added
+
+- **`--json` on `receipts ingest`, `export`, and `doctor`** (and the Node `tamper-signal ingest` / `export`), completing the structured surface that `verify`, `diff`, `log`, and `anchor` already had. `ingest --json` reports the source filename, evidence and semantic hashes, row/column counts, the signed tolerance, and the source-manifest path; `export --json` reports the output path, counts, data hash, and whether a bundle was written; `doctor --json` reports each check (`name`, `ok`, `fix`), the warnings, and an overall `all_passed`. Failures under `--json` print a structured `{"ok": false, "error": ...}` object on stdout. The Python and Node payloads are key-identical for every shared command; `doctor` is Python-only, since the Node CLI has no `doctor` command.
+- **`band` and `settle_hours` in `log --json`**, surfaced per run entry from each run's signed tolerance declaration (omitted on runs that declared none).
+- **A colored, human-facing CLI.** The verdict renders as a green/amber/red `●` light that agrees with the exit code and the verdict word; `doctor` check glyphs and `diff` / totals deltas are colored by direction (increase green, decrease red, sign always printed); secondary detail like hashes is dimmed; and `receipts init` shows a first-run banner.
+
+### Notes
+
+- **Color never corrupts machine output.** ANSI is emitted only when stdout is an interactive terminal and is never present in `--json` output or when stdout is piped or redirected. It honors `NO_COLOR` (force off, wins over everything), `FORCE_COLOR` (force on past the TTY check), and a `--no-color` flag. A regression test in each stack asserts that no escape sequence appears under `--json` or a non-TTY pipe, even with color forced on.
+- The color layer is a small dependency-free helper in each stack (`tamper_signal/color.py`, `node/color.js`) with an identical palette and gating rule, so the two CLIs read as one product. No new runtime dependency, no spec change, no change to receipt bytes.
+
 ## 1.7.0
 
 Data portability: take the attested data out with its proof, and bring an updated file back.

@@ -299,6 +299,25 @@ folded into `verdict`, `exit_code`, `caveats`, and `report` (a missing
 anchor turns a green run yellow; a mismatch turns it red), so the payload
 never contradicts itself.
 
+`--json` is also available on `ingest`, `export`, and `doctor` (and `diff`,
+`log`, `anchor`), so an agent can drive the whole flow without scraping text.
+`ingest --json` returns `source`, `evidence_hash`, `semantic_hash`,
+`row_count`, `column_count`, `tolerance`, and `source_manifest`;
+`export --json` returns `output`, `row_count`, `column_count`, `data_hash`,
+and `bundle`; `doctor --json` returns `checks` (each with `name`, `ok`, `fix`),
+`warnings`, and `all_passed`. `log --json` carries the declared `band` and
+`settle_hours` per run entry when that run signed a tolerance. Failures under
+`--json` print a structured `{"ok": false, "error": ...}` object on stdout.
+The Python and Node payloads are key-identical for every shared command; Node
+has no `doctor` command, so `doctor --json` is Python-only.
+
+The human CLI is colored on an interactive terminal: the verdict shows as a
+green/amber/red `●` light that agrees with the exit code, and `diff` deltas are
+colored by direction. Color never appears in `--json` output or when stdout is
+piped or redirected. It honors `NO_COLOR` (force off, wins over everything),
+`FORCE_COLOR` (force on past the TTY check), and a `--no-color` flag. Agents
+parsing stdout get clean, ANSI-free output by default (a pipe is not a TTY).
+
 ### CI: verify the chain on every push
 
 ```yaml

@@ -40,6 +40,11 @@ test("ingest --json emits a structured result", () => {
   assert.equal(payload.tolerance, null);
   assert.ok(payload.semantic_hash);
   assert.ok(payload.source_manifest.endsWith("000_source.json"));
+  // Pinned key set: must equal the Python ingest --json payload (R5).
+  assert.deepEqual(
+    Object.keys(payload).sort(),
+    ["column_count", "evidence_hash", "row_count", "semantic_hash", "source", "source_manifest", "tolerance"],
+  );
 });
 
 test("ingest --json includes a declared tolerance", () => {
@@ -57,6 +62,8 @@ test("export --json writes a table result", () => {
   assert.ok(payload.output.endsWith("table.json"));
   assert.ok(payload.data_hash);
   assert.equal(payload.row_count, 2);
+  // Pinned key set: must equal the Python export --json payload (R5).
+  assert.deepEqual(Object.keys(payload).sort(), ["bundle", "column_count", "data_hash", "output", "row_count"]);
 });
 
 test("export --bundle --json reports the bundle", () => {

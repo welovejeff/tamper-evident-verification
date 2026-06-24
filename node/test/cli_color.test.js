@@ -59,3 +59,29 @@ test("NO_COLOR beats FORCE_COLOR", () => {
   const out = run(dir, ["verify", "receipts/chain.json"], { FORCE_COLOR: "1", NO_COLOR: "1" });
   assert.ok(!out.includes("\x1b"));
 });
+
+// The acceptance gate (R16): ANSI must never leak into --json, even with color
+// forced on. Mirrors tests/test_cli_json_gate.py (node has no doctor command).
+test("no ANSI leaks into --json even under FORCE_COLOR", () => {
+  const dir = mkdtempSync(join(tmpdir(), "tamper-signal-gate-"));
+  run(dir, ["keygen", "--out", "keys"]);
+  writeFileSync(join(dir, "d.csv"), "day,amount\n2026-05-01,10\n");
+  run(dir, ["ingest", "d.csv"]);
+  run(dir, ["verify", "receipts/chain.json"]);
+  writeFileSync(join(dir, "d.csv"), "day,amount\n2026-05-01,10\n2026-05-02,20\n");
+  run(dir, ["ingest", "d.csv"]);
+  run(dir, ["verify", "receipts/chain.json"]);
+
+  const commands = [
+    ["verify", "receipts/chain.json", "--json"],
+    ["log", "--chain", "receipts/", "--json"],
+    ["diff", "--json"],
+    ["export", "receipts/chain.json", "--data", "d.csv", "--json"],
+    ["ingest", "d.csv", "--json"],
+  ];
+  for (const args of commands) {
+    const out = run(dir, args, { FORCE_COLOR: "1" });
+    assert.ok(!out.includes("\x1b"), `ANSI leaked into --json of ${args[0]}`);
+    JSON.parse(out);
+  }
+});
