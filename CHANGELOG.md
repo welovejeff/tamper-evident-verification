@@ -2,7 +2,7 @@
 
 All notable changes to Tamper Signal are recorded here. The Python (`tamper-signal` on PyPI) and JavaScript (`tamper-signal` on npm) packages are versioned in lockstep and produce interchangeable chains.
 
-## Unreleased
+## 1.7.2
 
 Integration-pass fixes: smooth the first hour for an integrator copy-pasting the runbook, from a fresh `pip install` through mounting the verified table.
 
