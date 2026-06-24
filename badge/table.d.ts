@@ -26,3 +26,27 @@ export function mountReceiptTable(
   tableUrl?: string | ReceiptTableOptions,
   opts?: ReceiptTableOptions,
 ): ReceiptTableHandle;
+
+/**
+ * The verified Data tab as a custom element, the parallel of `<tamper-signal>`.
+ * Importing this module registers `<tamper-signal-table>` as a side effect.
+ *
+ * Attributes:
+ * - `chain` (required) — URL of chain.json
+ * - `table` — URL of table.json (defaults to table.json beside chain)
+ * - `max-rows` — rows rendered before the "show all" footer (default 500)
+ */
+export class TamperSignalTableElement extends HTMLElement {
+  static get observedAttributes(): string[];
+  /** The underlying mount handle (refresh/destroy), or null. */
+  get table(): ReceiptTableHandle | null;
+  connectedCallback(): void;
+  disconnectedCallback(): void;
+  attributeChangedCallback(): void;
+}
+
+declare global {
+  interface HTMLElementTagNameMap {
+    "tamper-signal-table": TamperSignalTableElement;
+  }
+}

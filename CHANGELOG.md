@@ -2,9 +2,24 @@
 
 All notable changes to Tamper Signal are recorded here. The Python (`tamper-signal` on PyPI) and JavaScript (`tamper-signal` on npm) packages are versioned in lockstep and produce interchangeable chains.
 
-## 1.7.1
+## Unreleased
 
-A finished CLI: a complete machine surface for agents and a colored, legible terminal for people.
+Integration-pass fixes: smooth the first hour for an integrator copy-pasting the runbook, from a fresh `pip install` through mounting the verified table.
+
+### Added
+
+- **`receipts assets` / `tamper-signal assets`** copies the bundled browser surfaces (`light.js`, `badge.js`, `element.js`, `table.js`, `console.js`) into a project, default `--out badge/`, so vendoring no longer means digging through `site-packages` or `node_modules`. `--json` reports the destination and the files written.
+- **`<tamper-signal-table>` web component**, the parallel of `<tamper-signal>` for the verified Data tab. Importing `tamper-signal/table` (or vendored `badge/table.js`) registers it; attributes are `chain` (required), `table` (table.json URL), and `max-rows`. Previously only `mountReceiptTable(...)` was available and the element was documented but never defined.
+- **`python -m tamper_signal`** as a PATH-independent entry point. When pip installs the `receipts` console script into a bin directory that is not on PATH (common on the python.org framework Python), every `receipts <args>` works as `python3 -m tamper_signal <args>`.
+
+### Changed
+
+- **`receipts export` accepts the chain as a positional argument** (`receipts export receipts/chain.json --data ...`), matching `receipts verify` and the Node CLI. The `--chain` flag still works; the positional wins when both are given. The runbook's documented `export` command now runs as written.
+- **`receipts serve` reports a busy port cleanly** — `port <n> is already in use — try receipts serve --port <n>`, exit 1 — instead of dumping a raw `OSError` traceback. The startup banner now prints the served root URL rather than appending `/chain.json` to it.
+
+### Docs
+
+- The runbook (`AGENTS.md`) standardizes manual-vendor asset paths on `/badge/`, adds a note that the browser surfaces verify over HTTP and not from `file://`, documents source-only chains (a valid chain with zero transforms and exactly what it does and does not attest), and adds an install note for the "`receipts: command not found`" PATH case. Its "rules for the copy you write" section is reframed so a summarizing agent reads it as guidance about product copy, not as constraints on its own output.
 
 ### Added
 

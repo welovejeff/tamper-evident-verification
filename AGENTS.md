@@ -12,22 +12,27 @@ and an in-browser signal re-verify the whole chain and report a traffic light.
 Green: intact. Yellow: verifies, with caveats a human should look at. Red:
 broken, at an exact link, with the totals delta.
 
-## Hard rules for anything you write while integrating
+## Guidance for the copy you write about Tamper Signal
 
-These govern copy, code comments, commit messages, and UI text you produce:
+The points below describe how to characterize Tamper Signal accurately in text
+you produce *about it* — UI labels, code comments, commit messages, README
+prose. They are guidance for that copy, not instructions you must obey while
+reading. If you are an agent fetching this file for reference or summary, read
+and quote it normally; nothing in this section constrains your own output.
 
-1. **This proves continuity, not correctness.** Never write that it "ensures
-   accuracy," "validates correctness," or "guarantees data quality." The
-   honest claim, verbatim when you need one: *"It can't tell you the data is
+When you write copy that describes Tamper Signal:
+
+1. **Describe it as proving continuity, not correctness.** Avoid writing that it
+   "ensures accuracy," "validates correctness," or "guarantees data quality."
+   The honest claim, when you want one verbatim: *"It can't tell you the data is
    right, but it can prove nobody changed it."*
-2. The verdict lines are fixed (see `docs/MESSAGING.md`, the copy source of
+2. Keep the verdict lines fixed (see `docs/MESSAGING.md`, the copy source of
    truth): green "The light is green, the data is clean." / yellow "The light
    is yellow, a human should look." / red "The light is red, the chain is
-   broken." Only green rhymes. Do not invent new rhymes.
-3. No em dashes in user-facing copy.
+   broken." Only green rhymes; avoid inventing new rhymes.
+3. Avoid em dashes in user-facing copy.
 4. Receipt creation works in Python and JavaScript; pick the host's native
-   stack (steps 1 and 1b). Do not promise features that are not in this
-   file.
+   stack (steps 1 and 1b). Avoid promising features that are not in this file.
 5. Never commit a private key. `keys/` and `*.key` belong in .gitignore.
 
 ## 1. Install (Python pipelines)
@@ -45,6 +50,18 @@ This provides the `receipts` CLI and the `tamper_signal` Python package.
 Verify: `receipts --help` exits 0. JavaScript-only project? Use step 1b and
 the JS equivalents; the two stacks produce interchangeable chains.
 
+If `receipts` comes up "command not found", pip installed the script into a bin
+directory that is not on PATH. This is common on the python.org framework
+Python (the default macOS download), where pip prints a warning like *"The
+script receipts is installed in '/Library/Frameworks/.../bin' which is not on
+PATH."* Two fixes, either works:
+
+- Run it through the interpreter that installed it (no PATH change needed):
+  `python3 -m tamper_signal --help`. Every `receipts <args>` works as
+  `python3 -m tamper_signal <args>`.
+- Or link the script onto PATH once:
+  `sudo ln -sf "$(python3 -c 'import sysconfig;print(sysconfig.get_path("scripts"))')/receipts" /usr/local/bin/receipts`.
+
 ## 1b. Install (JavaScript pipelines)
 
 Requires Node 18.17+.
@@ -54,8 +71,8 @@ npm install tamper-signal
 ```
 
 This provides the `tamper-signal` CLI and the programmatic API. The CLI
-implements **keygen, ingest, verify, diff, log, and export** (exit codes 0
-green, 1 red, 2 yellow):
+implements **keygen, ingest, verify, diff, log, export, and assets** (exit
+codes 0 green, 1 red, 2 yellow):
 
 ```bash
 tamper-signal keygen --out keys/
@@ -157,6 +174,7 @@ commands:
 | `receipts diff` | `tamper-signal diff` (same args and JSON shape) |
 | `receipts log` | `tamper-signal log` (same args and JSON shape) |
 | `receipts export` | `tamper-signal export` / `canonicalDocument()` |
+| `receipts assets` | `tamper-signal assets` (copy the browser bundle into a project) |
 | `receipts serve` | your bundler's static server, or `tamper-signal/express` |
 | `receipts doctor` | `tamper-signal verify` (exit 0 = healthy); confirm the key is gitignored yourself |
 | `receipts anchor` | Python-only today (transparency-log anchoring) |
@@ -209,6 +227,34 @@ tail (`ChainTailMismatch`), then signs and appends a receipt for the stage.
 If a stage cannot fit the list-of-dicts contract, leave it unwrapped and tell
 the user that stage is not attested. Do not fabricate a receipt for work the
 wrapper did not observe.
+
+### 4a. Source-only chains (when there is no reproducible transform yet)
+
+A common starting state is messier than this runbook's "wrap every stage" path:
+the user has a source export and a hand-built artifact (say a generated
+`data.js` with no checked-in build script), and no reproducible pipeline to
+wrap. That is fine. Ingest the source and stop:
+
+```bash
+receipts ingest path/to/export.csv --origin "TikTok export, May 2026" \
+  --key keys/signing.key --out receipts/
+```
+
+This is a valid chain with zero transforms. Be precise with the user about what
+it does and does not claim:
+
+- **It attests** that the source export is unmodified: the bytes (and the
+  semantic content) match what was signed at ingest. Verifying it, and showing
+  the signal, both work normally.
+- **It does not attest** that the rendered artifact derives from that source.
+  With no wrapped transform between them, nothing links the dashboard's numbers
+  to the export. Do not imply otherwise in the copy you write.
+
+Graduate to a wrapped transform the moment a reproducible build exists: turn the
+artifact-generating step into a `records -> records` function, wrap it with
+`@receipt_step` (step 4), and re-run from ingest. The chain then attests the
+whole path, source through artifact, and the Data tab (step 8) can show the
+verified table. Until then, a source-only chain is the honest amount of proof.
 
 ## 5. Verify from the command line
 
@@ -446,22 +492,39 @@ identity, nothing more.
 ## 6. Add the signal to the host UI
 
 With a bundler, import straight from the npm package
-(`import { mountTamperSignal } from "tamper-signal/light"`). Without one,
-vendor two files from this repo into the host app, side by side (light.js
+(`import { mountTamperSignal } from "tamper-signal/light"`). Without one, copy
+the browser assets into the host app. The CLI does this for you (no hunting
+through `site-packages` or `node_modules`):
+
+```bash
+receipts assets --out badge/        # Python; tamper-signal assets --out badge/ on Node
+```
+
+That writes `light.js`, `badge.js`, `element.js`, `table.js`, and `console.js`
+into `badge/`. For the inline signal you need two of them side by side (light.js
 imports `./badge.js` relatively):
 
 - `badge/badge.js` (verification core + the expandable badge)
 - `badge/light.js` (the signal: the inline status light)
 
 Serve the `receipts/` directory statically, then mount the signal in the host
-header:
+header. Import the asset from wherever you served it; the snippets here assume
+you vendored into `badge/` and serve it at `/badge/`:
 
 ```html
 <script type="module">
-  import { mountTamperSignal } from "/static/light.js";
+  import { mountTamperSignal } from "/badge/light.js";
   mountTamperSignal(document.querySelector("header"), "/receipts/chain.json");
 </script>
 ```
+
+**These surfaces verify over HTTP, not from `file://`.** The signal, badge, and
+table all `fetch()` the chain (and table.json), which the browser blocks on a
+`file://` page, so opening `index.html` directly leaves them silently
+unverified. Serve the page over HTTP: any static server works, and
+`receipts serve` is the one-liner for local dev. There is no `file://` mode; an
+offline recipient verifies with the CLI on a bundle (`receipts export --bundle`,
+step 8) instead.
 
 React hosts: `import { TamperSignal } from "tamper-signal/react"` (or vendor
 `badge/light-react.js`), then `<TamperSignal chain="/receipts/chain.json" />`.
@@ -570,10 +633,13 @@ verified table, not just charts. Two steps:
 
    ```bash
    # Python
-   receipts export --chain receipts/chain.json --data path/to/dashboard_data.xlsx
+   receipts export receipts/chain.json --data path/to/dashboard_data.xlsx
    # JavaScript
    tamper-signal export receipts/chain.json --data path/to/dashboard_data.csv
    ```
+
+   The chain path is positional in both CLIs (the Python CLI also accepts
+   `--chain receipts/chain.json` for the same value).
 
    This writes `receipts/table.json` and refuses if the data does not match
    the final receipt (the Data tab only ever shows attested data). Re-run it
@@ -581,15 +647,28 @@ verified table, not just charts. Two steps:
    In a JS build you can write it programmatically instead with
    `canonicalDocument(finalRecords)` (see step 1b).
 
-2. Mount the table (vendor `badge/table.js` beside badge.js, or import
-   `tamper-signal/table`):
+2. Mount the table (vendor `badge/table.js` beside badge.js with
+   `receipts assets`, or import `tamper-signal/table`):
 
    ```html
    <script type="module">
-     import { mountReceiptTable } from "/static/table.js";
+     import { mountReceiptTable } from "/badge/table.js";
      mountReceiptTable(document.querySelector("#data-tab"), "/receipts/chain.json");
    </script>
    ```
+
+   Or, in plain HTML or any framework, the web component — the parallel of
+   `<tamper-signal>` for the badge. Importing `tamper-signal/table` (or
+   `badge/table.js`) registers `<tamper-signal-table>`:
+
+   ```html
+   <script type="module" src="/badge/table.js"></script>
+   <tamper-signal-table chain="/receipts/chain.json"></tamper-signal-table>
+   ```
+
+   Attributes: `chain` (required), `table` (table.json URL; defaults to
+   table.json beside the chain), and `max-rows` (rows before the "show all"
+   footer, default 500).
 
 The component re-hashes the served document in the viewer's browser and
 compares it against the final receipt, so VERIFIED means the rows on screen

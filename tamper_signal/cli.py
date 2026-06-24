@@ -6,9 +6,11 @@ Commands:
   receipts verify receipts/chain.json --pub keys/signing.pub [--data <current.xlsx>] [--json]
   receipts diff [A] [B] [--chain receipts/] [--json]
   receipts log [--chain receipts/] [--granularity day|week|month|quarter] [--metric <name>] [--json]
+  receipts export [receipts/chain.json] --data <current.csv> [--bundle] [--json]
   receipts init
   receipts doctor [--url http://localhost:8787/chain.json]
   receipts serve
+  receipts assets [--out badge/]
   receipts demo
 """
 
@@ -801,17 +803,68 @@ def _serve_handler_class(directory: str):
 
 def cmd_serve(args: argparse.Namespace) -> int:
     """Serve the receipts directory on localhost with CORS for local dev."""
+    import errno
     import socketserver
 
     directory = str(Path(args.dir).resolve())
     handler = _serve_handler_class(directory)
-    print(f"Serving {directory} at http://localhost:{args.port}/chain.json")
+    # Bind before printing the banner so a port conflict reports cleanly instead
+    # of dumping a socketserver traceback after an encouraging "Serving ..." line.
+    try:
+        httpd = socketserver.TCPServer(("127.0.0.1", args.port), handler)
+    except OSError as exc:
+        if exc.errno == errno.EADDRINUSE:
+            print(
+                f"port {args.port} is already in use — try `receipts serve --port <n>`",
+                file=sys.stderr,
+            )
+        else:
+            print(f"could not serve on port {args.port}: {exc}", file=sys.stderr)
+        return 1
+    root = f"http://localhost:{args.port}/"
+    print(f"Serving {directory} at {root} (chain.json at {root}chain.json)")
     print("CORS is open and caching is off: local development only. Ctrl+C to stop.")
     try:
-        with socketserver.TCPServer(("127.0.0.1", args.port), handler) as httpd:
+        with httpd:
             httpd.serve_forever()
     except KeyboardInterrupt:
         print("\nStopped.")
+    return 0
+
+
+def cmd_assets(args: argparse.Namespace) -> int:
+    """Copy the bundled browser assets into a project directory.
+
+    The browser files (light.js, badge.js, element.js, table.js, console.js)
+    ship inside the installed package; without this command an integrator has
+    to discover `site-packages/tamper_signal/static/` and copy by hand. The
+    default destination is `badge/`, matching the vendor path used throughout
+    the runbook.
+    """
+    import shutil
+
+    src_dir = Path(__file__).resolve().parent / "static"
+    names = sorted(p.name for p in src_dir.glob("*.js"))
+    if not names:
+        msg = "No bundled browser assets found in the installed package."
+        if args.json:
+            _print_json({"ok": False, "error": msg})
+        else:
+            print(msg, file=sys.stderr)
+        return 1
+
+    out_dir = Path(args.out)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for name in names:
+        shutil.copyfile(src_dir / name, out_dir / name)
+
+    if args.json:
+        _print_json({"out": str(out_dir), "files": names})
+        return 0
+    print(f"Copied {len(names)} browser assets into {out_dir}/")
+    for name in names:
+        print(f"  {name}")
+    print(f'Import them at the path you serve them, e.g. "/{out_dir.name}/light.js".')
     return 0
 
 
@@ -827,8 +880,11 @@ def cmd_export(args: argparse.Namespace) -> int:
     from .canonical import canonical_document, load_records as _load
     from .receipts import output_hash_of
 
-    chain = read_chain(args.chain)
-    chain_dir = Path(args.chain).parent
+    # Accept the chain as a positional (mirrors `verify` and the Node CLI) or as
+    # --chain; the positional wins when both are given.
+    chain_path = args.chain_arg or args.chain
+    chain = read_chain(chain_path)
+    chain_dir = Path(chain_path).parent
     try:
         receipts = [read_receipt(str(chain_dir), name) for name in chain.get("receipts", [])]
     except ValueError as exc:
@@ -1726,6 +1782,12 @@ def build_parser() -> argparse.ArgumentParser:
         "export",
         help="Write the canonical table document (table.json) for the verified Data tab",
     )
+    p_export.add_argument(
+        "chain_arg",
+        nargs="?",
+        metavar="chain",
+        help="Path to chain.json (positional; same as --chain)",
+    )
     p_export.add_argument("--chain", default="receipts/chain.json", help="Path to chain.json")
     p_export.add_argument("--data", required=True, help="Data file that must match the final receipt")
     p_export.add_argument(
@@ -1826,6 +1888,16 @@ def build_parser() -> argparse.ArgumentParser:
     p_serve.add_argument("--dir", default="receipts/", help="Directory to serve")
     p_serve.add_argument("--port", type=int, default=8787, help="Port")
     p_serve.set_defaults(func=cmd_serve)
+
+    p_assets = sub.add_parser(
+        "assets",
+        help="Copy the bundled browser assets (light.js, badge.js, element.js, table.js, console.js) into a project",
+    )
+    p_assets.add_argument(
+        "--out", default="badge/", help="Directory to copy the assets into (created if missing)"
+    )
+    p_assets.add_argument("--json", action="store_true", help="Emit a JSON summary")
+    p_assets.set_defaults(func=cmd_assets)
 
     p_demo = sub.add_parser("demo", help="Run the full end-to-end demo")
     p_demo.add_argument("--no-serve", action="store_true", help="Skip serving the badge")
