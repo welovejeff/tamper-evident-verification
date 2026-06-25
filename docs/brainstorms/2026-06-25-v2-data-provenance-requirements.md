@@ -17,8 +17,9 @@ The result: a user can prove the current numbers are intact, but cannot hand som
 
 ## Key Decisions
 
-- **Embedded watcher, not a hosted service.** Live sources are monitored by a long-running watcher the user runs inside their own app/server. Nothing — data or proof — leaves the user's environment. This evolves the product identity from *"no infrastructure"* to *"no third-party infrastructure; your data and its proof never leave your app,"* and accepts the shift from "drop in a decorator" to "also run a watcher."
-- **Comments are signed into the chain.** A change's reason is captured as part of the signed structure, so the provenance narrative is as tamper-evident as the data. The cost is immutability: a comment is corrected by appending a new signed annotation, never by editing.
+- **Embedded watcher, not a hosted service.** Live sources are monitored by a watcher the user runs inside their own app, default-shaped as a stateless scheduled tick (poll once, append or flag, exit) with an optional long-running daemon for continuous polling. Nothing — data or proof — leaves the user's environment. The scheduled-tick default keeps the file-on-disk, no-required-process model (a green light never depends on the watcher running) while evolving the identity from *"no infrastructure"* to *"no third-party infrastructure; your data and its proof never leave your app."*
+- **Comments are signed into the chain, with self-declared authorship.** A change's reason and an author are captured in the signed structure, so the provenance narrative is as tamper-evident as the data. The author is signed attribution, not verified identity ("signed by ⟨key⟩, attributed to ⟨author⟩"). The cost is immutability: a comment is corrected by appending a new signed annotation, never by editing.
+- **Enforced table is default-on, not coercive.** The verified table is always present and always honest by default — it shows its red/stale state but never blocks other UI — with an opt-in strict mode that gates other views on a broken chain for teams that want the harder guarantee.
 - **Live retroactive changes reuse band/settle.** Rather than a new policy, a past-date change is judged by the declared tolerance: within band and inside the settling window it folds in automatically; once a bucket is settled, any movement pauses for a human signed reason. This inherits the existing settled-movement judgment.
 - **Console as the default chain-of-custody view.** The console is promoted from opt-in debugging surface to the primary provenance experience, aggregating history and reuploads into one timeline rather than rendering only the current chain.
 - **One coordinated 2.0.** All capabilities ship together for a single launch. The trade-off is the longest time-to-feedback and the most that can slip at once; a phased internal build order is recommended even though the release is single.
@@ -63,13 +64,13 @@ The result: a user can prove the current numbers are intact, but cannot hand som
 
 **Signed mutation log and comments**
 
-- R4. A change can carry a user-supplied reason (why and what changed), captured inside the signed chain so the annotation is as tamper-evident as the data.
+- R4. A change can carry a user-supplied reason (why and what changed) and a self-declared author, both captured inside the signed chain so the annotation is as tamper-evident as the data. The author is signed attribution, not verified identity ("signed by ⟨key⟩, attributed to ⟨author⟩").
 - R5. A signed comment is immutable; a correction is a new signed annotation that supersedes the prior one, with both retained and visible in the timeline.
 - R6. The originating import records its source/origin in the custody log, extending today's `--origin`.
 
 **Enforced verified data table**
 
-- R7. The verified data table is a default, always-available view of the attested data wherever Tamper Signal is mounted (v1.x ships it opt-in). Exact strength of "enforced" is an open question (see Outstanding Questions).
+- R7. The verified data table is a default, always-available view of the attested data wherever Tamper Signal is mounted (v1.x ships it opt-in). By default it never blocks other UI: a broken chain or stale document shows its honest red/stale state. An opt-in strict mode additionally gates other views on a broken chain.
 - R8. The table continues to re-hash the served document in the viewer's browser and report VERIFIED / stale / broken, as in v1.x.
 
 **Reuploads and history**
@@ -79,8 +80,8 @@ The result: a user can prove the current numbers are intact, but cannot hand som
 
 **Live data sources (embedded watcher)**
 
-- R11. Tamper Signal can connect a live source (HTTP/JSON API, RSS, or a comparable polled feed) and keep it on the same signed chain via a watcher that runs inside the host app, self-hosted, with no Tamper Signal cloud.
-- R12. New data (new rows or periods) from a live source is appended to the chain automatically by the watcher.
+- R11. Tamper Signal can connect a live source (HTTP/JSON API, RSS, or a comparable polled feed) and keep it on the same signed chain via a watcher that runs inside the host app, self-hosted, with no Tamper Signal cloud. The default shape is a stateless scheduled tick (poll once, append or flag, exit) the host runs on a schedule; an optional long-running daemon provides continuous polling.
+- R12. New data (new rows or periods) from a live source is appended to the chain automatically by the watcher, attributed to the source/watcher identity (human author names are reserved for human changes).
 - R13. A retroactive change to already-recorded data is judged by the declared tolerance: within band and inside the settling window it folds in automatically; once the bucket is settled, any movement pauses as a flagged event requiring a human signed reason before acceptance.
 - R14. The watcher holds a signing key to append unattended, but withholds auto-signing for settled-period changes; those wait for a human.
 
@@ -116,6 +117,9 @@ flowchart TB
 - AE4. Stale table reads honestly
   - **Covers R8.**
   - **Given** the pipeline re-ran but the table document was not re-exported, **when** a viewer opens the data table, **then** it renders dimmed under a "not the attested data" state rather than a green VERIFIED.
+- AE5. Strict mode gates a broken chain; default does not
+  - **Covers R7.**
+  - **Given** strict mode is enabled, **when** the chain is broken (red), **then** other views built on the data are gated or visibly flagged until the break is resolved. **Given** strict mode is off (default), **when** the chain is broken, **then** those views still render while the table shows its red state.
 
 ## Scope Boundaries
 
@@ -135,21 +139,18 @@ flowchart TB
 - Builds on existing primitives: run-history snapshots and settled-movement judgment (`tamper_signal/history.py`), `ingest --as period` and the prior-chain archive (`tamper_signal/cli.py`), control totals (`tamper_signal/totals.py`), and Sigstore anchoring (`tamper_signal/anchor.py`).
 - No comment/annotation field exists in any receipt or snapshot today; v2.0 introduces a signed one.
 - No server-side polling exists today; the watcher is net-new (the only existing "watch" is the browser console's client-side re-verify interval).
-- Assumes a single trusted signer per chain; comment authorship is the signer identity.
+- Assumes a single trusted signer per chain; comment authorship is a self-declared, signed field (attribution, not verified identity).
 - The watcher needs key material available (CI-style env var) to append unattended.
 - Live sources are pollable and return comparable records; mapping a feed to records is per-source.
 
 ## Outstanding Questions
 
-**Resolve before planning**
-
-- Strength of "enforced" verified table: default-and-always-available, or also blocks charts/views when the table is stale or the chain is broken?
-- Comment authorship under a shared signing key: is signer identity sufficient, or does the signed comment need a named-author field?
-- Watcher shape within "embedded": a long-running daemon vs a host-scheduled tick (cron / task runner) — both run "in the host app." One supported shape, or both?
+The three "resolve before planning" questions are settled (see Key Decisions and R4, R7, R11–R12). Remaining items are answered during planning:
 
 **Deferred to planning**
 
 - Comment schema: signed receipt-body extension vs a separate signed annotation record.
+- Strict-mode mechanics: how the table signals the host to gate other views, and how the opt-in is configured.
 - Poll interval and per-source change-detection mechanics.
 - Console timeline data model and how it aggregates the live chain with the archived history.
 
