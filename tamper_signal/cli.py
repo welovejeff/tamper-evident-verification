@@ -930,6 +930,52 @@ def cmd_annotate(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_timeline(args: argparse.Namespace) -> int:
+    """Write the narrow, published provenance timeline (timeline.json).
+
+    The console fetches this for the chain-of-custody view; the verdict still
+    comes from chain.json. Signed when a key is available; always bound to the
+    chain tail so a timeline from another chain is rejected.
+    """
+    from .timeline import build_timeline, write_timeline
+
+    def fail(msg: str) -> int:
+        if args.json:
+            _print_json({"ok": False, "error": msg})
+        else:
+            print(msg, file=sys.stderr)
+        return 1
+
+    chain_path = args.chain_arg or args.chain
+    try:
+        chain = read_chain(chain_path)
+    except (OSError, ValueError) as exc:
+        return fail(f"Cannot read chain: {exc}")
+    chain_dir = str(Path(chain_path).parent)
+    try:
+        receipts = [read_receipt(chain_dir, name) for name in chain.get("receipts", [])]
+    except ValueError as exc:
+        return fail(f"Cannot load chain: {exc}")
+    if not receipts:
+        return fail("Chain is empty; nothing to build a timeline from.")
+
+    document = build_timeline(receipts, chain, chain_dir, key=_resolve_snapshot_key())
+    path = write_timeline(chain_dir, document, args.out)
+    signed = "signature" in document
+    if args.json:
+        _print_json({
+            "output": str(path),
+            "entries": len(document["entries"]),
+            "signed": signed,
+            "chain_tail": document["chain_tail"],
+        })
+        return 0
+    state = "signed" if signed else "unsigned"
+    print(f"Wrote provenance timeline: {path}")
+    print(f"  {len(document['entries'])} entries, {state}, bound to chain tail {document['chain_tail'][:12]}…")
+    return 0
+
+
 def cmd_export(args: argparse.Namespace) -> int:
     """Write the canonical table document for the verified Data tab.
 
@@ -1986,6 +2032,20 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_annotate.add_argument("--json", action="store_true", help="Emit a JSON summary")
     p_annotate.set_defaults(func=cmd_annotate)
+
+    p_timeline = sub.add_parser(
+        "timeline",
+        help="Write the narrow published provenance timeline (timeline.json) for the console",
+    )
+    p_timeline.add_argument(
+        "chain_arg", nargs="?", metavar="chain", help="Path to chain.json (positional; same as --chain)"
+    )
+    p_timeline.add_argument("--chain", default="receipts/chain.json", help="Path to chain.json")
+    p_timeline.add_argument(
+        "--out", default=None, help="Output path (default: timeline.json next to the chain)"
+    )
+    p_timeline.add_argument("--json", action="store_true", help="Emit a JSON summary")
+    p_timeline.set_defaults(func=cmd_timeline)
 
     p_demo = sub.add_parser("demo", help="Run the full end-to-end demo")
     p_demo.add_argument("--no-serve", action="store_true", help="Skip serving the badge")

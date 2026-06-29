@@ -19,6 +19,7 @@ import process from "node:process";
 import * as color from "./color.js";
 import { annotationBodyHash, buildAnnotation, writeAnnotation } from "./annotations.js";
 import { canonicalDocument, canonicalJsonBytes, semanticHash } from "./canonical.js";
+import { buildTimeline, writeTimeline } from "./timeline.js";
 import {
   LOG_GRANULARITIES,
   archiveRunSnapshot,
@@ -1315,12 +1316,60 @@ function cmdAnnotate(args) {
   return 0;
 }
 
+// Write the narrow published provenance timeline (timeline.json) the console
+// fetches. Mirrors the Python `receipts timeline`. Signed when a key is
+// available; always bound to the chain tail.
+function cmdTimeline(args) {
+  const { values, positionals } = parseArgs({
+    args,
+    allowPositionals: true,
+    options: { chain: { type: "string" }, out: { type: "string" }, json: { type: "boolean", default: false } },
+  });
+  const fail = (msg) => {
+    if (values.json) printJson({ ok: false, error: msg });
+    else console.error(msg);
+    return 1;
+  };
+  const chainPath = positionals[0] || values.chain || "receipts/chain.json";
+  let chain;
+  try {
+    chain = readChain(chainPath);
+  } catch (err) {
+    return fail(`Cannot read chain: ${err.message}`);
+  }
+  const chainDir = dirname(chainPath);
+  const files = chain.receipts ?? [];
+  if (!files.length) return fail("Chain is empty; nothing to build a timeline from.");
+  let receipts;
+  try {
+    receipts = files.map((name) => readReceipt(chainDir, name));
+  } catch (err) {
+    return fail(`Cannot load chain: ${err.message}`);
+  }
+  let key = null;
+  try {
+    key = loadPrivateKey("keys/signing.key"); // TAMPER_SIGNAL_KEY env wins; unsigned if absent
+  } catch {
+    key = null;
+  }
+  const doc = buildTimeline(receipts, chain, chainDir, { key });
+  const path = writeTimeline(chainDir, doc, values.out ?? null);
+  const signed = "signature" in doc;
+  if (values.json) {
+    printJson({ output: path, entries: doc.entries.length, signed, chain_tail: doc.chain_tail });
+    return 0;
+  }
+  console.log(`Wrote provenance timeline: ${path}`);
+  console.log(`  ${doc.entries.length} entries, ${signed ? "signed" : "unsigned"}, bound to chain tail ${doc.chain_tail.slice(0, 12)}…`);
+  return 0;
+}
+
 const [, , command, ...rawRest] = process.argv;
 // --no-color is global: honor it at any position and strip it so each command's
 // strict parser does not reject it. NO_COLOR / FORCE_COLOR env are honored too.
 if (rawRest.includes("--no-color")) color.setNoColor(true);
 const rest = rawRest.filter((arg) => arg !== "--no-color");
-const commands = { keygen: cmdKeygen, ingest: cmdIngest, verify: cmdVerify, diff: cmdDiff, log: cmdLog, export: cmdExport, assets: cmdAssets, annotate: cmdAnnotate };
+const commands = { keygen: cmdKeygen, ingest: cmdIngest, verify: cmdVerify, diff: cmdDiff, log: cmdLog, export: cmdExport, assets: cmdAssets, annotate: cmdAnnotate, timeline: cmdTimeline };
 if (!command || !(command in commands)) {
   console.error(USAGE);
   process.exit(command ? 1 : 0);
