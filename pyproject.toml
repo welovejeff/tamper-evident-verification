@@ -16,6 +16,10 @@ dependencies = [
 
 [project.optional-dependencies]
 anchor = ["sigstore>=4,<5"]
+# The live-source watcher (receipts watch). Kept out of the base install so a
+# non-watcher user still gets just openpyxl + cryptography. httpx for the
+# SSRF-hardened fetch, feedparser + defusedxml for safe RSS/Atom parsing.
+watch = ["httpx>=0.27", "feedparser>=6.0", "defusedxml>=0.7"]
 dev = ["pytest>=8.0", "pandas>=2.0", "flask>=3.0", "fastapi>=0.110", "httpx>=0.27", "sigstore>=4,<5"]
 # Brand imagery tooling for scripts/gen_images.py (fal.ai Recraft V3). Not needed
 # to build or test the library; install with `pip install -e ".[images]"`.
