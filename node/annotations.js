@@ -14,8 +14,13 @@ import { SPEC_VERSION, nowIso, signBody, verifySignature } from "./receipts.js";
 export const ANNOTATIONS_DIRNAME = "annotations";
 
 function annotationBody(annotation) {
+  // Exclude the signature and any transient underscore-prefixed key (the
+  // _hash/_superseded that resolveAnnotations adds), so re-hashing a resolved
+  // item yields the same content address as the original signed body.
   const body = {};
-  for (const k of Object.keys(annotation)) if (k !== "signature") body[k] = annotation[k];
+  for (const k of Object.keys(annotation)) {
+    if (k !== "signature" && !k.startsWith("_")) body[k] = annotation[k];
+  }
   return body;
 }
 

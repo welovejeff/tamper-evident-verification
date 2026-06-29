@@ -248,6 +248,19 @@ def _print_json(payload: dict) -> None:
     print(_json.dumps(payload, indent=2))
 
 
+def _fail(args: argparse.Namespace, msg: str) -> int:
+    """Emit a command error honoring --json, and return exit code 1.
+
+    The single source of truth for the failure envelope, so every command's
+    `{"ok": false, "error": ...}` shape stays consistent.
+    """
+    if getattr(args, "json", False):
+        _print_json({"ok": False, "error": msg})
+    else:
+        print(msg, file=sys.stderr)
+    return 1
+
+
 def cmd_ingest(args: argparse.Namespace) -> int:
     if os.environ.get("TAMPER_SIGNAL_KEY"):
         # The env var silently outranks --key; say so where it matters.
@@ -881,11 +894,7 @@ def cmd_annotate(args: argparse.Namespace) -> int:
     from .annotations import annotation_body_hash, build_annotation, write_annotation
 
     def fail(msg: str) -> int:
-        if args.json:
-            _print_json({"ok": False, "error": msg})
-        else:
-            print(msg, file=sys.stderr)
-        return 1
+        return _fail(args, msg)
 
     chain_path = args.chain_arg or args.chain
     try:
@@ -952,11 +961,7 @@ def cmd_timeline(args: argparse.Namespace) -> int:
     from .timeline import build_timeline, write_timeline
 
     def fail(msg: str) -> int:
-        if args.json:
-            _print_json({"ok": False, "error": msg})
-        else:
-            print(msg, file=sys.stderr)
-        return 1
+        return _fail(args, msg)
 
     chain_path = args.chain_arg or args.chain
     try:
@@ -1039,11 +1044,7 @@ def cmd_custody(args: argparse.Namespace) -> int:
     from .history import load_snapshots
 
     def fail(msg: str) -> int:
-        if args.json:
-            _print_json({"ok": False, "error": msg})
-        else:
-            print(msg, file=sys.stderr)
-        return 1
+        return _fail(args, msg)
 
     chain_path = args.chain_arg or args.chain
     try:

@@ -207,6 +207,28 @@ def write_receipt(chain_dir: str, filename: str, receipt: dict[str, Any]) -> Pat
     return path
 
 
+def write_text_atomic(path: Path, text: str) -> Path:
+    """Write `text` to a content-addressed `path` via a temp file + atomic rename.
+
+    Idempotent by construction: an existing file is left untouched (its
+    content-addressed name already promises these exact bytes), the temp name
+    carries the pid so concurrent writers of the same content do not collide on
+    staging, and a FileExistsError on rename means another writer landed the
+    identical bytes first (harmless). Shared by run snapshots and annotations.
+    """
+    if not path.exists():
+        import os
+
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.parent / f".{path.name}.{os.getpid()}.tmp"
+        tmp.write_text(text, encoding="utf-8")
+        try:
+            os.replace(tmp, path)
+        except FileExistsError:
+            tmp.unlink(missing_ok=True)
+    return path
+
+
 def read_receipt(chain_dir: str, filename: str) -> dict[str, Any]:
     # Receipt filenames come from chain.json, which is attacker-controlled in
     # the tamper-evident model. Confine reads to chain_dir so a crafted entry

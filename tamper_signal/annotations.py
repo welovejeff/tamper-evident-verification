@@ -21,21 +21,26 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 from pathlib import Path
 from typing import Any
 
 from . import SPEC_VERSION
 from .canonical import canonical_json_bytes
 from .keys import Ed25519PrivateKey
-from .receipts import _now_iso, _sign_body, verify_signature
+from .receipts import _now_iso, _sign_body, verify_signature, write_text_atomic
 
 ANNOTATIONS_DIRNAME = "annotations"
 
 
 def _annotation_body(annotation: dict[str, Any]) -> dict[str, Any]:
-    """The annotation minus its signature block (the signed bytes' source)."""
-    return {k: v for k, v in annotation.items() if k != "signature"}
+    """The annotation minus its signature and any transient field.
+
+    Excludes the signature block and any underscore-prefixed key (the
+    `_hash`/`_superseded` that `resolve_annotations` adds), so re-hashing a
+    resolved item yields the same content address as the original signed body —
+    the transient render metadata can never leak into the signed bytes.
+    """
+    return {k: v for k, v in annotation.items() if k != "signature" and not k.startswith("_")}
 
 
 def annotation_body_hash(annotation: dict[str, Any]) -> str:
@@ -80,16 +85,8 @@ def write_annotation(chain_dir: str, annotation: dict[str, Any]) -> Path:
     untouched.
     """
     directory = Path(chain_dir) / ANNOTATIONS_DIRNAME
-    directory.mkdir(parents=True, exist_ok=True)
     path = directory / f"{annotation_body_hash(annotation)}.json"
-    if not path.exists():
-        tmp = directory / f".{path.name}.{os.getpid()}.tmp"
-        tmp.write_text(json.dumps(annotation, indent=2) + "\n", encoding="utf-8")
-        try:
-            os.replace(tmp, path)
-        except FileExistsError:
-            tmp.unlink(missing_ok=True)
-    return path
+    return write_text_atomic(path, json.dumps(annotation, indent=2) + "\n")
 
 
 def read_annotations(chain_dir: str) -> list[dict[str, Any]]:
