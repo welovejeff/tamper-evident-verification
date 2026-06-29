@@ -10,11 +10,17 @@ hash + control totals, signs, appends the receipt, and updates chain.json.
 
 from __future__ import annotations
 
+import contextlib
 import functools
 import inspect
 import os
 from pathlib import Path
 from typing import Any, Callable
+
+try:  # POSIX advisory locking for the watcher's judge->commit transaction
+    import fcntl as _fcntl
+except ImportError:  # pragma: no cover - Windows; the watcher targets POSIX
+    _fcntl = None
 
 from .adapters import to_records
 from .canonical import (
@@ -154,27 +160,14 @@ def ingest_file(
 
     Returns {"manifest", "records", "source_hash", "chain_dir"}.
     """
-    # Parse the declaration before touching anything: an invalid value must
-    # raise with nothing written and the existing chain untouched.
-    tolerance, bucket_name = _build_tolerance(band, settle, bucket_column)
-
-    source_path = Path(file)
-    raw = source_path.read_bytes()
-    records = load_records(str(source_path), sheet=sheet)
-    private_key = load_private_key(key_path)
-    public_hex = public_hex_from_private(private_key)
-    # A declared bucket_column that fails detection raises ValueError here,
-    # before any write -- same as an invalid band/settle above.
-    manifest = build_source_manifest(
-        filename=source_path.name,
-        evidence_hash=evidence_hash(raw),
-        byte_size=len(raw),
-        declared_origin=origin,
-        semantic_hash=semantic_hash(records),
-        records=records,
-        private_key=private_key,
-        tolerance=tolerance,
-        bucket_column=bucket_name,
+    manifest, records, public_hex = _build_source_candidate(
+        file,
+        origin=origin,
+        key_path=key_path,
+        band=band,
+        settle=settle,
+        bucket_column=bucket_column,
+        sheet=sheet,
     )
     write_receipt(chain_dir, SOURCE_RECEIPT_NAME, manifest)
     write_chain(chain_dir, [SOURCE_RECEIPT_NAME], public_hex)
@@ -186,8 +179,84 @@ def ingest_file(
     }
 
 
+def _build_source_candidate(
+    file: str,
+    *,
+    origin: str = "",
+    key_path: str = "keys/signing.key",
+    band: str | None = None,
+    settle: str | None = None,
+    bucket_column: str | None = None,
+    sheet: str | None = None,
+) -> tuple[dict[str, Any], list[dict[str, Any]], str]:
+    """Build a signed source manifest + records in memory, writing nothing.
+
+    The pure half of `ingest_file`, shared with `judge_candidate_period` so the
+    watcher can judge a candidate before committing it. Invalid tolerance or a
+    non-qualifying bucket column raises ValueError here, before any caller
+    writes -- preserving `ingest_file`'s "nothing written on bad input" contract.
+    Returns (manifest, records, public_hex).
+    """
+    tolerance, bucket_name = _build_tolerance(band, settle, bucket_column)
+    source_path = Path(file)
+    raw = source_path.read_bytes()
+    records = load_records(str(source_path), sheet=sheet)
+    private_key = load_private_key(key_path)
+    public_hex = public_hex_from_private(private_key)
+    manifest = build_source_manifest(
+        filename=source_path.name,
+        evidence_hash=evidence_hash(raw),
+        byte_size=len(raw),
+        declared_origin=origin,
+        semantic_hash=semantic_hash(records),
+        records=records,
+        private_key=private_key,
+        tolerance=tolerance,
+        bucket_column=bucket_name,
+    )
+    return manifest, records, public_hex
+
+
 class UntrustedSignerError(RuntimeError):
     """Append-period import attempted under a signer the chain does not trust."""
+
+
+class StaleCandidateError(RuntimeError):
+    """A judged period candidate could not be committed: the chain advanced
+    since it was judged, so committing it would overwrite newer data."""
+
+
+@contextlib.contextmanager
+def _chain_lock(chain_dir: str):
+    """Advisory single-writer lock for a judge->commit transaction.
+
+    POSIX `flock` on a lock file in the chain dir; a no-op where `fcntl` is
+    unavailable (Windows). The watcher's tail-assert is the real correctness
+    guard; the lock just serializes concurrent writers (a daemon and a manual
+    accept) so they take turns rather than interleave.
+    """
+    if _fcntl is None:
+        yield
+        return
+    Path(chain_dir).mkdir(parents=True, exist_ok=True)
+    fd = os.open(str(Path(chain_dir) / ".chain.lock"), os.O_CREAT | os.O_RDWR, 0o600)
+    try:
+        _fcntl.flock(fd, _fcntl.LOCK_EX)
+        yield
+    finally:
+        _fcntl.flock(fd, _fcntl.LOCK_UN)
+        os.close(fd)
+
+
+def _chain_tail_hash(chain_dir: str) -> str | None:
+    """The current chain's tail receipt content hash, or None if no chain."""
+    chain_path = Path(chain_dir) / CHAIN_FILENAME
+    if not chain_path.is_file():
+        return None
+    chain = read_chain(str(chain_path))
+    names = chain.get("receipts") or []
+    hashes = chain.get("receipt_hashes") or {}
+    return hashes.get(names[-1]) if names else None
 
 
 def append_period(
@@ -221,7 +290,73 @@ def append_period(
     Returns ingest_file's result plus {"caveats", "details", "breached",
     "compared"}.
     """
-    from .history import archive_run_snapshot, judge_cross_run, load_snapshots
+    candidate, judgment = judge_candidate_period(
+        file,
+        origin=origin,
+        chain_dir=chain_dir,
+        key_path=key_path,
+        trusted_pub_hexes=trusted_pub_hexes,
+        band=band,
+        settle=settle,
+        bucket_column=bucket_column,
+        sheet=sheet,
+    )
+    return commit_period(candidate, judgment, chain_dir=chain_dir, key_path=key_path)
+
+
+def _inherit_period_tolerance(
+    prior_chain: dict[str, Any],
+    chain_dir: str,
+    band: str | None,
+    settle: str | None,
+    bucket_column: str | None,
+) -> tuple[str | None, str | None, str | None]:
+    """Inherit the prior run's signed tolerance unless the caller overrides it,
+    so the prior declared band keeps governing and omitting a band cannot drop
+    it. Read-only. Returns the resolved (band, settle, bucket_column)."""
+    if not (band is None and settle is None and bucket_column is None):
+        return band, settle, bucket_column
+    names = prior_chain.get("receipts") or []
+    prior_tol = None
+    if names:
+        try:
+            prior_tol = read_receipt(chain_dir, names[0]).get("tolerance")
+        except (ValueError, OSError):
+            prior_tol = None
+    if isinstance(prior_tol, dict):
+        if isinstance(prior_tol.get("band"), str):
+            band = prior_tol["band"]
+        if isinstance(prior_tol.get("settle_hours"), int) and not isinstance(
+            prior_tol.get("settle_hours"), bool
+        ):
+            settle = f"{prior_tol['settle_hours']}h"
+        if isinstance(prior_tol.get("bucket_column"), str):
+            bucket_column = prior_tol["bucket_column"]
+    return band, settle, bucket_column
+
+
+def judge_candidate_period(
+    file: str,
+    *,
+    origin: str = "",
+    chain_dir: str = "receipts/",
+    key_path: str = "keys/signing.key",
+    trusted_pub_hexes: tuple[str, ...] | list[str] = (),
+    band: str | None = None,
+    settle: str | None = None,
+    bucket_column: str | None = None,
+    sheet: str | None = None,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Build the next period's candidate in memory and judge it, WITHOUT writing.
+
+    The judge half of `append_period`. `judge_cross_run` is pure and disk-free,
+    so the candidate (a signed source manifest plus the chain dict listing only
+    it) can be judged against the existing run snapshots with no mutation. The
+    watcher inspects the returned judgment to decide commit (clean) vs withhold
+    (any caveat). Returns (candidate, judgment); `candidate` carries everything
+    `commit_period` needs, including the chain tail it was judged against.
+    """
+    from .history import judge_cross_run, load_snapshots
 
     chain_path = Path(chain_dir) / CHAIN_FILENAME
     if not chain_path.is_file():
@@ -240,59 +375,88 @@ def append_period(
             "re-attest under a new identity, or pass the prior signer's public key."
         )
 
-    # Inherit the prior run's signed tolerance unless the caller overrides it, so
-    # the prior declared band keeps governing and omitting a band cannot drop it.
-    if band is None and settle is None and bucket_column is None:
-        names = prior_chain.get("receipts") or []
-        prior_tol = None
-        if names:
-            try:
-                prior_source = read_receipt(chain_dir, names[0])
-                prior_tol = prior_source.get("tolerance")
-            except (ValueError, OSError):
-                prior_tol = None
-        if isinstance(prior_tol, dict):
-            if isinstance(prior_tol.get("band"), str):
-                band = prior_tol["band"]
-            if isinstance(prior_tol.get("settle_hours"), int) and not isinstance(
-                prior_tol.get("settle_hours"), bool
-            ):
-                settle = f"{prior_tol['settle_hours']}h"
-            if isinstance(prior_tol.get("bucket_column"), str):
-                bucket_column = prior_tol["bucket_column"]
-
-    result = ingest_file(
-        file,
-        origin=origin,
-        chain_dir=chain_dir,
-        key_path=key_path,
-        band=band,
-        settle=settle,
-        bucket_column=bucket_column,
-        sheet=sheet,
+    band, settle, bucket_column = _inherit_period_tolerance(
+        prior_chain, chain_dir, band, settle, bucket_column
+    )
+    manifest, records, public_hex = _build_source_candidate(
+        file, origin=origin, key_path=key_path, band=band, settle=settle,
+        bucket_column=bucket_column, sheet=sheet,
     )
 
-    # Judge the new run against prior trusted snapshots BEFORE archiving this
-    # run's snapshot, so the breached guard is recorded in the snapshot we write.
-    chain = read_chain(str(chain_path))
-    receipts = [read_receipt(chain_dir, name) for name in chain.get("receipts", [])]
+    # Judge the in-memory candidate. The candidate chain lists only the new
+    # source; receipt_hashes are unneeded for judgment (the run's own snapshot
+    # is not on disk yet, so self-exclusion no-ops either way).
+    candidate_chain = {
+        "spec_version": manifest.get("spec_version"),
+        "public_key": public_hex,
+        "receipts": [SOURCE_RECEIPT_NAME],
+    }
     trusted_keys = sorted(trusted | {importer_hex})
     items = load_snapshots(chain_dir, trusted_keys=trusted_keys)
-    judgment = judge_cross_run(receipts, chain, [i["snapshot"] for i in items])
-    archive_run_snapshot(
-        chain_dir,
-        chain,
-        receipts,
-        key=load_private_key(key_path),
-        trusted_keys=trusted_keys,
-        breached=judgment.get("breached") or None,
+    judgment = judge_cross_run(
+        [manifest], candidate_chain, [item["snapshot"] for item in items]
     )
 
-    result["caveats"] = judgment.get("caveats", [])
-    result["details"] = judgment.get("details", [])
-    result["breached"] = judgment.get("breached", {})
-    result["compared"] = bool(items)
-    return result
+    candidate = {
+        "manifest": manifest,
+        "records": records,
+        "public_hex": public_hex,
+        "base_tail": _chain_tail_hash(chain_dir),
+        "chain_dir": chain_dir,
+        "key_path": key_path,
+        "trusted_keys": trusted_keys,
+        "compared": bool(items),
+    }
+    return candidate, judgment
+
+
+def commit_period(
+    candidate: dict[str, Any],
+    judgment: dict[str, Any],
+    *,
+    chain_dir: str | None = None,
+    key_path: str | None = None,
+) -> dict[str, Any]:
+    """Write a judged candidate: source manifest, chain reset, and run snapshot
+    (with the `breached` baseline guard). The commit half of `append_period`.
+
+    Refuses with `StaleCandidateError` if the chain tail moved since the
+    candidate was judged (a concurrent tick, a daemon overlap, or a delayed
+    accept), rather than committing a guard computed against a stale view.
+    Returns the same shape `append_period` always returned.
+    """
+    from .history import archive_run_snapshot
+
+    chain_dir = chain_dir or candidate["chain_dir"]
+    key_path = key_path or candidate["key_path"]
+    with _chain_lock(chain_dir):
+        if _chain_tail_hash(chain_dir) != candidate["base_tail"]:
+            raise StaleCandidateError(
+                "the chain advanced since this candidate was judged; re-judge before committing"
+            )
+        write_receipt(chain_dir, SOURCE_RECEIPT_NAME, candidate["manifest"])
+        write_chain(chain_dir, [SOURCE_RECEIPT_NAME], candidate["public_hex"])
+        chain = read_chain(str(Path(chain_dir) / CHAIN_FILENAME))
+        receipts = [read_receipt(chain_dir, name) for name in chain.get("receipts", [])]
+        archive_run_snapshot(
+            chain_dir,
+            chain,
+            receipts,
+            key=load_private_key(key_path),
+            trusted_keys=candidate["trusted_keys"],
+            breached=judgment.get("breached") or None,
+        )
+
+    return {
+        "manifest": candidate["manifest"],
+        "records": candidate["records"],
+        "source_hash": candidate["manifest"]["semantic_hash"],
+        "chain_dir": chain_dir,
+        "caveats": judgment.get("caveats", []),
+        "details": judgment.get("details", []),
+        "breached": judgment.get("breached", {}),
+        "compared": candidate["compared"],
+    }
 
 
 class ChainTailMismatch(RuntimeError):
