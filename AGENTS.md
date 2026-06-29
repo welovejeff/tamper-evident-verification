@@ -669,8 +669,13 @@ verified table, not just charts. Two steps:
    ```
 
    Attributes: `chain` (required), `table` (table.json URL; defaults to
-   table.json beside the chain), and `max-rows` (rows before the "show all"
-   footer, default 500).
+   table.json beside the chain), `max-rows` (rows before the "show all"
+   footer, default 500), and `strict` (present = the table emits its verdict
+   with `strict: true` so the host can gate other views on a broken chain). The
+   table never blocks UI itself; after each verification it fires a bubbling
+   `tamper-signal:state` event (and an `onState` callback) carrying
+   `{ state, attested, strict }`. Default (no `strict`) stays always-on and
+   always-honest. Recommended host gate: `strict && (state === "red" || !attested)`.
 
 The component re-hashes the served document in the viewer's browser and
 compares it against the final receipt, so VERIFIED means the rows on screen

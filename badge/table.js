@@ -309,6 +309,26 @@ export function mountReceiptTable(containerEl, chainUrl, tableUrl, opts) {
   let currentDoc = null;
   let currentAttested = false;
 
+  // Enforced-table signal. The table never blocks other UI itself (it can't
+  // reach into the host). Instead, after every verdict it emits the state so a
+  // host in `strict` mode can gate its own views on a broken chain (AE5). Both
+  // an `onState` callback and a bubbling `tamper-signal:state` CustomEvent are
+  // fired; default (strict off) still emits, so the table stays informational.
+  // Recommended host gate: `strict && (state === "red" || !attested)`.
+  function emitTableState(state, attested) {
+    const detail = { state, attested, strict: !!opts.strict };
+    try {
+      if (typeof opts.onState === "function") opts.onState(detail);
+    } catch (_e) {
+      /* a host callback throwing must not break verification rendering */
+    }
+    try {
+      containerEl.dispatchEvent(new CustomEvent("tamper-signal:state", { detail, bubbles: true }));
+    } catch (_e) {
+      /* CustomEvent unavailable: the callback path still delivered the state */
+    }
+  }
+
   // "Take your data": rebuilt each refresh from the current verdict. The
   // verified-bundle option is offered only when the data is attested and the
   // light is green or yellow; rows-only is always available but never claims
@@ -460,6 +480,7 @@ export function mountReceiptTable(containerEl, chainUrl, tableUrl, opts) {
       currentDoc = doc;
       currentAttested = false;
       renderExport();
+      emitTableState("unverifiable", false);
       return result;
     }
 
@@ -505,6 +526,7 @@ export function mountReceiptTable(containerEl, chainUrl, tableUrl, opts) {
     currentDoc = doc;
     currentAttested = attested;
     renderExport();
+    emitTableState(result.state, attested);
     return result;
   }
 
@@ -532,9 +554,12 @@ export function mountReceiptTable(containerEl, chainUrl, tableUrl, opts) {
 //   chain     URL of chain.json (required; nothing mounts without it)
 //   table     URL of table.json (optional; defaults to table.json beside chain)
 //   max-rows  rows rendered before the "show all" footer (default 500)
+//   strict    present = emit state with strict:true so the host gates other
+//             views on a broken chain (the table never blocks UI itself; listen
+//             for the bubbling `tamper-signal:state` event)
 class TamperSignalTableElement extends HTMLElement {
   static get observedAttributes() {
-    return ["chain", "table", "max-rows"];
+    return ["chain", "table", "max-rows", "strict"];
   }
 
   constructor() {
@@ -574,6 +599,7 @@ class TamperSignalTableElement extends HTMLElement {
     const maxRows = Number(this.getAttribute("max-rows"));
     this._handle = mountReceiptTable(this, chain, tableUrl, {
       maxRows: Number.isFinite(maxRows) && maxRows > 0 ? maxRows : undefined,
+      strict: this.hasAttribute("strict"),
     });
   }
 }
