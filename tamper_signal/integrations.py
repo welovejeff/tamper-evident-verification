@@ -42,6 +42,29 @@ def signal_snippet(
     )
 
 
+def console_snippet(
+    chain_url: str = "/receipts/chain.json",
+    *,
+    assets_prefix: str = "/tamper-signal",
+    selector: str = "#tamper-signal-console",
+) -> str:
+    """One-line snippet mounting the chain-of-custody console inline.
+
+    This is v2's primary surface: imports, changes, and signed reasons/authors,
+    rendered from chain.json plus the timeline.json the console derives beside
+    it. The inline status light (`signal_snippet`) remains available for hosts
+    that only want a header pill. Falls back to document.body when the selector
+    matches nothing, so the console always lands somewhere visible.
+    """
+    return (
+        '<script type="module">'
+        f'import {{ mountReceiptConsole }} from "{assets_prefix}/console.js"; '
+        f"mountReceiptConsole(document.querySelector({selector!r}) ?? document.body, "
+        f"{chain_url!r});"
+        "</script>"
+    )
+
+
 def console_page(
     chain_url: str = "/receipts/chain.json",
     *,

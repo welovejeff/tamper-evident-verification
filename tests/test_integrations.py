@@ -29,6 +29,28 @@ def test_signal_snippet_mounts_light():
     assert "document.body" in snippet  # selector fallback
 
 
+def test_console_snippet_mounts_console():
+    from tamper_signal.integrations import console_snippet
+
+    snippet = console_snippet("/receipts/chain.json")
+    assert "mountReceiptConsole" in snippet
+    assert "/tamper-signal/console.js" in snippet
+    assert "document.body" in snippet  # selector fallback
+
+
+def test_attach_exposes_console_snippet_as_primary_surface(tmp_path, monkeypatch):
+    pytest.importorskip("flask")
+    monkeypatch.chdir(tmp_path)
+    _seed_chain(tmp_path)
+    from tamper_signal.flask_ext import attach
+
+    import flask
+
+    handle = attach(flask.Flask(__name__), receipts_dir=str(tmp_path / "receipts"))
+    assert "mountReceiptConsole" in handle.console_snippet  # the v2 primary surface
+    assert "mountTamperSignal" in handle.snippet  # the light stays available
+
+
 def test_flask_attach_serves_chain_and_assets(tmp_path, monkeypatch):
     flask = pytest.importorskip("flask")
     monkeypatch.chdir(tmp_path)

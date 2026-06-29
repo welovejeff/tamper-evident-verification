@@ -16,7 +16,13 @@ from __future__ import annotations
 from pathlib import Path
 from types import SimpleNamespace
 
-from .integrations import ASSET_NAMES, asset_text, console_page, signal_snippet
+from .integrations import (
+    ASSET_NAMES,
+    asset_text,
+    console_page,
+    console_snippet,
+    signal_snippet,
+)
 
 
 def attach(
@@ -29,8 +35,9 @@ def attach(
 ) -> SimpleNamespace:
     """Register routes serving the receipts directory and the browser assets.
 
-    Returns a handle with `chain_url`, `assets_prefix`, and `snippet` (the
-    HTML that mounts the signal; render it once in the layout).
+    Returns a handle with `chain_url`, `assets_prefix`, `console_url`,
+    `console_snippet` (the v2 chain-of-custody surface — the primary thing to
+    render inline), and `snippet` (the inline header light, still available).
     """
     from flask import Blueprint, Response, abort, send_from_directory
 
@@ -59,5 +66,6 @@ def attach(
         chain_url=chain_url,
         assets_prefix=assets_prefix,
         console_url=f"{assets_prefix}/console",
+        console_snippet=console_snippet(chain_url, assets_prefix=assets_prefix),
         snippet=signal_snippet(chain_url, assets_prefix=assets_prefix, selector=selector),
     )

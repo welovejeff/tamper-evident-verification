@@ -64,6 +64,20 @@ export function signalSnippet(chainUrl = "/receipts/chain.json", { assetsPrefix 
   );
 }
 
+export function consoleSnippet(
+  chainUrl = "/receipts/chain.json",
+  { assetsPrefix = "/tamper-signal", selector = "#tamper-signal-console" } = {},
+) {
+  // v2's primary surface: the chain-of-custody console, rendered inline from
+  // chain.json plus the timeline.json it derives beside the chain.
+  return (
+    `<script type="module">` +
+    `import { mountReceiptConsole } from "${assetsPrefix}/console.js"; ` +
+    `mountReceiptConsole(document.querySelector(${JSON.stringify(selector)}) ?? document.body, ${JSON.stringify(chainUrl)});` +
+    `</script>`
+  );
+}
+
 export function consolePage(chainUrl = "/receipts/chain.json", { assetsPrefix = "/tamper-signal" } = {}) {
   return `<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8" />
@@ -98,6 +112,7 @@ export function tamperSignal(app, {
     chainUrl,
     assetsPrefix,
     consoleUrl: `${assetsPrefix}/console`,
+    consoleSnippet: consoleSnippet(chainUrl, { assetsPrefix }),
     snippet: signalSnippet(chainUrl, { assetsPrefix, selector }),
   };
 }
