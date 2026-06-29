@@ -177,6 +177,7 @@ commands:
 | `receipts assets` | `tamper-signal assets` (copy the browser bundle into a project) |
 | `receipts annotate` | `tamper-signal annotate` (sign a reason/author onto a receipt) |
 | `receipts timeline` | `tamper-signal timeline` (write the narrow published timeline.json) |
+| `receipts custody` | Python-only today (the CLI-local custody view over history/archive) |
 | `receipts serve` | your bundler's static server, or `tamper-signal/express` |
 | `receipts doctor` | `tamper-signal verify` (exit 0 = healthy); confirm the key is gitignored yourself |
 | `receipts anchor` | Python-only today (transparency-log anchoring) |

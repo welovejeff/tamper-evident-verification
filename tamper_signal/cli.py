@@ -8,6 +8,8 @@ Commands:
   receipts log [--chain receipts/] [--granularity day|week|month|quarter] [--metric <name>] [--json]
   receipts export [receipts/chain.json] --data <current.csv> [--bundle] [--json]
   receipts annotate [receipts/chain.json] --reason "..." [--author "..."] [--json]
+  receipts timeline [receipts/chain.json] [--out timeline.json] [--json]
+  receipts custody [receipts/chain.json] [--json]
   receipts init
   receipts doctor [--url http://localhost:8787/chain.json]
   receipts serve
@@ -973,6 +975,99 @@ def cmd_timeline(args: argparse.Namespace) -> int:
     state = "signed" if signed else "unsigned"
     print(f"Wrote provenance timeline: {path}")
     print(f"  {len(document['entries'])} entries, {state}, bound to chain tail {document['chain_tail'][:12]}…")
+    return 0
+
+
+def _verify_chain_dir(chain_dir: str):
+    """Re-verify the chain in `chain_dir` (enforcing receipt byte-hashes when
+    recorded). Returns (ChainResult, chain dict) or None if unreadable."""
+    chain_file = Path(chain_dir) / CHAIN_FILENAME
+    if not chain_file.exists():
+        return None
+    try:
+        chain = read_chain(str(chain_file))
+        receipts = [read_receipt(chain_dir, name) for name in chain.get("receipts", [])]
+    except (OSError, ValueError):
+        return None
+    recorded = chain.get("receipt_hashes")
+    recorded = recorded if isinstance(recorded, dict) else None
+    actual = receipt_file_hashes(chain_dir, chain.get("receipts", [])) if recorded else None
+    result = verify_chain(
+        receipts,
+        chain.get("public_key") or "",
+        chain_public_hex=chain.get("public_key"),
+        receipt_names=chain.get("receipts", []),
+        recorded_hashes=recorded,
+        actual_hashes=actual,
+    )
+    return result, chain
+
+
+def cmd_custody(args: argparse.Namespace) -> int:
+    """The CLI-local rich custody view: run cadence and every archived prior
+    chain, each re-verified (R10).
+
+    Reads `history/` and `archive/` directly and never publishes them: this is
+    the CLI-local counterpart to the narrow published timeline (KTD2).
+    """
+    from .history import load_snapshots
+
+    def fail(msg: str) -> int:
+        if args.json:
+            _print_json({"ok": False, "error": msg})
+        else:
+            print(msg, file=sys.stderr)
+        return 1
+
+    chain_path = args.chain_arg or args.chain
+    try:
+        chain = read_chain(chain_path)
+    except (OSError, ValueError) as exc:
+        return fail(f"Cannot read chain: {exc}")
+    chain_dir = str(Path(chain_path).parent)
+
+    current = _verify_chain_dir(chain_dir)
+    current_verdict = current[0].verdict if current else "unknown"
+
+    snapshots = load_snapshots(chain_dir, trusted_keys=[chain.get("public_key") or ""])
+    runs = sorted(s["created_at"] for s in snapshots if s.get("created_at"))
+
+    priors = []
+    archive = Path(chain_dir) / ARCHIVE_DIRNAME
+    if archive.is_dir():
+        for entry in sorted(p for p in archive.iterdir() if p.is_dir()):
+            verified = _verify_chain_dir(str(entry))
+            if verified is None:
+                continue
+            result, prior_chain = verified
+            priors.append({
+                "tail": entry.name,
+                "verdict": result.verdict,
+                "receipts": len(prior_chain.get("receipts", [])),
+            })
+
+    if args.json:
+        _print_json({
+            "current": current_verdict,
+            "runs": len(snapshots),
+            "first_run": runs[0] if runs else None,
+            "last_run": runs[-1] if runs else None,
+            "priors": priors,
+        })
+        return 0
+
+    print("Chain of custody (CLI-local; not published)")
+    print(f"  current chain: {current_verdict}")
+    if runs:
+        print(f"  run history: {len(snapshots)} runs, {runs[0]} → {runs[-1]}")
+    else:
+        print("  run history: none recorded yet")
+    if priors:
+        print(f"  archived prior chains ({len(priors)}), re-verified:")
+        for prior in priors:
+            print(f"    {prior['tail'][:12]}… · {prior['verdict']} · {prior['receipts']} receipts")
+    else:
+        print("  archived prior chains: none")
     return 0
 
 
@@ -2046,6 +2141,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_timeline.add_argument("--json", action="store_true", help="Emit a JSON summary")
     p_timeline.set_defaults(func=cmd_timeline)
+
+    p_custody = sub.add_parser(
+        "custody",
+        help="Show the CLI-local custody view: run cadence and archived prior chains, each re-verified",
+    )
+    p_custody.add_argument(
+        "chain_arg", nargs="?", metavar="chain", help="Path to chain.json (positional; same as --chain)"
+    )
+    p_custody.add_argument("--chain", default="receipts/chain.json", help="Path to chain.json")
+    p_custody.add_argument("--json", action="store_true", help="Emit a JSON summary")
+    p_custody.set_defaults(func=cmd_custody)
 
     p_demo = sub.add_parser("demo", help="Run the full end-to-end demo")
     p_demo.add_argument("--no-serve", action="store_true", help="Skip serving the badge")
