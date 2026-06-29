@@ -58,6 +58,19 @@ def test_annotate_correction_supersedes(tmp_path, monkeypatch, capsys):
     assert by_hash[first_hash]["_superseded"] is True
 
 
+def test_annotate_refuses_key_not_matching_chain(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    _seed_chain(tmp_path)
+    from tamper_signal.annotations import read_annotations
+    from tamper_signal.keys import generate_keys
+
+    generate_keys(str(tmp_path / "otherkeys"))  # a different signer
+    code = main(["annotate", "receipts/chain.json", "--reason", "r", "--key", "otherkeys/signing.key"])
+    assert code == 1
+    assert "does not match" in capsys.readouterr().err
+    assert read_annotations("receipts") == []  # nothing written — not a silent drop
+
+
 def test_annotate_empty_chain_errors(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
     (tmp_path / "receipts").mkdir()

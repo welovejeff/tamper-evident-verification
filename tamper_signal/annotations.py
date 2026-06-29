@@ -110,12 +110,6 @@ def read_annotations(chain_dir: str) -> list[dict[str, Any]]:
     return out
 
 
-def _created_at_key(annotation: dict[str, Any]) -> tuple[str, str]:
-    """Sort key for newest-wins resolution: (created_at, body hash) as tiebreak."""
-    created = annotation.get("created_at")
-    return (created if isinstance(created, str) else "", annotation_body_hash(annotation))
-
-
 def resolve_annotations(
     annotations: list[dict[str, Any]],
     public_hex: str,
@@ -156,5 +150,9 @@ def resolve_annotations(
         item["_hash"] = body_hash
         item["_superseded"] = body_hash in superseded
         resolved.append(item)
-    resolved.sort(key=_created_at_key)
+    # Tiebreak on the stored content hash, NOT a recomputed one: the augmented
+    # item carries `_hash`/`_superseded`, so re-hashing it would diverge from
+    # node/annotations.js (which sorts on the same stored hash) and break the
+    # byte-identical cross-stack timeline.
+    resolved.sort(key=lambda item: (item.get("created_at") or "", item["_hash"]))
     return resolved

@@ -904,6 +904,16 @@ def cmd_annotate(args: argparse.Namespace) -> int:
         key = load_private_key(args.key)
     except (OSError, ValueError) as exc:
         return fail(f"Cannot load signing key: {exc}")
+    # An annotation resolves only under the chain's embedded key, so a mismatched
+    # key would write a file that is silently dropped at render time. Refuse
+    # loudly instead of returning a misleading success.
+    signer_hex = public_hex_from_private(key)
+    chain_key = chain.get("public_key")
+    if chain_key and signer_hex != chain_key:
+        return fail(
+            "Signing key does not match the chain's key; the annotation would not verify "
+            f"(chain key {chain_key[:12]}…, your key {signer_hex[:12]}…)."
+        )
 
     annotation = build_annotation(
         target=target,
@@ -961,7 +971,23 @@ def cmd_timeline(args: argparse.Namespace) -> int:
     if not receipts:
         return fail("Chain is empty; nothing to build a timeline from.")
 
-    document = build_timeline(receipts, chain, chain_dir, key=_resolve_snapshot_key())
+    # Sign only with the chain's own key: a signature under any other key would
+    # not verify against the chain and the console would reject the whole
+    # timeline. If the resolved key does not match, write an unsigned timeline
+    # (the console renders its chain-bound structure but withholds annotations).
+    key = _resolve_snapshot_key()
+    if key is not None and public_hex_from_private(key) != (chain.get("public_key") or ""):
+        print(
+            "Signing key does not match the chain's key; writing an unsigned timeline.",
+            file=sys.stderr,
+        )
+        key = None
+    try:
+        document = build_timeline(receipts, chain, chain_dir, key=key)
+    except (TypeError, ValueError) as exc:
+        # A malformed receipt (e.g. a float in control totals) makes the signed
+        # body uncanonicalizable; fail cleanly instead of dumping a traceback.
+        return fail(f"Cannot build timeline: {exc}")
     path = write_timeline(chain_dir, document, args.out)
     signed = "signature" in document
     if args.json:

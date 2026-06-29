@@ -1296,6 +1296,15 @@ function cmdAnnotate(args) {
   } catch (err) {
     return fail(`Cannot load signing key: ${err.message}`);
   }
+  // An annotation resolves only under the chain's embedded key; a mismatched key
+  // would write a file silently dropped at render time. Refuse loudly.
+  const signerHex = publicHexFromPrivate(priv);
+  if (chain.public_key && signerHex !== chain.public_key) {
+    return fail(
+      `Signing key does not match the chain's key; the annotation would not verify ` +
+        `(chain key ${chain.public_key.slice(0, 12)}…, your key ${signerHex.slice(0, 12)}…).`,
+    );
+  }
   const annotation = buildAnnotation({
     target,
     reason: values.reason,
@@ -1352,7 +1361,21 @@ function cmdTimeline(args) {
   } catch {
     key = null;
   }
-  const doc = buildTimeline(receipts, chain, chainDir, { key });
+  // Sign only with the chain's own key: a signature under any other key would
+  // not verify and the console would reject the timeline. Otherwise write it
+  // unsigned (structure renders; annotations are withheld).
+  if (key && publicHexFromPrivate(key) !== (chain.public_key || "")) {
+    console.error("Signing key does not match the chain's key; writing an unsigned timeline.");
+    key = null;
+  }
+  let doc;
+  try {
+    doc = buildTimeline(receipts, chain, chainDir, { key });
+  } catch (err) {
+    // A malformed receipt (e.g. a float in control totals) makes the signed
+    // body uncanonicalizable; fail cleanly instead of throwing.
+    return fail(`Cannot build timeline: ${err.message}`);
+  }
   const path = writeTimeline(chainDir, doc, values.out ?? null);
   const signed = "signature" in doc;
   if (values.json) {

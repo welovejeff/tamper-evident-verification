@@ -23,6 +23,7 @@
 
 import {
   verifyReceipts,
+  verifySignature,
   SHORT,
   outputHashOf,
   inputHashOf,
@@ -366,9 +367,33 @@ export function mountReceiptConsole(containerEl, chainUrl, opts) {
     const files = result.chain.receipts || [];
     const tail = files.length ? (result.chain.receipt_hashes || {})[files[files.length - 1]] : "";
     custody.appendChild(el("div", { className: "tc-custody-head" }, "CHAIN OF CUSTODY · provenance"));
-    if (!timeline || timeline.kind !== "timeline" || timeline.chain_tail !== tail) {
+    // Treat absent/empty the same on both sides so legacy chains that record no
+    // receipt_hashes (tail undefined, timeline chain_tail "") are not falsely
+    // flagged as mismatched.
+    if (!timeline || timeline.kind !== "timeline" || (timeline.chain_tail || "") !== (tail || "")) {
       custody.appendChild(
-        el("div", { className: "tc-custody-warn" }, "⚠ timeline.json does not match this chain — not shown")
+        el("div", { className: "tc-custody-warn" }, "⚠ timeline.json does not match this chain; not shown")
+      );
+      return;
+    }
+    // The chain_tail binding proves the timeline belongs to this chain; the
+    // signature proves its bytes (including annotation reasons/authors) are
+    // unaltered. A signed-but-invalid timeline is tampered, so reject it. An
+    // unsigned timeline's structure is chain-derived and safe to show, but its
+    // annotation text is not verifiable, so it is withheld rather than rendered
+    // as authoritative provenance.
+    let signed = false;
+    if (timeline.signature && result.chain.public_key) {
+      try {
+        signed = await verifySignature(timeline, result.chain.public_key);
+      } catch {
+        signed = false;
+      }
+    }
+    if (destroyed) return;
+    if (timeline.signature && !signed) {
+      custody.appendChild(
+        el("div", { className: "tc-custody-warn" }, "⚠ timeline.json signature does not verify; not shown")
       );
       return;
     }
@@ -380,11 +405,18 @@ export function mountReceiptConsole(containerEl, chainUrl, opts) {
         el("span", { className: "c-stage" }, entry.stage || "?"),
         el("span", { className: "c-meta" },
           isImport
-            ? `origin: ${entry.origin || "—"}`
+            ? `origin: ${entry.origin || "(none)"}`
             : `Δrows ${entry.row_delta ?? "?"} · code ${SHORT(entry.code_hash)}`),
         el("span", { className: "c-when" }, (entry.created_at || "").slice(0, 19)),
       ]));
-      for (const ann of entry.annotations || []) {
+      const annotations = entry.annotations || [];
+      if (!signed && annotations.length) {
+        list.appendChild(el("div", { className: "c-ann" }, [
+          el("span", { className: "c-author" }, "(annotations hidden: timeline.json is unsigned)"),
+        ]));
+        continue;
+      }
+      for (const ann of annotations) {
         list.appendChild(el("div", { className: `c-ann${ann.superseded ? " c-superseded" : ""}` }, [
           el("span", { className: "c-reason" }, "💬 " + (ann.reason || "")),
           ann.author

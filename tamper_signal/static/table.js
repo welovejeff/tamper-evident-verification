@@ -493,6 +493,9 @@ export function mountReceiptTable(containerEl, chainUrl, tableUrl, opts) {
     } catch (_e) {
       setStrip("unverifiable", "UNVERIFIED", "could not hash the table in this browser", false);
       renderTable(doc, new Set());
+      // Emit so a strict host that gated on a prior green state is updated, not
+      // left trusting the data after the table fell back to UNVERIFIED.
+      emitTableState("unverifiable", false);
       return result;
     }
     const finalReceipt = result.receipts[result.receipts.length - 1];

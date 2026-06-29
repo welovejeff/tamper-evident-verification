@@ -80,6 +80,40 @@ def test_timeline_renders_change_entry_with_row_delta(tmp_path, monkeypatch):
     assert change["row_delta"] == len(fewer) - len(sample_records())
 
 
+def test_timeline_unsigned_when_key_does_not_match_chain(tmp_path, monkeypatch, capsys):
+    import shutil
+
+    from tamper_signal.keys import generate_keys
+
+    monkeypatch.chdir(tmp_path)
+    _seed_chain(tmp_path)  # chain signed by keys/signing.key
+    # Replace keys/signing.key with a different key (not the chain's signer).
+    generate_keys(str(tmp_path / "otherkeys"))
+    shutil.copy(tmp_path / "otherkeys" / "signing.key", tmp_path / "keys" / "signing.key")
+    capsys.readouterr()
+    assert main(["timeline", "receipts/chain.json", "--json"]) == 0
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    # Refuses to sign with a non-chain key (a wrong-key signature would be
+    # rejected by the console); writes an unsigned timeline instead.
+    assert payload["signed"] is False
+    assert "does not match" in captured.err
+
+
+def test_timeline_fails_cleanly_on_float_total(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    _seed_chain(tmp_path)
+    receipt = read_receipt("receipts", "000_source.json")
+    receipt["control_totals"]["numeric_sums"] = {"amount": 12.5}  # a float leaf
+    write_receipt("receipts", "000_source.json", receipt)
+    capsys.readouterr()
+    code = main(["timeline", "receipts/chain.json", "--json"])
+    payload = json.loads(capsys.readouterr().out)
+    assert code == 1  # clean failure, not an uncaught traceback
+    assert payload["ok"] is False
+    assert "timeline" in payload["error"].lower()
+
+
 def test_timeline_json_surface(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
     _seed_chain(tmp_path)

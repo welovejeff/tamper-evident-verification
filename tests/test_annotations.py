@@ -148,6 +148,21 @@ def test_content_addressed_filename_matches_body_hash(tmp_path):
     assert path.name == f"{annotation_body_hash(ann)}.json"
 
 
+def test_resolve_sort_tiebreak_uses_stored_hash(tmp_path):
+    # Two annotations sharing a created_at must order by the stored content hash
+    # (matching node/annotations.js), NOT a hash recomputed over the augmented
+    # item — else the signed cross-stack timeline diverges.
+    private, public_hex, chain_dir, target = _seed(tmp_path)
+    same_time = "2026-06-01T00:00:00Z"
+    a = build_annotation(target=target, reason="first", private_key=private, created_at=same_time)
+    b = build_annotation(target=target, reason="second", private_key=private, created_at=same_time)
+    write_annotation(chain_dir, a)
+    write_annotation(chain_dir, b)
+    resolved = resolve_annotations(read_annotations(chain_dir), public_hex, _valid_targets(chain_dir))
+    hashes = [item["_hash"] for item in resolved]
+    assert hashes == sorted(hashes)  # ordered by the real stored hash, deterministically
+
+
 def test_annotation_canonical_bytes_are_pinned_cross_stack():
     """An annotation body canonicalizes to the same bytes in both stacks:
     node/test/annotations.test.js pins this exact body to this hash."""
