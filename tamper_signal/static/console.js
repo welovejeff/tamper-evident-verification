@@ -13,8 +13,12 @@
 //     renders as a dashed amber link to a ghost node at the gap's position
 //   - the inspector: click a card for its receipt (kv + raw JSON)
 //   - the event log: one entry per verify run, mirroring the CLI verifier
+//   - the chain of custody: the published timeline.json (imports, changes,
+//     signed reasons + self-declared authors) as an ADDITIVE layer that never
+//     feeds the verdict — the lamp comes solely from chain.json (R16)
 //
-//   opts: pubKey (trusted key hex), watch (re-verify every N ms), warnDrift
+//   opts: pubKey (trusted key hex), watch (re-verify every N ms), warnDrift,
+//         timeline (timeline.json URL; defaults to timeline.json beside chain)
 //   Returns { el, ready, refresh(), destroy() }.
 
 import {
@@ -113,7 +117,19 @@ function injectConsoleStyles() {
   .tc .tc-log .t-green{color:var(--green)}
   .tc .tc-log .t-amber{color:var(--amber)}
   .tc .tc-log .t-red{color:var(--red)}
-  .tc .tc-log .t-faint{color:var(--faint)}`;
+  .tc .tc-log .t-faint{color:var(--faint)}
+  .tc .tc-custody{border-top:1px solid var(--border);background:var(--panel);padding:12px 16px}
+  .tc .tc-custody-head{color:var(--dim);letter-spacing:1px;font-size:10px;margin-bottom:8px;text-transform:uppercase}
+  .tc .tc-custody-warn{color:var(--amber);font-size:11px}
+  .tc .tc-custody-list .c-row{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;
+    padding:6px 0;border-top:1px solid var(--row)}
+  .tc .tc-custody-list .c-mark{color:var(--cyan);font-size:10px;min-width:64px}
+  .tc .tc-custody-list .c-stage{font-weight:700}
+  .tc .tc-custody-list .c-meta{color:var(--dim);font-size:10.5px}
+  .tc .tc-custody-list .c-when{margin-left:auto;color:var(--faint);font-size:10px}
+  .tc .tc-custody-list .c-ann{padding:3px 0 5px 64px;font-size:11px;color:var(--text)}
+  .tc .tc-custody-list .c-ann.c-superseded{opacity:0.55;text-decoration:line-through}
+  .tc .tc-custody-list .c-ann .c-author{margin-left:10px;color:var(--faint);font-size:10px}`;
   document.head.appendChild(el("style", { id: "tamper-console-styles", textContent: css }));
 }
 
@@ -186,7 +202,8 @@ export function mountReceiptConsole(containerEl, chainUrl, opts) {
     el("div", { className: "l-head" }, "EVENT LOG · mirrors `receipts verify`"),
     logEntries,
   ]);
-  const root = el("div", { className: "tc" }, [head, caveatStrip, railWrap, breakSlot, inspect, log]);
+  const custody = el("div", { className: "tc-custody" });
+  const root = el("div", { className: "tc" }, [head, caveatStrip, railWrap, breakSlot, inspect, custody, log]);
   root.dataset.state = "unverifiable";
   containerEl.appendChild(root);
 
@@ -326,10 +343,67 @@ export function mountReceiptConsole(containerEl, chainUrl, opts) {
     logEntries.prepend(entry);
   }
 
+  const timelineUrl =
+    opts.timeline || new URL("timeline.json", new URL(chainUrl, window.location.href)).href;
+
+  // The chain-of-custody timeline. ADDITIVE: it never feeds the verdict above
+  // (R16). It fetches the published timeline.json and renders it only when the
+  // document is bound to the chain we just verified (chain_tail must match the
+  // verified chain's tail receipt hash), so a timeline.json from another chain
+  // is rejected rather than rendered as authoritative provenance.
+  async function renderCustody(result) {
+    custody.textContent = "";
+    if (result.state === "unverifiable" || !result.chain) return;
+    let timeline;
+    try {
+      const resp = await fetch(timelineUrl, { cache: "no-store" });
+      if (!resp.ok) return; // no timeline published; nothing to show, verdict unaffected
+      timeline = await resp.json();
+    } catch {
+      return; // timeline is optional; its absence is not a verdict signal
+    }
+    if (destroyed) return;
+    const files = result.chain.receipts || [];
+    const tail = files.length ? (result.chain.receipt_hashes || {})[files[files.length - 1]] : "";
+    custody.appendChild(el("div", { className: "tc-custody-head" }, "CHAIN OF CUSTODY · provenance"));
+    if (!timeline || timeline.kind !== "timeline" || timeline.chain_tail !== tail) {
+      custody.appendChild(
+        el("div", { className: "tc-custody-warn" }, "⚠ timeline.json does not match this chain — not shown")
+      );
+      return;
+    }
+    const list = el("div", { className: "tc-custody-list" });
+    for (const entry of timeline.entries || []) {
+      const isImport = entry.kind === "import";
+      list.appendChild(el("div", { className: "c-row" }, [
+        el("span", { className: "c-mark" }, isImport ? "⬚ import" : "▶ change"),
+        el("span", { className: "c-stage" }, entry.stage || "?"),
+        el("span", { className: "c-meta" },
+          isImport
+            ? `origin: ${entry.origin || "—"}`
+            : `Δrows ${entry.row_delta ?? "?"} · code ${SHORT(entry.code_hash)}`),
+        el("span", { className: "c-when" }, (entry.created_at || "").slice(0, 19)),
+      ]));
+      for (const ann of entry.annotations || []) {
+        list.appendChild(el("div", { className: `c-ann${ann.superseded ? " c-superseded" : ""}` }, [
+          el("span", { className: "c-reason" }, "💬 " + (ann.reason || "")),
+          ann.author
+            ? el("span", { className: "c-author" }, `self-declared author: ${ann.author} (unverified)`)
+            : null,
+          ann.superseded ? el("span", { className: "c-author" }, "(superseded)") : null,
+        ]));
+      }
+    }
+    custody.appendChild(list);
+  }
+
   async function refresh() {
     const started = performance.now();
     const result = await verifyReceipts(chainUrl, opts.pubKey, { warnDrift: opts.warnDrift });
-    if (!destroyed) render(result, Math.round(performance.now() - started));
+    if (destroyed) return result;
+    render(result, Math.round(performance.now() - started));
+    // Additive layer, after the verdict has already rendered from chain.json.
+    await renderCustody(result);
     return result;
   }
 

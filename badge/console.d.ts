@@ -11,6 +11,12 @@ export interface ReceiptConsoleOptions {
   warnDrift?: boolean;
   /** Trusted public key hex, single or rotation list. */
   pubKey?: string | string[];
+  /**
+   * URL of the published `timeline.json` for the chain-of-custody layer.
+   * Defaults to `timeline.json` beside the chain. The custody layer is
+   * additive and never affects the verdict (which comes from `chain.json`).
+   */
+  timeline?: string;
 }
 
 export interface ReceiptConsoleHandle {
