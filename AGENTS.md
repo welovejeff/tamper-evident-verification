@@ -175,6 +175,7 @@ commands:
 | `receipts log` | `tamper-signal log` (same args and JSON shape) |
 | `receipts export` | `tamper-signal export` / `canonicalDocument()` |
 | `receipts assets` | `tamper-signal assets` (copy the browser bundle into a project) |
+| `receipts annotate` | `tamper-signal annotate` (sign a reason/author onto a receipt) |
 | `receipts serve` | your bundler's static server, or `tamper-signal/express` |
 | `receipts doctor` | `tamper-signal verify` (exit 0 = healthy); confirm the key is gitignored yourself |
 | `receipts anchor` | Python-only today (transparency-log anchoring) |

@@ -17,6 +17,7 @@ import { parseArgs } from "node:util";
 import process from "node:process";
 
 import * as color from "./color.js";
+import { annotationBodyHash, buildAnnotation, writeAnnotation } from "./annotations.js";
 import { canonicalDocument, canonicalJsonBytes, semanticHash } from "./canonical.js";
 import {
   LOG_GRANULARITIES,
@@ -94,6 +95,10 @@ commands:
   assets [--out badge/]                      copy the bundled browser assets
                                              (light.js, badge.js, element.js,
                                              table.js, console.js) into a project
+  annotate [<chain.json>] --reason "..." [--author "..."] [--supersedes <hash>]
+           [--target <hash>] [--key keys/signing.key] [--json]
+                                             attach a signed reason/author to a
+                                             receipt (the chain tail by default)
 `;
 
 // Shipped inside every verified bundle so a recipient can verify it without
@@ -1250,12 +1255,72 @@ function cmdAssets(args) {
   return 0;
 }
 
+// Attach a signed reason/author to a receipt (the chain tail by default).
+// Mirrors the Python `receipts annotate`.
+function cmdAnnotate(args) {
+  const { values, positionals } = parseArgs({
+    args,
+    allowPositionals: true,
+    options: {
+      chain: { type: "string" },
+      reason: { type: "string" },
+      author: { type: "string" },
+      supersedes: { type: "string" },
+      target: { type: "string" },
+      key: { type: "string" },
+      json: { type: "boolean", default: false },
+    },
+  });
+  const fail = (msg) => {
+    if (values.json) printJson({ ok: false, error: msg });
+    else console.error(msg);
+    return 1;
+  };
+  if (!values.reason) return fail("annotate: missing --reason");
+  const chainPath = positionals[0] || values.chain || "receipts/chain.json";
+  let chain;
+  try {
+    chain = readChain(chainPath);
+  } catch (err) {
+    return fail(`Cannot read chain: ${err.message}`);
+  }
+  const receipts = chain.receipts ?? [];
+  if (!receipts.length) return fail("Chain is empty; nothing to annotate.");
+  const tail = receipts[receipts.length - 1];
+  const target = values.target || (chain.receipt_hashes ?? {})[tail];
+  if (!target) return fail(`No content hash for tail receipt ${tail}; re-run the pipeline.`);
+  let priv;
+  try {
+    priv = loadPrivateKey(values.key || "keys/signing.key");
+  } catch (err) {
+    return fail(`Cannot load signing key: ${err.message}`);
+  }
+  const annotation = buildAnnotation({
+    target,
+    reason: values.reason,
+    author: values.author ?? "",
+    supersedes: values.supersedes ?? null,
+    privateKey: priv,
+  });
+  const path = writeAnnotation(dirname(chainPath), annotation);
+  const hash = annotationBodyHash(annotation);
+  if (values.json) {
+    printJson({ annotation: path, hash, target, author: values.author ?? "", supersedes: values.supersedes ?? null });
+    return 0;
+  }
+  console.log(`Signed annotation written: ${path}`);
+  console.log(`  bound to ${tail} (${target.slice(0, 12)}…)`);
+  if (values.author) console.log(`  self-declared author: ${values.author} (attribution, not verified identity)`);
+  if (values.supersedes) console.log(`  supersedes ${values.supersedes.slice(0, 12)}…`);
+  return 0;
+}
+
 const [, , command, ...rawRest] = process.argv;
 // --no-color is global: honor it at any position and strip it so each command's
 // strict parser does not reject it. NO_COLOR / FORCE_COLOR env are honored too.
 if (rawRest.includes("--no-color")) color.setNoColor(true);
 const rest = rawRest.filter((arg) => arg !== "--no-color");
-const commands = { keygen: cmdKeygen, ingest: cmdIngest, verify: cmdVerify, diff: cmdDiff, log: cmdLog, export: cmdExport, assets: cmdAssets };
+const commands = { keygen: cmdKeygen, ingest: cmdIngest, verify: cmdVerify, diff: cmdDiff, log: cmdLog, export: cmdExport, assets: cmdAssets, annotate: cmdAnnotate };
 if (!command || !(command in commands)) {
   console.error(USAGE);
   process.exit(command ? 1 : 0);

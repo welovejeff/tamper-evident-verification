@@ -7,6 +7,7 @@ Commands:
   receipts diff [A] [B] [--chain receipts/] [--json]
   receipts log [--chain receipts/] [--granularity day|week|month|quarter] [--metric <name>] [--json]
   receipts export [receipts/chain.json] --data <current.csv> [--bundle] [--json]
+  receipts annotate [receipts/chain.json] --reason "..." [--author "..."] [--json]
   receipts init
   receipts doctor [--url http://localhost:8787/chain.json]
   receipts serve
@@ -865,6 +866,67 @@ def cmd_assets(args: argparse.Namespace) -> int:
     for name in names:
         print(f"  {name}")
     print(f'Import them at the path you serve them, e.g. "/{out_dir.name}/light.js".')
+    return 0
+
+
+def cmd_annotate(args: argparse.Namespace) -> int:
+    """Attach a signed reason (and optional self-declared author) to a receipt.
+
+    Binds to a receipt by its content hash (the chain tail by default), so the
+    reason cannot be silently retargeted. A correction supersedes a prior
+    annotation by its hash; nothing is overwritten.
+    """
+    from .annotations import annotation_body_hash, build_annotation, write_annotation
+
+    def fail(msg: str) -> int:
+        if args.json:
+            _print_json({"ok": False, "error": msg})
+        else:
+            print(msg, file=sys.stderr)
+        return 1
+
+    chain_path = args.chain_arg or args.chain
+    try:
+        chain = read_chain(chain_path)
+    except (OSError, ValueError) as exc:
+        return fail(f"Cannot read chain: {exc}")
+    chain_dir = str(Path(chain_path).parent)
+    receipts = chain.get("receipts", [])
+    if not receipts:
+        return fail("Chain is empty; nothing to annotate.")
+    tail = receipts[-1]
+    target = args.target or chain.get("receipt_hashes", {}).get(tail)
+    if not target:
+        return fail(f"No content hash for tail receipt {tail!r}; re-run the pipeline.")
+    try:
+        key = load_private_key(args.key)
+    except (OSError, ValueError) as exc:
+        return fail(f"Cannot load signing key: {exc}")
+
+    annotation = build_annotation(
+        target=target,
+        reason=args.reason,
+        author=args.author or "",
+        supersedes=args.supersedes,
+        private_key=key,
+    )
+    path = write_annotation(chain_dir, annotation)
+    body_hash = annotation_body_hash(annotation)
+    if args.json:
+        _print_json({
+            "annotation": str(path),
+            "hash": body_hash,
+            "target": target,
+            "author": args.author or "",
+            "supersedes": args.supersedes,
+        })
+        return 0
+    print(f"Signed annotation written: {path}")
+    print(f"  bound to {tail} ({target[:12]}…)")
+    if args.author:
+        print(f"  self-declared author: {args.author} (attribution, not verified identity)")
+    if args.supersedes:
+        print(f"  supersedes {args.supersedes[:12]}…")
     return 0
 
 
@@ -1898,6 +1960,32 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_assets.add_argument("--json", action="store_true", help="Emit a JSON summary")
     p_assets.set_defaults(func=cmd_assets)
+
+    p_annotate = sub.add_parser(
+        "annotate",
+        help="Attach a signed reason/author to a receipt (the chain tail by default)",
+    )
+    p_annotate.add_argument(
+        "chain_arg", nargs="?", metavar="chain", help="Path to chain.json (positional; same as --chain)"
+    )
+    p_annotate.add_argument("--chain", default="receipts/chain.json", help="Path to chain.json")
+    p_annotate.add_argument("--reason", required=True, help="Why/what changed (signed into the chain)")
+    p_annotate.add_argument(
+        "--author",
+        default=None,
+        help="Self-declared author (signed attribution, not verified identity)",
+    )
+    p_annotate.add_argument(
+        "--supersedes", default=None, help="Content hash of a prior annotation this corrects"
+    )
+    p_annotate.add_argument(
+        "--target", default=None, help="Receipt content hash to bind to (default: the chain tail)"
+    )
+    p_annotate.add_argument(
+        "--key", default="keys/signing.key", help="Private signing key (TAMPER_SIGNAL_KEY env wins)"
+    )
+    p_annotate.add_argument("--json", action="store_true", help="Emit a JSON summary")
+    p_annotate.set_defaults(func=cmd_annotate)
 
     p_demo = sub.add_parser("demo", help="Run the full end-to-end demo")
     p_demo.add_argument("--no-serve", action="store_true", help="Skip serving the badge")
