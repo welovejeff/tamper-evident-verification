@@ -21,7 +21,12 @@ from pathlib import Path
 from typing import Any
 
 from . import SPEC_VERSION
-from .annotations import read_annotations, resolve_annotations
+from .annotations import (
+    pending_event_body_hash,
+    read_annotations,
+    read_pending_events,
+    resolve_annotations,
+)
 from .keys import Ed25519PrivateKey
 from .receipts import _now_iso, _sign_body, output_hash_of, stage_name_of, totals_of
 
@@ -112,6 +117,23 @@ def build_timeline(
         if count:
             # Narrow by design: a count only, never the archived contents.
             body["reuploads"] = {"count": count}
+
+    # Withheld watch changes awaiting human review (U5). Sanitized by design:
+    # the source id, when, the categorical caveat count, and the event hash —
+    # never the candidate records or the value-bearing caveat strings (those
+    # carry per-bucket deltas the timeline keeps CLI-local, KTD2). It tells a
+    # remote viewer "a change is paused for review" without leaking the change.
+    pending = read_pending_events(chain_dir)
+    if pending:
+        body["pending"] = [
+            {
+                "source_id": event.get("source_id", ""),
+                "created_at": event.get("created_at", ""),
+                "caveat_count": len(event.get("details") or []),
+                "hash": pending_event_body_hash(event),
+            }
+            for event in pending
+        ]
 
     if key is not None:
         return _sign_body(body, key)

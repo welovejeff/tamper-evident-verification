@@ -1981,6 +1981,130 @@ def cmd_watch(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_review(args: argparse.Namespace) -> int:
+    """List, accept, or reject withheld pending watch changes (plan U5).
+
+    Accepting signs a human reason bound to the committed receipt (with an
+    `accepts` link to the exact reviewed event) and commits the candidate stored
+    in the pending event — never a re-derived one. If the chain advanced since
+    the change was withheld, acceptance re-surfaces for review instead of
+    overwriting newer data (the commit tail-assert). Rejecting discards the
+    event without touching the chain.
+    """
+    from .annotations import (
+        build_annotation,
+        pending_event_body_hash,
+        read_pending_events,
+        remove_pending_event,
+        write_annotation,
+    )
+    from .receipts import verify_signature
+    from .wrapper import StaleCandidateError, commit_period
+
+    try:
+        chain = read_chain(args.chain)
+    except (OSError, ValueError) as exc:
+        return _fail(args, f"Cannot read chain: {exc}")
+    chain_dir = str(Path(args.chain).parent)
+    chain_key = chain.get("public_key")
+    by_hash = {pending_event_body_hash(e): e for e in read_pending_events(chain_dir)}
+
+    action = args.action or "list"
+    if action == "list":
+        items = [
+            {
+                "hash": h,
+                "source_id": e.get("source_id", ""),
+                "created_at": e.get("created_at", ""),
+                "caveats": e.get("caveats", []),
+            }
+            for h, e in by_hash.items()
+        ]
+        if args.json:
+            _print_json({"ok": True, "pending": items})
+            return 0
+        if not items:
+            print("No pending changes awaiting review.")
+            return 0
+        for item in items:
+            print(f"{item['hash'][:12]}…  {item['source_id']}  {item['created_at']}")
+            for caveat in item["caveats"]:
+                print(f"    - {caveat}")
+        return 0
+
+    if not args.hash:
+        return _fail(args, f"{action} needs a pending event hash (see: receipts review list)")
+    matches = [h for h in by_hash if h.startswith(args.hash)]
+    if len(matches) != 1:
+        return _fail(args, f"hash {args.hash!r} matched {len(matches)} pending events; be more specific")
+    pending_hash = matches[0]
+    event = by_hash[pending_hash]
+
+    if action == "reject":
+        remove_pending_event(chain_dir, pending_hash)
+        if args.json:
+            _print_json({"ok": True, "action": "rejected", "hash": pending_hash})
+        else:
+            print(f"Rejected pending change {pending_hash[:12]}… (chain untouched)")
+        return 0
+
+    # accept
+    if not args.reason:
+        return _fail(args, "accept needs --reason (each acceptance signs its own human reason)")
+    if chain_key and not verify_signature(event, chain_key):
+        return _fail(args, "pending event does not verify under the chain key; refusing to accept")
+    try:
+        key = load_private_key(args.key)
+    except (OSError, ValueError) as exc:
+        return _fail(args, f"Cannot load signing key: {exc}")
+    if chain_key and public_hex_from_private(key) != chain_key:
+        return _fail(args, "signing key does not match the chain key; the acceptance would not verify")
+
+    cand = event["candidate"]
+    candidate = {
+        "manifest": cand["manifest"],
+        "records": cand["records"],
+        "public_hex": cand["public_hex"],
+        "base_tail": event.get("base_tail"),
+        "chain_dir": chain_dir,
+        "key_path": args.key,
+        "trusted_keys": cand.get("trusted_keys", []),
+        "compared": True,
+    }
+    judgment = {
+        "breached": event.get("breached") or None,
+        "caveats": event.get("caveats", []),
+        "details": event.get("details", []),
+    }
+    try:
+        commit_period(candidate, judgment, chain_dir=chain_dir, key_path=args.key)
+    except StaleCandidateError:
+        return _fail(
+            args,
+            "the chain advanced since this change was withheld; re-review the pending event "
+            "before accepting (it may now conflict with newer data). Nothing was committed.",
+        )
+
+    chain = read_chain(args.chain)
+    tail_name = chain["receipts"][-1]
+    new_tail = chain.get("receipt_hashes", {}).get(tail_name, "")
+    annotation = build_annotation(
+        target=new_tail, reason=args.reason, author=args.author or "",
+        accepts=pending_hash, private_key=key,
+    )
+    write_annotation(chain_dir, annotation)
+    remove_pending_event(chain_dir, pending_hash)
+    if args.json:
+        _print_json({
+            "ok": True, "action": "accepted", "hash": pending_hash,
+            "target": new_tail, "reason": args.reason,
+        })
+        return 0
+    print(f"Accepted pending change {pending_hash[:12]}… and committed it.")
+    print(f"  signed reason bound to {new_tail[:12]}… (accepts {pending_hash[:12]}…)")
+    return 0
+
+
 def cmd_demo(args: argparse.Namespace) -> int:
     from .demo import run_demo
 
@@ -2292,6 +2416,19 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_watch.add_argument("--json", action="store_true", help="Emit a JSON summary")
     p_watch.set_defaults(func=cmd_watch)
+
+    p_review = sub.add_parser(
+        "review",
+        help="List/accept/reject withheld watch changes awaiting human sign-off",
+    )
+    p_review.add_argument("action", nargs="?", choices=["list", "accept", "reject"], default="list")
+    p_review.add_argument("hash", nargs="?", help="Pending event hash (prefix ok) for accept/reject")
+    p_review.add_argument("--chain", default="receipts/chain.json", help="Path to chain.json")
+    p_review.add_argument("--reason", help="Human reason (required to accept)")
+    p_review.add_argument("--author", help="Self-declared author (attribution, not verified identity)")
+    p_review.add_argument("--key", default="keys/signing.key", help="The chain's signing key")
+    p_review.add_argument("--json", action="store_true", help="Emit a JSON summary")
+    p_review.set_defaults(func=cmd_review)
 
     p_demo = sub.add_parser("demo", help="Run the full end-to-end demo")
     p_demo.add_argument("--no-serve", action="store_true", help="Skip serving the badge")

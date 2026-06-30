@@ -55,6 +55,7 @@ def build_annotation(
     reason: str,
     author: str = "",
     supersedes: str | None = None,
+    accepts: str | None = None,
     private_key: Ed25519PrivateKey,
     created_at: str | None = None,
 ) -> dict[str, Any]:
@@ -62,8 +63,10 @@ def build_annotation(
 
     `target`, `reason`, and `author` all join the body before signing, so the
     signature covers them. `supersedes` (a prior annotation's content hash) is
-    included only when given. All leaves are strings, so no float ever reaches
-    the canonical bytes.
+    included only when given. `accepts` (a pending event's content hash) is the
+    signed audit link a `receipts review` acceptance carries, pointing at the
+    exact reviewed event (U5/KTD10); it is included only when given. All leaves
+    are strings, so no float ever reaches the canonical bytes.
     """
     body: dict[str, Any] = {
         "kind": "annotation",
@@ -75,6 +78,8 @@ def build_annotation(
     }
     if supersedes is not None:
         body["supersedes"] = supersedes
+    if accepts is not None:
+        body["accepts"] = accepts
     return _sign_body(body, private_key)
 
 
@@ -144,6 +149,7 @@ def build_pending_event(
         "base_tail": candidate.get("base_tail"),
         "caveats": list(judgment.get("caveats", [])),
         "details": list(judgment.get("details", [])),
+        "breached": judgment.get("breached") or {},
         "candidate": {
             "manifest": candidate["manifest"],
             "records": candidate["records"],

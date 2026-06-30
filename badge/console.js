@@ -125,6 +125,7 @@ function injectConsoleStyles() {
   .tc .tc-custody-list .c-row{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;
     padding:6px 0;border-top:1px solid var(--row)}
   .tc .tc-custody-list .c-mark{color:var(--cyan);font-size:10px;min-width:64px}
+  .tc .tc-custody-list .c-mark.c-pending{color:var(--amber)}
   .tc .tc-custody-list .c-stage{font-weight:700}
   .tc .tc-custody-list .c-meta{color:var(--dim);font-size:10.5px}
   .tc .tc-custody-list .c-when{margin-left:auto;color:var(--faint);font-size:10px}
@@ -427,6 +428,28 @@ export function mountReceiptConsole(containerEl, chainUrl, opts) {
       }
     }
     custody.appendChild(list);
+
+    // Withheld watch changes awaiting human review (U5). ADDITIVE, like the rest
+    // of this layer: it never feeds the verdict. The summary is sanitized server
+    // side (source id, when, a caveat COUNT, the event hash) — no candidate data
+    // or value-bearing caveat text, so nothing private leaks to a remote viewer.
+    const pending = timeline.pending || [];
+    if (pending.length) {
+      custody.appendChild(
+        el("div", { className: "tc-custody-head" }, "AWAITING REVIEW · withheld changes")
+      );
+      const plist = el("div", { className: "tc-custody-list" });
+      for (const p of pending) {
+        plist.appendChild(el("div", { className: "c-row" }, [
+          el("span", { className: "c-mark c-pending" }, "⏸ pending"),
+          el("span", { className: "c-stage" }, p.source_id || "?"),
+          el("span", { className: "c-meta" },
+            `${p.caveat_count || 0} caveat(s) · needs a signed human reason`),
+          el("span", { className: "c-when" }, (p.created_at || "").slice(0, 19)),
+        ]));
+      }
+      custody.appendChild(plist);
+    }
   }
 
   async function refresh() {
