@@ -373,6 +373,16 @@ def judge_candidate_period(
     prior_chain = read_chain(str(chain_path))
     prior_key = prior_chain.get("public_key")
 
+    # Capture the tail the judgment is about to be computed against BEFORE
+    # loading snapshots — not after. `commit_period` refuses to write unless the
+    # on-disk tail still equals this value, so sampling it up front makes the
+    # assert cover the whole judge window: a concurrent writer that commits
+    # between here and the snapshot read forces a StaleCandidateError (re-judge)
+    # rather than slipping a clean verdict computed against pre-commit snapshots.
+    prior_names = prior_chain.get("receipts") or []
+    prior_hashes = prior_chain.get("receipt_hashes") or {}
+    base_tail = prior_hashes.get(prior_names[-1]) if prior_names else None
+
     importer_hex = public_hex_from_private(load_private_key(key_path))
     trusted = {k for k in [prior_key, *trusted_pub_hexes] if k}
     if importer_hex not in trusted:
@@ -408,7 +418,7 @@ def judge_candidate_period(
         "manifest": manifest,
         "records": records,
         "public_hex": public_hex,
-        "base_tail": _chain_tail_hash(chain_dir),
+        "base_tail": base_tail,
         "chain_dir": chain_dir,
         "key_path": key_path,
         "trusted_keys": trusted_keys,

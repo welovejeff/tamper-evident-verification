@@ -91,6 +91,36 @@ def test_cumulative_drift_is_withheld_not_silently_folded(tmp_path, monkeypatch)
 
 
 # ---------------------------------------------------------------------------
+# A flood that ALSO breaches settled data is withheld, not rate-capped away
+# ---------------------------------------------------------------------------
+def test_settled_breach_withheld_even_when_over_rate_cap(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    _seed(tmp_path)
+    _tick([("2020-01-01", "100")])  # settled baseline
+    # Many new periods (over the cap) AND a mutation of the settled bucket. The
+    # withhold gate must win, or the settled tamper evidence is silently dropped.
+    flood = [("2020-01-01", "200")] + [(f"2026-06-{d:02d}", "5") for d in range(1, 12)]
+    out = _tick(flood, per_tick_cap=3)
+    assert out["action"] == "withheld"  # not "rate_capped"
+    assert len(read_pending_events("receipts/")) == 1
+
+
+# ---------------------------------------------------------------------------
+# Re-withholding the same change is deduplicated (no pending flood)
+# ---------------------------------------------------------------------------
+def test_repeated_withhold_of_same_change_is_deduplicated(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    _seed(tmp_path)
+    _tick([("2020-01-01", "100")])
+    first = _tick([("2020-01-01", "200")])
+    second = _tick([("2020-01-01", "200")])  # same change, still unreviewed
+    assert first["action"] == "withheld" and second["action"] == "withheld"
+    assert second.get("deduplicated") is True
+    assert first["pending_hash"] == second["pending_hash"]
+    assert len(read_pending_events("receipts/")) == 1  # one file, not two
+
+
+# ---------------------------------------------------------------------------
 # A clean, caveat-free change still auto-commits
 # ---------------------------------------------------------------------------
 def test_in_band_change_auto_commits(tmp_path, monkeypatch, capsys):

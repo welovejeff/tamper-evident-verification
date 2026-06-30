@@ -117,6 +117,21 @@ def test_accept_requires_a_reason(tmp_path, monkeypatch):
     assert len(read_pending_events("receipts/")) == 1  # not consumed without a reason
 
 
+def test_accept_fails_closed_when_chain_has_no_public_key(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    phash = _withhold_one(tmp_path)
+    # Strip the chain's public_key: acceptance must REFUSE (fail closed), not
+    # skip verification and commit an unverifiable pending candidate.
+    chain_path = tmp_path / "receipts" / "chain.json"
+    chain = json.loads(chain_path.read_text())
+    chain["public_key"] = ""
+    chain_path.write_text(json.dumps(chain), encoding="utf-8")
+    rc = main(["review", "accept", phash, "--reason", "x", "--key", "keys/signing.key",
+               "--chain", "receipts/chain.json"])
+    assert rc == 1
+    assert len(read_pending_events("receipts/")) == 1  # not consumed
+
+
 # ---------------------------------------------------------------------------
 # List + sanitized timeline summary
 # ---------------------------------------------------------------------------

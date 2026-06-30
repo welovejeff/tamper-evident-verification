@@ -1914,6 +1914,20 @@ def _load_watch_source(args: argparse.Namespace) -> dict[str, Any]:
         )
     if spec["format"] not in ("json", "rss"):
         raise ValueError(f"watch format must be 'json' or 'rss', got {spec['format']!r}")
+    cap = spec.get("per_tick_cap")
+    if cap is not None:
+        # JSON authors naturally write 5, "5", or 5.0; coerce to a non-negative
+        # int here so an untyped value cannot TypeError mid-tick inside the
+        # daemon's broad except and loop opaquely forever.
+        if isinstance(cap, bool):
+            raise ValueError("per_tick_cap must be an integer, not a boolean")
+        try:
+            cap_int = int(cap)
+        except (TypeError, ValueError):
+            raise ValueError(f"per_tick_cap must be an integer, got {cap!r}") from None
+        if cap_int < 0:
+            raise ValueError(f"per_tick_cap must be >= 0, got {cap_int}")
+        spec["per_tick_cap"] = cap_int
     return spec
 
 
@@ -1960,26 +1974,44 @@ def _print_watch_decision(decision: dict[str, Any], spec: dict[str, Any]) -> Non
               f"exceeds the per-tick cap of {decision['cap']}; nothing appended")
 
 
-def _watch_daemon(tick_fn: Callable[[], Any], interval: float, *, sleep=None) -> None:
-    """Loop a watch tick on an interval until interrupted (plan U6).
+def _watch_daemon(
+    tick_fn: Callable[[], Any], interval: float, *, sleep=None, max_consecutive_failures: int = 10
+) -> bool:
+    """Loop a watch tick on an interval until interrupted (plan U6). Returns True
+    if it stopped because of the consecutive-failure ceiling, else False.
 
     A thin local file-writer, NOT a server: it polls, writes receipts, and
-    sleeps. A failing tick is logged and the loop continues (a transient feed
-    error must not take the watcher down); Ctrl-C (or SIGINT) stops it cleanly,
-    mirroring `receipts serve`. `sleep` is injectable for tests."""
+    sleeps. A *transient* failing tick is logged and the loop continues, but a
+    PERSISTENT error (a rotated/untrusted key, a full disk, a feed that is
+    permanently stale) would otherwise spin forever — especially at a small
+    interval — so the loop gives up after `max_consecutive_failures` in a row
+    and exits non-zero for a supervisor to restart/alert on. A success resets
+    the counter. Ctrl-C (or SIGINT) stops cleanly, mirroring `receipts serve`.
+    `sleep` is injectable for tests."""
     import time
 
     sleeper = sleep or time.sleep
     print(f"watcher running every {interval:g}s; Ctrl-C to stop", file=sys.stderr)
+    failures = 0
     try:
         while True:
             try:
                 tick_fn()
-            except Exception as exc:  # a bad tick is logged, never fatal
-                print(f"watch tick failed: {exc}", file=sys.stderr)
+                failures = 0
+            except Exception as exc:  # a transient bad tick is logged, not fatal
+                failures += 1
+                print(f"watch tick failed ({failures}/{max_consecutive_failures}): {exc}", file=sys.stderr)
+                if failures >= max_consecutive_failures:
+                    print(
+                        f"watcher stopping after {failures} consecutive failures "
+                        "(persistent error — check the key, disk, and feed)",
+                        file=sys.stderr,
+                    )
+                    return True
             sleeper(interval)
     except KeyboardInterrupt:
         print("watcher stopped", file=sys.stderr)
+    return False
 
 
 def _assert_watch_key_private(key_path: str) -> str | None:
@@ -2006,7 +2038,7 @@ def cmd_watch(args: argparse.Namespace) -> int:
     (plan U6); the default is a single stateless tick (the recommended
     deployment, under a systemd timer / cron, keeps no key resident between)."""
     from .watcher import WatchIdentityError, run_tick  # noqa: F401  (re-exported for tests)
-    from .wrapper import UntrustedSignerError
+    from .wrapper import StaleCandidateError, UntrustedSignerError
 
     try:
         spec = _load_watch_source(args)
@@ -2030,14 +2062,14 @@ def cmd_watch(args: argparse.Namespace) -> int:
                 _print_json({"ok": True, **decision})
             else:
                 _print_watch_decision(decision, spec)
-        _watch_daemon(one, float(args.interval))
-        return 0
+        hit_ceiling = _watch_daemon(one, float(args.interval))
+        return 1 if hit_ceiling else 0
 
     try:
         decision = _watch_once(spec, args)
     except sources.SourceError as exc:
         return _fail(args, f"source fetch/parse failed: {exc}")
-    except (UntrustedSignerError, WatchIdentityError) as exc:
+    except (UntrustedSignerError, WatchIdentityError, StaleCandidateError) as exc:
         return _fail(args, str(exc))
 
     if args.json:
@@ -2117,7 +2149,12 @@ def cmd_review(args: argparse.Namespace) -> int:
     # accept
     if not args.reason:
         return _fail(args, "accept needs --reason (each acceptance signs its own human reason)")
-    if chain_key and not verify_signature(event, chain_key):
+    # Fail CLOSED, never open: with no chain key the event cannot be verified, so
+    # refuse rather than committing an unverifiable (possibly forged on-disk)
+    # pending candidate into the chain.
+    if not chain_key:
+        return _fail(args, "chain has no public key; cannot verify the pending event — refusing to accept")
+    if not verify_signature(event, chain_key):
         return _fail(args, "pending event does not verify under the chain key; refusing to accept")
     try:
         key = load_private_key(args.key)

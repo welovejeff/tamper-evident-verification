@@ -44,6 +44,17 @@ def test_daemon_interrupt_during_tick_stops_clean(capsys):
     assert "watcher stopped" in capsys.readouterr().err
 
 
+def test_daemon_stops_after_consecutive_failure_ceiling(capsys):
+    # A persistent error (rotated key, full disk) must not spin forever.
+    def tick():
+        raise RuntimeError("permanent")
+
+    hit_ceiling = _watch_daemon(tick, 0.0, sleep=lambda _i: None, max_consecutive_failures=3)
+    assert hit_ceiling is True
+    err = capsys.readouterr().err
+    assert "consecutive failures" in err
+
+
 # ---------------------------------------------------------------------------
 # Key hardening (KTD8): a group/world-readable signing key is refused
 # ---------------------------------------------------------------------------
@@ -63,6 +74,23 @@ def test_watch_refuses_group_readable_key(tmp_path, monkeypatch):
         "--source-id", "feed:x", "--key", "keys/signing.key", "--out", "receipts/", "--json",
     ])
     assert rc == 1  # refused before any fetch
+
+
+# ---------------------------------------------------------------------------
+# Config validation: per_tick_cap is coerced/validated, not passed untyped
+# ---------------------------------------------------------------------------
+def test_watch_rejects_non_integer_per_tick_cap(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    os.chdir(tmp_path)
+    main(["keygen", "--out", "keys/"])
+    config = tmp_path / "feed.json"
+    config.write_text(json.dumps({
+        "url": "https://feed.example/x", "format": "json", "source_id": "feed:x",
+        "per_tick_cap": "lots",
+    }), encoding="utf-8")
+    rc = main(["watch", "--config", str(config), "--key", "keys/signing.key",
+               "--out", "receipts/", "--json"])
+    assert rc == 1  # invalid cap refused at config load, no opaque mid-tick TypeError
 
 
 # ---------------------------------------------------------------------------

@@ -80,9 +80,33 @@ def _withhold_to_pending(
     key_path: str,
 ) -> dict[str, Any]:
     """Persist a withheld candidate as a signed pending event for human review
-    (U4). Returns the event's content hash + path for the decision summary."""
-    from .annotations import build_pending_event, pending_event_body_hash, write_pending_event
+    (U4). Returns the event's content hash + path for the decision summary.
+
+    Idempotent: a withheld change re-withholds on every tick until a human
+    reviews it (the committed source is unchanged, so it never reads as a no-op),
+    so the SAME change is deduplicated against existing pending events by
+    (source_id, base_tail, candidate semantic-hash) — otherwise a daemon would
+    write one near-identical pending file per poll (each carries a fresh
+    created_at, so the content address alone never collides)."""
+    from .annotations import (
+        build_pending_event,
+        pending_event_body_hash,
+        read_pending_events,
+        write_pending_event,
+    )
     from .keys import load_private_key
+
+    source_id = candidate["manifest"]["source"]["filename"]
+    base_tail = candidate.get("base_tail")
+    semantic = candidate["manifest"].get("semantic_hash")
+    for existing in read_pending_events(chain_dir):
+        existing_cand = existing.get("candidate") or {}
+        if (
+            existing.get("source_id") == source_id
+            and existing.get("base_tail") == base_tail
+            and (existing_cand.get("manifest") or {}).get("semantic_hash") == semantic
+        ):
+            return {"pending_hash": pending_event_body_hash(existing), "deduplicated": True}
 
     event = build_pending_event(
         candidate=candidate, judgment=judgment, private_key=load_private_key(key_path)
@@ -151,18 +175,10 @@ def run_tick(
             "judgment was skipped, refusing to append an unjudged change."
         )
 
-    # Volumetric guard: a feed flooding many new periods at once is capped.
-    if per_tick_cap is not None:
-        new_periods = _new_period_count(candidate["manifest"], chain_dir)
-        if new_periods > per_tick_cap:
-            return {
-                "action": "rate_capped",
-                "source_id": source_id,
-                "new_periods": new_periods,
-                "cap": per_tick_cap,
-            }
-
-    # Gate (KTD2): any caveat withholds; only a clean candidate auto-commits.
+    # Gate (KTD2): any caveat withholds — and this MUST precede the volumetric
+    # cap, or a feed that both floods AND mutates a settled value would be
+    # dropped as rate_capped, silently discarding the very tamper evidence the
+    # watcher exists to catch. Only a clean candidate is eligible for auto-commit.
     if judgment.get("details"):
         if on_withhold is not None:
             extra = on_withhold(candidate, judgment)
@@ -175,6 +191,17 @@ def run_tick(
             "details": judgment.get("details", []),
             **extra,
         }
+
+    # Volumetric guard: a clean but voluminous flood of new periods is capped.
+    if per_tick_cap is not None:
+        new_periods = _new_period_count(candidate["manifest"], chain_dir)
+        if new_periods > per_tick_cap:
+            return {
+                "action": "rate_capped",
+                "source_id": source_id,
+                "new_periods": new_periods,
+                "cap": per_tick_cap,
+            }
 
     result = commit_period(candidate, judgment, chain_dir=chain_dir, key_path=key_path)
     return {

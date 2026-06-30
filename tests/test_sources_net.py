@@ -181,3 +181,16 @@ def test_rss_refuses_dtd_attacks(hostile):
 def test_rss_refuses_unparseable():
     with pytest.raises(SourceError):
         rss_records(b"this is not xml at all <<<")
+
+
+def test_rss_honors_declared_non_utf8_encoding():
+    # A latin-1 feed whose title has a byte (0xe9 = é) that is invalid UTF-8.
+    # Pre-decoding with utf-8/replace would mojibake it; passing raw bytes lets
+    # the prolog's declared encoding drive the parse, so the title is intact.
+    feed = (
+        '<?xml version="1.0" encoding="iso-8859-1"?>'
+        "<rss version=\"2.0\"><channel><item><title>caf\xe9</title>"
+        "<guid>id-1</guid></item></channel></rss>"
+    ).encode("iso-8859-1")
+    recs = rss_records(feed)
+    assert recs[0]["title"] == "caf\xe9"  # "café", not "caf<replacement>"

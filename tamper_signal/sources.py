@@ -29,16 +29,39 @@ class SourceError(RuntimeError):
     """A feed could not be fetched or mapped safely (validation, network, parse)."""
 
 
+# NAT64 well-known prefix (RFC 6052) and the RFC 8215 local-use prefix. An
+# IPv6 address inside these embeds an IPv4 in its low 32 bits; a NAT64 gateway
+# routes it to that IPv4, so `64:ff9b::7f00:1` reaches 127.0.0.1 while its bare
+# IPv6 `is_global` reads True. Judge the embedded IPv4, like ipv4_mapped.
+_NAT64_PREFIXES = (
+    ipaddress.ip_network("64:ff9b::/96"),
+    ipaddress.ip_network("64:ff9b:1::/48"),
+)
+
+
+def _embedded_ipv4(ip: ipaddress.IPv6Address) -> ipaddress.IPv4Address | None:
+    """The IPv4 an IPv6 address would actually reach, or None: the ipv4_mapped
+    form (`::ffff:a.b.c.d`) or a NAT64-embedded address."""
+    if ip.ipv4_mapped is not None:
+        return ip.ipv4_mapped
+    for prefix in _NAT64_PREFIXES:
+        if ip in prefix:
+            return ipaddress.IPv4Address(int(ip) & 0xFFFFFFFF)
+    return None
+
+
 def _public_ip(ip_text: str) -> ipaddress.IPv4Address | ipaddress.IPv6Address:
     """Return the address if it is globally routable, else raise SourceError.
 
-    IPv4-mapped IPv6 (`::ffff:10.0.0.1`) is judged by its IPv4 form: the bare
-    IPv6 `is_global` can return True while the connection reaches a private
-    IPv4 host.
+    An IPv6 address that embeds an IPv4 — the `::ffff:` mapped form or a NAT64
+    address (`64:ff9b::/96`) — is judged by that IPv4 form: the bare IPv6
+    `is_global` can return True while the connection reaches a private host.
     """
     ip = ipaddress.ip_address(ip_text)
-    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped is not None:
-        ip = ip.ipv4_mapped
+    if isinstance(ip, ipaddress.IPv6Address):
+        embedded = _embedded_ipv4(ip)
+        if embedded is not None:
+            ip = embedded
     if not ip.is_global:
         raise SourceError(f"non-public address {ip} refused (SSRF guard)")
     return ip
@@ -251,12 +274,18 @@ def rss_records(raw: bytes | str, field_map: dict[str, str] | None = None) -> li
     import defusedxml.ElementTree as DefusedET
     import feedparser
 
-    text = raw.decode("utf-8", "replace") if isinstance(raw, bytes) else raw
+    # Pass raw BYTES to both parsers, never a pre-decoded str: defusedxml and
+    # feedparser each honor the XML prolog's declared encoding (iso-8859-1,
+    # UTF-16, ...). Decoding with utf-8/replace first would mojibake a non-UTF-8
+    # feed — validating and hashing a different byte stream than the real one.
+    data = raw if isinstance(raw, (bytes, bytearray)) else raw.encode("utf-8")
     try:
-        DefusedET.fromstring(text, forbid_dtd=True)
+        DefusedET.fromstring(data, forbid_dtd=True)
     except Exception as exc:  # defusedxml raises several subtypes on hostile XML
         raise SourceError(f"unsafe or malformed XML feed: {exc}") from exc
-    parsed = feedparser.parse(text)
+    # defusedxml has already RAISED on any DTD/entity attack above, so feedparser
+    # never parses hostile markup; it re-parses the same safe bytes to extract.
+    parsed = feedparser.parse(data)
     if parsed.bozo and not parsed.entries:
         raise SourceError("could not parse RSS/Atom feed")
     records: list[dict[str, str]] = []
