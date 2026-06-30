@@ -1885,6 +1885,99 @@ def _check_anchor(
     return 1
 
 
+def _load_watch_source(args: argparse.Namespace) -> dict[str, Any]:
+    """Merge a watch source config (a JSON file via --config) with inline flag
+    overrides into one spec, validating the required fields. Raises ValueError
+    on a missing url / format / source-id or an unreadable config."""
+    import json
+
+    spec: dict[str, Any] = {}
+    if getattr(args, "config", None):
+        try:
+            spec = json.loads(Path(args.config).read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            raise ValueError(f"could not read --config {args.config!r}: {exc}") from exc
+        if not isinstance(spec, dict):
+            raise ValueError("watch --config must be a JSON object")
+    for key, flag in (("url", "url"), ("format", "format"), ("source_id", "source_id")):
+        inline = getattr(args, flag, None)
+        if inline is not None:
+            spec[key] = inline
+    missing = [k for k in ("url", "format", "source_id") if not spec.get(k)]
+    if missing:
+        raise ValueError(
+            f"watch source is missing required field(s): {', '.join(missing)} "
+            "(set them in --config or via --url/--format/--source-id)"
+        )
+    if spec["format"] not in ("json", "rss"):
+        raise ValueError(f"watch format must be 'json' or 'rss', got {spec['format']!r}")
+    return spec
+
+
+def cmd_watch(args: argparse.Namespace) -> int:
+    """One stateless watch tick: fetch the configured live source, judge a
+    candidate, and auto-append it only if the judgment is clean (plan U3)."""
+    from .watcher import WatchIdentityError, run_tick
+    from .wrapper import UntrustedSignerError
+
+    try:
+        spec = _load_watch_source(args)
+    except ValueError as exc:
+        return _fail(args, str(exc))
+
+    # The connector's network/parsing deps ride the optional [watch] extra.
+    try:
+        from . import sources
+    except ImportError:  # pragma: no cover - defensive
+        return _fail(args, 'the watcher needs: pip install "tamper-signal[watch]"')
+
+    field_map = spec.get("field_map")
+    try:
+        result = sources.fetch(spec["url"])
+        if spec["format"] == "json":
+            records = sources.json_records(result.body, field_map)
+        else:
+            records = sources.rss_records(result.body, field_map)
+    except ImportError:
+        return _fail(args, 'the watcher needs: pip install "tamper-signal[watch]"')
+    except sources.SourceError as exc:
+        return _fail(args, f"source fetch/parse failed: {exc}")
+
+    try:
+        decision = run_tick(
+            records,
+            source_id=spec["source_id"],
+            origin=spec.get("origin") or spec["url"],
+            chain_dir=args.out,
+            key_path=args.key,
+            trusted_pub_hexes=tuple(args.pub or ()),
+            band=spec.get("band"),
+            settle=spec.get("settle"),
+            bucket_column=spec.get("bucket_column"),
+            per_tick_cap=spec.get("per_tick_cap"),
+        )
+    except UntrustedSignerError as exc:
+        return _fail(args, str(exc))
+    except WatchIdentityError as exc:
+        return _fail(args, str(exc))
+
+    if args.json:
+        _print_json({"ok": True, **decision})
+        return 0
+    action = decision["action"]
+    if action == "appended":
+        print(f"appended {spec['source_id']} -> {color.dim(decision['source_hash'])}")
+    elif action == "unchanged":
+        print(f"unchanged: {spec['source_id']} matches the committed source")
+    elif action == "withheld":
+        print(f"withheld {spec['source_id']}: {', '.join(decision['caveats']) or 'caveat'} "
+              "(needs human review)")
+    elif action == "rate_capped":
+        print(f"rate-capped {spec['source_id']}: {decision['new_periods']} new periods "
+              f"exceeds the per-tick cap of {decision['cap']}; nothing appended")
+    return 0
+
+
 def cmd_demo(args: argparse.Namespace) -> int:
     from .demo import run_demo
 
@@ -2179,6 +2272,23 @@ def build_parser() -> argparse.ArgumentParser:
     p_custody.add_argument("--chain", default="receipts/chain.json", help="Path to chain.json")
     p_custody.add_argument("--json", action="store_true", help="Emit a JSON summary")
     p_custody.set_defaults(func=cmd_custody)
+
+    p_watch = sub.add_parser(
+        "watch",
+        help="One tick: fetch a live source and auto-append clean data, else withhold "
+        "(needs tamper-signal[watch])",
+    )
+    p_watch.add_argument("--config", help="JSON file describing the source (url, format, source_id, ...)")
+    p_watch.add_argument("--url", help="Source URL (overrides --config)")
+    p_watch.add_argument("--format", choices=["json", "rss"], help="Source format (overrides --config)")
+    p_watch.add_argument("--source-id", dest="source_id", help="Stable identity for this source (overrides --config)")
+    p_watch.add_argument("--out", default="receipts/", help="Chain directory to continue")
+    p_watch.add_argument("--key", default="keys/signing.key", help="Signing key (the chain's trusted signer)")
+    p_watch.add_argument(
+        "--pub", action="append", help="Additional trusted public key hex (repeat); the watcher key must be trusted"
+    )
+    p_watch.add_argument("--json", action="store_true", help="Emit a JSON summary")
+    p_watch.set_defaults(func=cmd_watch)
 
     p_demo = sub.add_parser("demo", help="Run the full end-to-end demo")
     p_demo.add_argument("--no-serve", action="store_true", help="Skip serving the badge")

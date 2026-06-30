@@ -188,6 +188,7 @@ def _build_source_candidate(
     settle: str | None = None,
     bucket_column: str | None = None,
     sheet: str | None = None,
+    identity: str | None = None,
 ) -> tuple[dict[str, Any], list[dict[str, Any]], str]:
     """Build a signed source manifest + records in memory, writing nothing.
 
@@ -195,6 +196,11 @@ def _build_source_candidate(
     watcher can judge a candidate before committing it. Invalid tolerance or a
     non-qualifying bucket column raises ValueError here, before any caller
     writes -- preserving `ingest_file`'s "nothing written on bad input" contract.
+
+    `identity` overrides the manifest's `source.filename`. The watcher passes a
+    STABLE synthetic id so `judge_cross_run` (which matches history by filename)
+    engages across ticks even though each tick reads a throwaway temp file
+    (KTD11); the default (None) keeps the real file's basename as before.
     Returns (manifest, records, public_hex).
     """
     tolerance, bucket_name = _build_tolerance(band, settle, bucket_column)
@@ -204,7 +210,7 @@ def _build_source_candidate(
     private_key = load_private_key(key_path)
     public_hex = public_hex_from_private(private_key)
     manifest = build_source_manifest(
-        filename=source_path.name,
+        filename=identity or source_path.name,
         evidence_hash=evidence_hash(raw),
         byte_size=len(raw),
         declared_origin=origin,
@@ -346,6 +352,7 @@ def judge_candidate_period(
     settle: str | None = None,
     bucket_column: str | None = None,
     sheet: str | None = None,
+    identity: str | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Build the next period's candidate in memory and judge it, WITHOUT writing.
 
@@ -380,7 +387,7 @@ def judge_candidate_period(
     )
     manifest, records, public_hex = _build_source_candidate(
         file, origin=origin, key_path=key_path, band=band, settle=settle,
-        bucket_column=bucket_column, sheet=sheet,
+        bucket_column=bucket_column, sheet=sheet, identity=identity,
     )
 
     # Judge the in-memory candidate. The candidate chain lists only the new
