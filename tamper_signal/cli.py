@@ -1917,56 +1917,36 @@ def _load_watch_source(args: argparse.Namespace) -> dict[str, Any]:
     return spec
 
 
-def cmd_watch(args: argparse.Namespace) -> int:
-    """One stateless watch tick: fetch the configured live source, judge a
-    candidate, and auto-append it only if the judgment is clean (plan U3)."""
-    from .watcher import WatchIdentityError, run_tick
-    from .wrapper import UntrustedSignerError
+def _watch_once(spec: dict[str, Any], args: argparse.Namespace) -> dict[str, Any]:
+    """Fetch + map the configured source and run one judge-then-commit tick.
 
-    try:
-        spec = _load_watch_source(args)
-    except ValueError as exc:
-        return _fail(args, str(exc))
-
-    # The connector's network/parsing deps ride the optional [watch] extra.
-    try:
-        from . import sources
-    except ImportError:  # pragma: no cover - defensive
-        return _fail(args, 'the watcher needs: pip install "tamper-signal[watch]"')
+    Returns the decision dict. Raises SourceError (fetch/parse), UntrustedSignerError
+    (key trust), or WatchIdentityError (KTD11) — the caller decides whether a
+    failure aborts (single tick) or is logged and skipped (daemon loop)."""
+    from . import sources
+    from .watcher import run_tick
 
     field_map = spec.get("field_map")
-    try:
-        result = sources.fetch(spec["url"])
-        if spec["format"] == "json":
-            records = sources.json_records(result.body, field_map)
-        else:
-            records = sources.rss_records(result.body, field_map)
-    except ImportError:
-        return _fail(args, 'the watcher needs: pip install "tamper-signal[watch]"')
-    except sources.SourceError as exc:
-        return _fail(args, f"source fetch/parse failed: {exc}")
+    result = sources.fetch(spec["url"])
+    if spec["format"] == "json":
+        records = sources.json_records(result.body, field_map)
+    else:
+        records = sources.rss_records(result.body, field_map)
+    return run_tick(
+        records,
+        source_id=spec["source_id"],
+        origin=spec.get("origin") or spec["url"],
+        chain_dir=args.out,
+        key_path=args.key,
+        trusted_pub_hexes=tuple(args.pub or ()),
+        band=spec.get("band"),
+        settle=spec.get("settle"),
+        bucket_column=spec.get("bucket_column"),
+        per_tick_cap=spec.get("per_tick_cap"),
+    )
 
-    try:
-        decision = run_tick(
-            records,
-            source_id=spec["source_id"],
-            origin=spec.get("origin") or spec["url"],
-            chain_dir=args.out,
-            key_path=args.key,
-            trusted_pub_hexes=tuple(args.pub or ()),
-            band=spec.get("band"),
-            settle=spec.get("settle"),
-            bucket_column=spec.get("bucket_column"),
-            per_tick_cap=spec.get("per_tick_cap"),
-        )
-    except UntrustedSignerError as exc:
-        return _fail(args, str(exc))
-    except WatchIdentityError as exc:
-        return _fail(args, str(exc))
 
-    if args.json:
-        _print_json({"ok": True, **decision})
-        return 0
+def _print_watch_decision(decision: dict[str, Any], spec: dict[str, Any]) -> None:
     action = decision["action"]
     if action == "appended":
         print(f"appended {spec['source_id']} -> {color.dim(decision['source_hash'])}")
@@ -1978,6 +1958,92 @@ def cmd_watch(args: argparse.Namespace) -> int:
     elif action == "rate_capped":
         print(f"rate-capped {spec['source_id']}: {decision['new_periods']} new periods "
               f"exceeds the per-tick cap of {decision['cap']}; nothing appended")
+
+
+def _watch_daemon(tick_fn: Callable[[], Any], interval: float, *, sleep=None) -> None:
+    """Loop a watch tick on an interval until interrupted (plan U6).
+
+    A thin local file-writer, NOT a server: it polls, writes receipts, and
+    sleeps. A failing tick is logged and the loop continues (a transient feed
+    error must not take the watcher down); Ctrl-C (or SIGINT) stops it cleanly,
+    mirroring `receipts serve`. `sleep` is injectable for tests."""
+    import time
+
+    sleeper = sleep or time.sleep
+    print(f"watcher running every {interval:g}s; Ctrl-C to stop", file=sys.stderr)
+    try:
+        while True:
+            try:
+                tick_fn()
+            except Exception as exc:  # a bad tick is logged, never fatal
+                print(f"watch tick failed: {exc}", file=sys.stderr)
+            sleeper(interval)
+    except KeyboardInterrupt:
+        print("watcher stopped", file=sys.stderr)
+
+
+def _assert_watch_key_private(key_path: str) -> str | None:
+    """Return an error if the watcher key file is group/world-accessible (KTD8):
+    an unattended signing key must be 0600. No-op when signing from
+    TAMPER_SIGNAL_KEY (no file on disk) or where POSIX modes are not meaningful."""
+    if os.environ.get("TAMPER_SIGNAL_KEY") or os.name != "posix":
+        return None
+    try:
+        mode = os.stat(key_path).st_mode
+    except OSError:
+        return None  # a missing key surfaces later as a clean load error
+    if mode & 0o077:
+        return (
+            f"watch key {key_path!r} is group/world-accessible (mode {mode & 0o777:o}); "
+            f"an unattended signing key must be 0600 — run: chmod 600 {key_path}"
+        )
+    return None
+
+
+def cmd_watch(args: argparse.Namespace) -> int:
+    """Fetch the configured live source, judge a candidate, and auto-append it
+    only if the judgment is clean (plan U3). With --daemon, loop on --interval
+    (plan U6); the default is a single stateless tick (the recommended
+    deployment, under a systemd timer / cron, keeps no key resident between)."""
+    from .watcher import WatchIdentityError, run_tick  # noqa: F401  (re-exported for tests)
+    from .wrapper import UntrustedSignerError
+
+    try:
+        spec = _load_watch_source(args)
+    except ValueError as exc:
+        return _fail(args, str(exc))
+
+    key_error = _assert_watch_key_private(args.key)
+    if key_error:
+        return _fail(args, key_error)
+
+    # The connector's network/parsing deps ride the optional [watch] extra.
+    try:
+        from . import sources
+    except ImportError:  # pragma: no cover - defensive
+        return _fail(args, 'the watcher needs: pip install "tamper-signal[watch]"')
+
+    if getattr(args, "daemon", False):
+        def one() -> None:
+            decision = _watch_once(spec, args)
+            if args.json:
+                _print_json({"ok": True, **decision})
+            else:
+                _print_watch_decision(decision, spec)
+        _watch_daemon(one, float(args.interval))
+        return 0
+
+    try:
+        decision = _watch_once(spec, args)
+    except sources.SourceError as exc:
+        return _fail(args, f"source fetch/parse failed: {exc}")
+    except (UntrustedSignerError, WatchIdentityError) as exc:
+        return _fail(args, str(exc))
+
+    if args.json:
+        _print_json({"ok": True, **decision})
+        return 0
+    _print_watch_decision(decision, spec)
     return 0
 
 
@@ -2413,6 +2479,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_watch.add_argument("--key", default="keys/signing.key", help="Signing key (the chain's trusted signer)")
     p_watch.add_argument(
         "--pub", action="append", help="Additional trusted public key hex (repeat); the watcher key must be trusted"
+    )
+    p_watch.add_argument(
+        "--daemon", action="store_true",
+        help="Poll continuously on --interval instead of a single tick (a local file-writer, not a server)",
+    )
+    p_watch.add_argument(
+        "--interval", type=float, default=300.0, help="Seconds between ticks in --daemon mode (default 300)"
     )
     p_watch.add_argument("--json", action="store_true", help="Emit a JSON summary")
     p_watch.set_defaults(func=cmd_watch)

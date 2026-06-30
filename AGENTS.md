@@ -181,6 +181,13 @@ commands:
 | `receipts serve` | your bundler's static server, or `tamper-signal/express` |
 | `receipts doctor` | `tamper-signal verify` (exit 0 = healthy); confirm the key is gitignored yourself |
 | `receipts anchor` | Python-only today (transparency-log anchoring) |
+| `receipts watch` | Python-only today (the live-source watcher; see §5b) — its signed manifests and snapshots stay fully readable/verifiable by the JS stack |
+| `receipts review` | Python-only today (human sign-off for withheld watch changes) |
+
+If you run a Node host and want a live source kept under custody, the watcher
+itself runs as a Python sidecar process (`pip install "tamper-signal[watch]"`)
+writing into the same `receipts/` directory your Node app serves — the chains
+stay interchangeable, only the `watch`/`review` *commands* are Python-only.
 
 CI signing works here too: `TAMPER_SIGNAL_KEY` (PEM contents of the private
 key) wins over any key path, same semantics as the Python side (step 5).
@@ -491,6 +498,78 @@ receipts verify receipts/chain.json --anchor \
 Re-anchor after every pipeline run that changes the chain. Honest scope: an
 anchor proves this exact chain existed at the logged time under the recorded
 identity, nothing more.
+
+## 5c. Live-source watcher (optional, for feeds you do not re-export by hand)
+
+When the source is a live HTTP/JSON-API or RSS feed rather than a file you
+re-export, the watcher keeps it on the same signed chain: it polls, judges the
+new data against the declared band/settle (§5a), and **auto-appends only a
+clean change**. A retroactive change to an already-settled period — or a slow
+drift that cumulatively breaches the band — is **not** signed unattended; it is
+withheld as a signed *pending event* and paused for a human reason.
+
+```bash
+pip install "tamper-signal[watch]"
+# Seed the chain once from any first sample, declaring the tolerance (§5a):
+receipts ingest first.csv --origin "https://feed.example/rates" \
+  --band 5% --settle 72h --bucket-column day --key keys/watch.key --out receipts/
+
+# One tick (poll once, judge, append-if-clean, else withhold). Config is a
+# small JSON file: {url, format: json|rss, source_id, optional field_map,
+# band/settle/bucket_column, per_tick_cap}.
+receipts watch --config feed.json --key keys/watch.key --out receipts/
+```
+
+- **`source_id`** is a STABLE identity for the feed (a feed has no filename).
+  Keep it constant across ticks, or cross-run judgment cannot match history and
+  the watcher refuses rather than appending unjudged.
+- Change detection is a **full-content fingerprint**, never the server's
+  `ETag`/`304` — a compromised origin cannot replay an old validator to hide a
+  mutation.
+- The fetch is **SSRF-hardened**: only public hosts (an affirmative `is_global`
+  check), redirects off, TLS verified, bounded by bytes and wall-clock. RSS is
+  parsed through `defusedxml` (billion-laughs / XXE rejected).
+- The watcher key must be the chain's trusted signer (else it fails closed).
+  Use a **dedicated** key, distinct from any interactive human key, for
+  isolation and revocability.
+
+Withheld changes are reviewed explicitly — each acceptance signs its own reason:
+
+```bash
+receipts review                       # list pending changes awaiting sign-off
+receipts review accept <hash> --reason "confirmed by finance" --author dana
+receipts review reject <hash>         # discard; the chain is untouched
+```
+
+Accepting commits the exact reviewed candidate and signs a reason linked to it;
+if later ticks advanced the chain in the meantime, acceptance re-surfaces for
+review instead of overwriting newer data. The console shows pending changes in
+a distinct "AWAITING REVIEW" section that never affects the verdict.
+
+**Deployment — a local file-writer, not a server.** The recommended shape is
+the **stateless tick under a systemd timer / cron**, so the signing key is not
+resident between runs. A `--daemon --interval <seconds>` loop exists for hosts
+without a scheduler; it only polls and writes files. Harden the unit:
+
+```ini
+# /etc/systemd/system/tamper-watch.service  (paired with a .timer)
+[Service]
+Type=oneshot
+User=tamper-watch                 # dedicated, unprivileged user
+ExecStart=/usr/bin/receipts watch --config /etc/tamper/feed.json \
+  --key %d/watch.key --out /var/lib/tamper/receipts
+LoadCredential=watch.key:/etc/tamper/watch.key   # key material via $CREDENTIALS_DIRECTORY, not the env
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/tamper/receipts
+PrivateTmp=true
+```
+
+Deliver the key with `LoadCredential=` (it lands under `%d`/`$CREDENTIALS_DIRECTORY`,
+mode 0400, never in the process environment) — do **not** put the key material
+in `EnvironmentFile`, which would expose it via `/proc/<pid>/environ`. Keep the
+key file `0600`; the watcher fails closed if it is group/world-readable.
 
 ## 6. Add the signal to the host UI
 
