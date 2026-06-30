@@ -73,6 +73,24 @@ def _new_period_count(candidate_manifest: dict[str, Any], chain_dir: str) -> int
     return max(0, cand_rows - prior_rows)
 
 
+def _withhold_to_pending(
+    candidate: dict[str, Any],
+    judgment: dict[str, Any],
+    chain_dir: str,
+    key_path: str,
+) -> dict[str, Any]:
+    """Persist a withheld candidate as a signed pending event for human review
+    (U4). Returns the event's content hash + path for the decision summary."""
+    from .annotations import build_pending_event, pending_event_body_hash, write_pending_event
+    from .keys import load_private_key
+
+    event = build_pending_event(
+        candidate=candidate, judgment=judgment, private_key=load_private_key(key_path)
+    )
+    path = write_pending_event(chain_dir, event)
+    return {"pending_hash": pending_event_body_hash(event), "pending_path": str(path)}
+
+
 def run_tick(
     records: list[dict[str, Any]],
     *,
@@ -146,7 +164,10 @@ def run_tick(
 
     # Gate (KTD2): any caveat withholds; only a clean candidate auto-commits.
     if judgment.get("details"):
-        extra = on_withhold(candidate, judgment) if on_withhold is not None else {}
+        if on_withhold is not None:
+            extra = on_withhold(candidate, judgment)
+        else:
+            extra = _withhold_to_pending(candidate, judgment, chain_dir, key_path)
         return {
             "action": "withheld",
             "source_id": source_id,

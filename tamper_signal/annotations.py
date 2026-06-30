@@ -30,6 +30,7 @@ from .keys import Ed25519PrivateKey
 from .receipts import _now_iso, _sign_body, verify_signature, write_text_atomic
 
 ANNOTATIONS_DIRNAME = "annotations"
+PENDING_DIRNAME = "pending"
 
 
 def _annotation_body(annotation: dict[str, Any]) -> dict[str, Any]:
@@ -105,6 +106,98 @@ def read_annotations(chain_dir: str) -> list[dict[str, Any]]:
         except (OSError, json.JSONDecodeError):
             continue
     return out
+
+
+def _content_body(record: dict[str, Any]) -> dict[str, Any]:
+    """A signed record minus its signature and any transient underscore key, so
+    re-hashing it reproduces the original content address."""
+    return {k: v for k, v in record.items() if k != "signature" and not k.startswith("_")}
+
+
+def pending_event_body_hash(event: dict[str, Any]) -> str:
+    """sha256 hex of a pending event's body canonical bytes (the filename stem
+    and the content address an acceptance annotation targets)."""
+    return hashlib.sha256(canonical_json_bytes(_content_body(event))).hexdigest()
+
+
+def build_pending_event(
+    *,
+    candidate: dict[str, Any],
+    judgment: dict[str, Any],
+    private_key: Ed25519PrivateKey,
+    created_at: str | None = None,
+) -> dict[str, Any]:
+    """Build and sign a withheld watch change for human review (U4/KTD10).
+
+    A pending event is a signed-but-unaccepted record that captures the **full
+    reviewed candidate** — the built source manifest, its records, and the chain
+    tail it was judged against — so acceptance commits exactly what was reviewed,
+    never a re-derived delta. It is signed (the holder of the chain key vouches
+    the bytes are unaltered) but is NOT a chain link and is never served. All
+    leaves are strings/ints/null, so no float reaches the canonical bytes.
+    """
+    body: dict[str, Any] = {
+        "kind": "pending_event",
+        "spec_version": SPEC_VERSION,
+        "created_at": created_at or _now_iso(),
+        "source_id": candidate["manifest"]["source"]["filename"],
+        "base_tail": candidate.get("base_tail"),
+        "caveats": list(judgment.get("caveats", [])),
+        "details": list(judgment.get("details", [])),
+        "candidate": {
+            "manifest": candidate["manifest"],
+            "records": candidate["records"],
+            "public_hex": candidate["public_hex"],
+            "trusted_keys": list(candidate.get("trusted_keys", [])),
+        },
+    }
+    return _sign_body(body, private_key)
+
+
+def write_pending_event(chain_dir: str, event: dict[str, Any]) -> Path:
+    """Write to `<chain_dir>/pending/<body-hash>.json` (content-addressed,
+    atomic). The directory is added to the `receipts serve` 404 blocklist — a
+    held change must never be published until a human accepts it."""
+    directory = Path(chain_dir) / PENDING_DIRNAME
+    path = directory / f"{pending_event_body_hash(event)}.json"
+    return write_text_atomic(path, json.dumps(event, indent=2) + "\n")
+
+
+def read_pending_events(chain_dir: str) -> list[dict[str, Any]]:
+    """Load every pending event under `<chain_dir>/pending/`, oldest first.
+
+    Returns the raw signed events (no transient keys added), mirroring
+    `read_annotations`, so a caller can `verify_signature` an item directly;
+    compute the content address with `pending_event_body_hash` when needed.
+    Unreadable or non-JSON files are skipped, not fatal."""
+    directory = Path(chain_dir) / PENDING_DIRNAME
+    if not directory.is_dir():
+        return []
+    out: list[dict[str, Any]] = []
+    for path in sorted(directory.glob("*.json")):
+        try:
+            event = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if isinstance(event, dict) and event.get("kind") == "pending_event":
+            out.append(event)
+    out.sort(key=lambda item: (item.get("created_at") or "", pending_event_body_hash(item)))
+    return out
+
+
+def remove_pending_event(chain_dir: str, body_hash: str) -> bool:
+    """Delete the pending event with `body_hash`, confined to the pending dir
+    (the hash is content-derived, but resolve the path and re-check containment
+    so a crafted value can never escape). Returns True if a file was removed."""
+    directory = (Path(chain_dir) / PENDING_DIRNAME).resolve()
+    target = (directory / f"{body_hash}.json").resolve()
+    if directory not in target.parents:
+        return False
+    try:
+        target.unlink()
+        return True
+    except FileNotFoundError:
+        return False
 
 
 def resolve_annotations(

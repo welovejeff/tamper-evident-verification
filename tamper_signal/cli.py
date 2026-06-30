@@ -779,17 +779,20 @@ def _serve_handler_class(directory: str):
     """The request handler `receipts serve` uses, bound to a directory.
 
     CORS is open and caching is off for every response. Anything under
-    history/ or archive/ is 404'd: run snapshots and archived prior chains are
-    CLI-local memory, not published receipts (they leak run cadence, per-day
-    totals, and the reset/migration trail).
+    history/, archive/, or pending/ is 404'd: run snapshots, archived prior
+    chains, and withheld pending events are CLI-local memory, not published
+    receipts (they leak run cadence, per-day totals, the reset/migration trail,
+    and unreviewed candidate data).
     """
     import http.server
 
+    from .annotations import PENDING_DIRNAME
     from .history import HISTORY_DIRNAME
 
     blocked_dirs = [
         (Path(directory) / HISTORY_DIRNAME).resolve(),
         (Path(directory) / ARCHIVE_DIRNAME).resolve(),
+        (Path(directory) / PENDING_DIRNAME).resolve(),
     ]
 
     class Handler(http.server.SimpleHTTPRequestHandler):
