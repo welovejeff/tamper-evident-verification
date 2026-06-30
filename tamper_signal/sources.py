@@ -106,3 +106,167 @@ def _as_text(value: Any) -> str:
     if isinstance(value, bool):
         return "true" if value else "false"
     return str(value)
+
+
+def content_fingerprint(body: bytes) -> str:
+    """sha256 of the raw body — the authoritative change-detection signal.
+
+    A hostile or compromised origin can mutate a settled value while replaying
+    an old `ETag`/`Last-Modified`, so the watcher compares this full-content
+    hash, never trusting the server's validator as the sole gate (KTD12).
+    """
+    import hashlib
+
+    return hashlib.sha256(body).hexdigest()
+
+
+class FetchResult:
+    """The outcome of a safe fetch: status, body, and the validators to echo
+    back on the next poll (a bandwidth optimization only, never the gate)."""
+
+    __slots__ = ("status", "body", "etag", "last_modified")
+
+    def __init__(self, status: int, body: bytes, etag: str | None, last_modified: str | None) -> None:
+        self.status = status
+        self.body = body
+        self.etag = etag
+        self.last_modified = last_modified
+
+
+def _read_capped(response: Any, max_bytes: int, wall_clock: float) -> bytes:
+    """Stream a response body under a byte cap AND a wall-clock deadline checked
+    after every chunk (a read timeout measures only inter-chunk gaps, so a slow
+    drip would never trip it)."""
+    import time
+
+    deadline = time.monotonic() + wall_clock
+    chunks: list[bytes] = []
+    total = 0
+    for chunk in response.iter_bytes(chunk_size=65536):
+        if time.monotonic() > deadline:
+            raise SourceError("fetch exceeded the wall-clock deadline")
+        total += len(chunk)
+        if total > max_bytes:
+            raise SourceError("response exceeded the max size")
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
+def _pinned_client(ip: str, host: str, timeout: Any) -> Any:
+    """An httpx client that connects to the validated numeric `ip` while keeping
+    the Host header and TLS SNI / cert validation bound to the original `host`,
+    so no second DNS resolution happens at connect (the DNS-rebinding TOCTOU
+    fix). Redirects are off."""
+    import httpx
+
+    class _PinnedTransport(httpx.HTTPTransport):
+        def handle_request(self, request: Any) -> Any:
+            port = request.url.port
+            authority = host if port in (None, 80, 443) else f"{host}:{port}"
+            request.headers["Host"] = authority
+            extensions = dict(request.extensions or {})
+            extensions["sni_hostname"] = host
+            request.extensions = extensions
+            request.url = request.url.copy_with(host=ip)
+            return super().handle_request(request)
+
+    return httpx.Client(transport=_PinnedTransport(), follow_redirects=False, timeout=timeout)
+
+
+def fetch(
+    url: str,
+    *,
+    max_bytes: int = 5 * 1024 * 1024,
+    connect_timeout: float = 10.0,
+    read_timeout: float = 30.0,
+    wall_clock: float = 60.0,
+    etag: str | None = None,
+    last_modified: str | None = None,
+) -> FetchResult:
+    """Validate, then safely fetch a feed URL. Raises SourceError on any guard.
+
+    SSRF-validated (resolve-and-pin), redirects off, TLS verified, and bounded
+    by bytes + wall-clock. `etag`/`last_modified` send conditional-request
+    headers; a `304` returns an empty body (the caller still treats the content
+    fingerprint as authoritative for settled data, KTD12).
+    """
+    host, _port, ips = validate_public_url(url)
+    return _fetch_validated(
+        url, host, ips[0], max_bytes=max_bytes, connect_timeout=connect_timeout,
+        read_timeout=read_timeout, wall_clock=wall_clock, etag=etag, last_modified=last_modified,
+    )
+
+
+def _fetch_validated(
+    url: str,
+    host: str,
+    ip: str,
+    *,
+    max_bytes: int,
+    connect_timeout: float,
+    read_timeout: float,
+    wall_clock: float,
+    etag: str | None,
+    last_modified: str | None,
+) -> FetchResult:
+    """The fetch mechanics for an already-validated (host, ip). Separated so it
+    can be tested against a local server without tripping the SSRF guard."""
+    import httpx
+
+    timeout = httpx.Timeout(connect=connect_timeout, read=read_timeout, write=10.0, pool=5.0)
+    headers: dict[str, str] = {}
+    if etag:
+        headers["If-None-Match"] = etag
+    if last_modified:
+        headers["If-Modified-Since"] = last_modified
+    try:
+        with _pinned_client(ip, host, timeout) as client:
+            with client.stream("GET", url, headers=headers) as response:
+                if response.status_code == 304:
+                    return FetchResult(304, b"", etag, last_modified)
+                if response.is_redirect:
+                    raise SourceError(
+                        f"refusing to follow redirect to {response.headers.get('location')!r} (SSRF guard)"
+                    )
+                response.raise_for_status()
+                length = response.headers.get("content-length")
+                if length and length.isdigit() and int(length) > max_bytes:
+                    raise SourceError("response exceeds max size (Content-Length)")
+                body = _read_capped(response, max_bytes, wall_clock)
+                return FetchResult(
+                    response.status_code, body,
+                    response.headers.get("etag"), response.headers.get("last-modified"),
+                )
+    except httpx.HTTPError as exc:
+        raise SourceError(f"fetch failed: {exc}") from exc
+
+
+def rss_records(raw: bytes | str, field_map: dict[str, str] | None = None) -> list[dict[str, str]]:
+    """Map an RSS/Atom feed to records, parsed safely.
+
+    The raw bytes are validated through `defusedxml` (`forbid_dtd=True`) first —
+    it raises on DTDs, billion-laughs entity expansion, and external entities —
+    so a hostile feed is rejected before `feedparser` extracts anything.
+    """
+    import defusedxml.ElementTree as DefusedET
+    import feedparser
+
+    text = raw.decode("utf-8", "replace") if isinstance(raw, bytes) else raw
+    try:
+        DefusedET.fromstring(text, forbid_dtd=True)
+    except Exception as exc:  # defusedxml raises several subtypes on hostile XML
+        raise SourceError(f"unsafe or malformed XML feed: {exc}") from exc
+    parsed = feedparser.parse(text)
+    if parsed.bozo and not parsed.entries:
+        raise SourceError("could not parse RSS/Atom feed")
+    records: list[dict[str, str]] = []
+    for entry in parsed.entries:
+        if field_map is None:
+            records.append({
+                "id": _as_text(entry.get("id")),
+                "title": _as_text(entry.get("title")),
+                "published": _as_text(entry.get("published")),
+            })
+        else:
+            records.append({col: _as_text(entry.get(src)) for col, src in field_map.items()})
+    return records
