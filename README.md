@@ -28,7 +28,7 @@ The badge and the verifier reduce the whole chain to one state:
 
 *The inline status light: a small dark instrument in your dashboard's header. When the chain breaks, it reaches into the page and flags the exact metric that no longer descends from the source.*
 
-Honest status: all three verdicts are implemented in `receipts verify` and the browser badge. Yellow today covers two detectable caveats (a coverage gap in the receipt numbering, and signatures that only verify under the chain's embedded key rather than the key you trust) plus opt-in control-total drift via `--warn-drift`. The animations in this README are renders of the design mockups in `designs/`; the interfaces they depict have since shipped (`badge/light.js`, `badge/table.js`, `badge/console.js`). The badge also renders a separate amber state ("could not load" or "verification unsupported in this browser"); that is a capability fallback that says nothing about the chain, not the yellow verdict.
+Honest status: all three verdicts are implemented in `tamper-signal verify` and the browser badge. Yellow today covers two detectable caveats (a coverage gap in the receipt numbering, and signatures that only verify under the chain's embedded key rather than the key you trust) plus opt-in control-total drift via `--warn-drift`. The animations in this README are renders of the design mockups in `designs/`; the interfaces they depict have since shipped (`badge/light.js`, `badge/table.js`, `badge/console.js`). The badge also renders a separate amber state ("could not load" or "verification unsupported in this browser"); that is a capability fallback that says nothing about the chain, not the yellow verdict.
 
 ## 60-second quickstart
 
@@ -37,31 +37,31 @@ Python 3.11+. Open source (MIT).
 ```bash
 pip install tamper-signal
 git clone https://github.com/welovejeff/tamper-evident-verification && cd tamper-evident-verification
-receipts demo
+tamper-signal demo
 ```
 
-`receipts demo` runs the whole story end to end: generates a deliberately messy sample export, ingests it, runs two AI-written-style transforms, verifies the chain (PASS), then tampers with one spend value and verifies again (FAIL, pinpointing the broken link and the totals delta). It finishes by serving the badge at `http://localhost:8000/badge/badge.html` so you can see green, yellow, and red side by side.
+`tamper-signal demo` runs the whole story end to end: generates a deliberately messy sample export, ingests it, runs two AI-written-style transforms, verifies the chain (PASS), then tampers with one spend value and verifies again (FAIL, pinpointing the broken link and the totals delta). It finishes by serving the badge at `http://localhost:8000/badge/badge.html` so you can see green, yellow, and red side by side.
 
-> **`receipts: command not found`?** pip installed the script into a bin directory that is not on PATH (common on the python.org framework Python, the default macOS download). Either run it through the same interpreter, `python3 -m tamper_signal verify ...` (works as a drop-in for every `receipts ...` command), or link it onto PATH once: `sudo ln -sf "$(python3 -c 'import sysconfig;print(sysconfig.get_path("scripts"))')/receipts" /usr/local/bin/receipts`.
+> **`tamper-signal: command not found`?** pip installed the script into a bin directory that is not on PATH (common on the python.org framework Python, the default macOS download). Either run it through the same interpreter, `python3 -m tamper_signal verify ...` (works as a drop-in for every `tamper-signal ...` command), or link it onto PATH once: `sudo ln -sf "$(python3 -c 'import sysconfig;print(sysconfig.get_path("scripts"))')/tamper-signal" /usr/local/bin/tamper-signal`.
 
 ## CLI
 
 ```bash
-receipts init                 # scaffold: keys, .gitignore safety, receipts dir (idempotent)
-receipts ingest sample_export.xlsx --origin "TikTok export, May 2026" --key keys/signing.key --out receipts/
-receipts verify receipts/chain.json --pub keys/signing.pub --data dashboard.xlsx
-receipts diff                 # compare two runs: code-hash changes and totals deltas (read-only)
-receipts log                  # archived run history as a per-metric trend across runs (read-only)
-receipts doctor               # integration self-check with actionable fixes
-receipts serve                # serve receipts/ on localhost with CORS (dev only)
-receipts assets --out badge/  # vendor the browser surfaces (light/badge/element/table/console.js) into a project
-receipts annotate --reason "backfill approved" --author dana   # sign a reason onto a receipt (chain of custody)
-receipts watch --config feed.json --out receipts/   # poll a live feed onto the chain (needs [watch]; see below)
+tamper-signal init                 # scaffold: keys, .gitignore safety, receipts dir (idempotent)
+tamper-signal ingest sample_export.xlsx --origin "TikTok export, May 2026" --key keys/signing.key --out receipts/
+tamper-signal verify receipts/chain.json --pub keys/signing.pub --data dashboard.xlsx
+tamper-signal diff                 # compare two runs: code-hash changes and totals deltas (read-only)
+tamper-signal log                  # archived run history as a per-metric trend across runs (read-only)
+tamper-signal doctor               # integration self-check with actionable fixes
+tamper-signal serve                # serve receipts/ on localhost with CORS (dev only)
+tamper-signal assets --out badge/  # vendor the browser surfaces (light/badge/element/table/console.js) into a project
+tamper-signal annotate --reason "backfill approved" --author dana   # sign a reason onto a receipt (chain of custody)
+tamper-signal watch --config feed.json --out receipts/   # poll a live feed onto the chain (needs [watch]; see below)
 ```
 
 `--pub` repeats for key rotation (any trusted key verifies), and `TAMPER_SIGNAL_KEY` can carry the PEM private key in CI so no key file touches disk. `ingest` and `verify --data` accept .xlsx, .csv, .tsv, .json (array of objects), and .ndjson; the semantic hash is identical across formats, so an xlsx ingest verifies against a CSV copy of the same data. `verify` exits with the traffic light: 0 green, 1 red, 2 yellow (verifies, with caveats). Add `--warn-drift` to also flag any control-totals movement across links as a caveat; it is off by default because filters and aggregations legitimately move totals. `--json` emits a structured verdict (schema in `AGENTS.md`) for CI and coding agents.
 
-For a recurring refresh of the same report, declare a tolerance at ingest with `--band` (default 5%) and `--settle` (default 72h), optionally keyed off a date column with `--bucket-column`. The declaration is signed into the source manifest. Every non-red `verify` then archives a run snapshot under `receipts/history/`, and the next verify judges this run against that memory: recent buckets may drift within the band, settled buckets (older than the window) may not, and any breach is a yellow caveat. `receipts diff` and `receipts log` read that history (both read-only, exit 0) to show what moved between runs and the per-metric trend across them. History is CLI-local and weaker evidence than the chain: it stays out of `receipt_hashes` and anchoring, and `serve` never exposes it.
+For a recurring refresh of the same report, declare a tolerance at ingest with `--band` (default 5%) and `--settle` (default 72h), optionally keyed off a date column with `--bucket-column`. The declaration is signed into the source manifest. Every non-red `verify` then archives a run snapshot under `receipts/history/`, and the next verify judges this run against that memory: recent buckets may drift within the band, settled buckets (older than the window) may not, and any breach is a yellow caveat. `tamper-signal diff` and `tamper-signal log` read that history (both read-only, exit 0) to show what moved between runs and the per-metric trend across them. History is CLI-local and weaker evidence than the chain: it stays out of `receipt_hashes` and anchoring, and `serve` never exposes it.
 
 Transforms record their own receipts by wrapping any list-of-dicts to list-of-dicts function:
 
@@ -106,7 +106,7 @@ TikTok/Sprinklr export.xlsx
   [transform_agg]  ──> 002_transform_aggregate.json
         |
         v
-  dashboard data  <─── receipts verify: walk every link, check every signature
+  dashboard data  <─── tamper-signal verify: walk every link, check every signature
 ```
 
 Each receipt contains the SHA-256 of its input, the SHA-256 of the transform's source code, the SHA-256 of its output, and human-legible control totals (row counts, numeric sums, date ranges, null counts). Receipts link because each stage's input hash must equal the prior stage's output hash. Everything is signed with Ed25519; `chain.json` is just an ordered list of receipt files plus the public key.
@@ -147,7 +147,7 @@ React, with a bundler: `import { TamperSignal } from "tamper-signal/react"` and 
 
 The pill expands to a popover: the per-stage table when green, the caveat list when yellow, the broken link with its totals delta when red. In the red state the light also reaches into the page: give any metric element a `data-receipt-column="spend_usd"` attribute, and if that column moved at the broken link the element gets outlined and tagged `tamper signal: unverified value`. Mark up your metrics once and the light flags the exact number that no longer descends from the source.
 
-Options on the fourth argument: `watch` (re-verify every N ms and pulse on transitions), `warnDrift`, `receiptsHref`, and `surface: "dark"` so the pill inverts to stay the one foreign object on a dark host (`surface` describes your page; `invert: true` is a shortcut for it, and the deprecated `theme: "light"` is the same thing). `receipts demo` serves a live three-state example at `http://localhost:8000/badge/light.html`.
+Options on the fourth argument: `watch` (re-verify every N ms and pulse on transitions), `warnDrift`, `receiptsHref`, and `surface: "dark"` so the pill inverts to stay the one foreign object on a dark host (`surface` describes your page; `invert: true` is a shortcut for it, and the deprecated `theme: "light"` is the same thing). `tamper-signal demo` serves a live three-state example at `http://localhost:8000/badge/light.html`.
 
 One-call framework helpers serve the receipts directory and the browser files together and hand back the mounting snippet: `tamper_signal.flask_ext.attach(app)`, `tamper_signal.fastapi_ext.attach(app)`, and `tamperSignal(app)` from `tamper-signal/express`. Streamlit apps get a server-side-verified pill and table caption via `tamper_signal.streamlit_ext` (labeled as the weaker check it is).
 
@@ -155,7 +155,7 @@ One-call framework helpers serve the receipts directory and the browser files to
 
 We think any dashboard built on verified data should let you see the data. Not a tooltip, not an export-on-request: a Data tab, right next to the charts, showing the raw verified table the pretty numbers came from. If the chain is intact and the light is green, there is no reason to hide the rows, and if you find yourself wanting to hide them, that's worth sitting with. A chart asks you to believe; a table lets you check. Green light, open table: that's the whole standard.
 
-It ships: `receipts export` writes the canonical table document next to the chain (refusing data that does not match the final receipt), and `mountReceiptTable(el, "/receipts/chain.json")` from `badge/table.js` (npm: `tamper-signal/table`) renders it after re-hashing it in the viewer's browser against the final receipt. VERIFIED means the rows on screen are byte-for-byte the attested data; a stale or edited table.json renders dimmed under a "not the attested data" strip, and a broken chain flags the columns that moved at the break. Live demo: `badge/table.html`.
+It ships: `tamper-signal export` writes the canonical table document next to the chain (refusing data that does not match the final receipt), and `mountReceiptTable(el, "/receipts/chain.json")` from `badge/table.js` (npm: `tamper-signal/table`) renders it after re-hashing it in the viewer's browser against the final receipt. VERIFIED means the rows on screen are byte-for-byte the attested data; a stale or edited table.json renders dimmed under a "not the attested data" strip, and a broken chain flags the columns that moved at the break. Live demo: `badge/table.html`.
 
 ![The Data tab: the dashboard flips to a dark raw-table view where a broken chain is localized to the views column](docs/media/data-tab.gif)
 
@@ -163,36 +163,36 @@ It ships: `receipts export` writes the canonical table document next to the chai
 
 ## Take your data with you
 
-Verified data should be portable, proof and all. `receipts export --bundle` (or `tamper-signal export --bundle`) writes a verified bundle: a zip of the data file plus `chain.json` and its receipts, kept byte for byte, so whoever you send it to runs `receipts verify chain.json` and gets the same light, offline. In the browser, the Data tab's "Take your data" control exports the attested data client-side as that bundle or as a bare rows-only file (csv/tsv/json/ndjson; xlsx routes through the Python CLI). Because the semantic hash is format-agnostic, a CSV you export here re-verifies as JSON and the light stays green; numeric-looking text canonicalizes to its number, so leading zeros and trailing decimals do not survive the round trip.
+Verified data should be portable, proof and all. `tamper-signal export --bundle` (or `tamper-signal export --bundle`) writes a verified bundle: a zip of the data file plus `chain.json` and its receipts, kept byte for byte, so whoever you send it to runs `tamper-signal verify chain.json` and gets the same light, offline. In the browser, the Data tab's "Take your data" control exports the attested data client-side as that bundle or as a bare rows-only file (csv/tsv/json/ndjson; xlsx routes through the Python CLI). Because the semantic hash is format-agnostic, a CSV you export here re-verifies as JSON and the light stays green; numeric-looking text canonicalizes to its number, so leading zeros and trailing decimals do not survive the round trip.
 
-To bring an updated file back, `receipts ingest --as replace|period`. `replace` (the default) re-signs a fresh chain and archives the prior one under `receipts/archive/`. `period` continues the chain's run history as the next period, judged against prior runs through the prior run's signed tolerance band; it continues only under a trusted signer (`--pub` to trust a key other than the chain's) and refuses an untrusted one rather than appending silently. Re-attestation is never silent: the importer's identity is recorded, and an unrecognized signer stays yellow.
+To bring an updated file back, `tamper-signal ingest --as replace|period`. `replace` (the default) re-signs a fresh chain and archives the prior one under `receipts/archive/`. `period` continues the chain's run history as the next period, judged against prior runs through the prior run's signed tolerance band; it continues only under a trusted signer (`--pub` to trust a key other than the chain's) and refuses an untrusted one rather than appending silently. Re-attestation is never silent: the importer's identity is recorded, and an unrecognized signer stays yellow.
 
 ## The console
 
-The light answers "is it fine?"; the console answers "where, exactly, and by how much?" `mountReceiptConsole(el, "/receipts/chain.json")` from `badge/console.js` (npm: `tamper-signal/console`) renders the chain as an inspectable pipeline: links carry the hash they proved, a break severs the link with the break card pinned at it, coverage gaps appear as ghost nodes at their position, and the event log mirrors `receipts verify` line for line. Every attach helper also serves it ready-made at `/tamper-signal/console`. Live demo: `badge/console.html`.
+The light answers "is it fine?"; the console answers "where, exactly, and by how much?" `mountReceiptConsole(el, "/receipts/chain.json")` from `badge/console.js` (npm: `tamper-signal/console`) renders the chain as an inspectable pipeline: links carry the hash they proved, a break severs the link with the break card pinned at it, coverage gaps appear as ghost nodes at their position, and the event log mirrors `tamper-signal verify` line for line. Every attach helper also serves it ready-made at `/tamper-signal/console`. Live demo: `badge/console.html`.
 
 ![The verification console: a pipeline of signed receipts where a tampered stage severs the chain at the exact link](docs/media/console.gif)
 
 *The verification console: calm when green, surgical when red.*
 
-Below the pipeline the console renders the **chain of custody**: the imports and changes, each signed reason attached to the receipt it explains (`receipts annotate`), and any changes **awaiting human review**. It is an additive layer over the published `timeline.json` — it never feeds the verdict above.
+Below the pipeline the console renders the **chain of custody**: the imports and changes, each signed reason attached to the receipt it explains (`tamper-signal annotate`), and any changes **awaiting human review**. It is an additive layer over the published `timeline.json` — it never feeds the verdict above.
 
 ## Live-source watcher (optional)
 
-When the source is a live feed rather than a file you re-export by hand, the watcher keeps it on the same signed chain. `receipts watch` (behind `pip install "tamper-signal[watch]"`) polls an HTTP/JSON-API or RSS/Atom endpoint, judges the new data against the declared band/settle, and **auto-appends only a clean change**. A retroactive edit to an already-settled period — or a slow drift that cumulatively breaches the band — is never signed unattended: it is withheld as a signed *pending event* and paused for a human.
+When the source is a live feed rather than a file you re-export by hand, the watcher keeps it on the same signed chain. `tamper-signal watch` (behind `pip install "tamper-signal[watch]"`) polls an HTTP/JSON-API or RSS/Atom endpoint, judges the new data against the declared band/settle, and **auto-appends only a clean change**. A retroactive edit to an already-settled period — or a slow drift that cumulatively breaches the band — is never signed unattended: it is withheld as a signed *pending event* and paused for a human.
 
 ```bash
 pip install "tamper-signal[watch]"
-receipts watch --config feed.json --key keys/watch.key --out receipts/   # one tick
-receipts review                                                          # list withheld changes
-receipts review accept <hash> --reason "confirmed by finance"            # sign off + commit
+tamper-signal watch --config feed.json --key keys/watch.key --out receipts/   # one tick
+tamper-signal review                                                          # list withheld changes
+tamper-signal review accept <hash> --reason "confirmed by finance"            # sign off + commit
 ```
 
 The fetch is SSRF-hardened (public hosts only, redirects off, TLS verified, byte + wall-clock caps; RSS parsed through `defusedxml`), change detection uses a full-content fingerprint rather than a trust-me `ETag`, and the unattended commit is crash-safe. The recommended deployment is the stateless tick under a systemd timer or cron, so the signing key is not resident between runs — see `AGENTS.md` §5c for a hardened unit. `watch`/`review` are Python-only today; the chains they write are read and verified by the JavaScript stack unchanged.
 
 ## Anchoring (optional)
 
-`pip install "tamper-signal[anchor]"`, then `receipts anchor` signs the exact bytes of chain.json into the public Sigstore transparency log under your OIDC identity (browser login locally, automatic in GitHub Actions). Because chain.json records the sha256 of every receipt file, the anchor covers the receipts themselves, not just their names. `receipts verify --anchor` then proves this exact chain, receipts included, existed at the logged time, independent of the signing key, closing the "whoever holds the key can quietly re-sign everything" gap for the moments that matter. A missing anchor is a yellow caveat; a chain that changed after anchoring is red.
+`pip install "tamper-signal[anchor]"`, then `tamper-signal anchor` signs the exact bytes of chain.json into the public Sigstore transparency log under your OIDC identity (browser login locally, automatic in GitHub Actions). Because chain.json records the sha256 of every receipt file, the anchor covers the receipts themselves, not just their names. `tamper-signal verify --anchor` then proves this exact chain, receipts included, existed at the logged time, independent of the signing key, closing the "whoever holds the key can quietly re-sign everything" gap for the moments that matter. A missing anchor is a yellow caveat; a chain that changed after anchoring is red.
 
 ## What this proves, and what it doesn't
 

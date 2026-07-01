@@ -158,7 +158,7 @@
       <button type="button" id="run-rt" class="btn">Run the round-trip →</button>
       <div id="rt-result"></div>
       <pre id="rt-cli"># bring an edited file back under your key (re-attests; never silent):
-receipts ingest report.csv --as period --key keys/signing.key</pre>
+tamper-signal ingest report.csv --as period --key keys/signing.key</pre>
     </div>
 
     <div class="watcher-demo">
@@ -188,8 +188,8 @@ receipts ingest report.csv --as period --key keys/signing.key</pre>
         </div>
       </div>
       <pre># the whole thing is one scheduled command writing signed files — no server:
-receipts watch --config feed.json --key keys/watch.key --out receipts/
-receipts review accept &lt;hash&gt; --reason "confirmed by the weather desk"</pre>
+tamper-signal watch --config feed.json --key keys/watch.key --out receipts/
+tamper-signal review accept &lt;hash&gt; --reason "confirmed by the weather desk"</pre>
     </div>
   </div>
 </main>

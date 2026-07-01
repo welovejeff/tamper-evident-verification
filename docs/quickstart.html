@@ -71,12 +71,12 @@
 
     <div class="callout note">
       <span class="co-label">The one-command tour</span>
-      <p>In a hurry? <code>pip install tamper-signal</code> then <code>receipts demo</code> runs this entire story end to end on sample data: ingest, two transforms, verify (pass), tamper, verify (fail), and serves a badge so you can see green, yellow, and red side by side. The walkthrough below is the same thing, by hand, so you understand each step.</p>
+      <p>In a hurry? <code>pip install tamper-signal</code> then <code>tamper-signal demo</code> runs this entire story end to end on sample data: ingest, two transforms, verify (pass), tamper, verify (fail), and serves a badge so you can see green, yellow, and red side by side. The walkthrough below is the same thing, by hand, so you understand each step.</p>
     </div>
 
     <h2 id="install">1. Install</h2>
     <p>Tamper Signal ships for both stacks, and the chains are interchangeable. Pick whichever your pipeline already speaks.</p>
-    <pre><code><span class="c"># Python 3.11+ : gives you the `receipts` CLI and the tamper_signal package</span>
+    <pre><code><span class="c"># Python 3.11+ : gives you the `tamper-signal` CLI and the tamper_signal package</span>
 <span class="k">pip install</span> tamper-signal
 
 <span class="c"># or Node 18.17+ : gives you the `tamper-signal` CLI and a programmatic API</span>

@@ -2230,9 +2230,9 @@ def cmd_demo(args: argparse.Namespace) -> int:
     return run_demo(serve=not args.no_serve, port=args.port)
 
 
-def build_parser() -> argparse.ArgumentParser:
+def build_parser(prog: str = "tamper-signal") -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="receipts",
+        prog=prog,
         description="Tamper Signal: signed receipts for analytics pipelines.",
     )
     sub = parser.add_subparsers(dest="command", required=True)
@@ -2574,7 +2574,20 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = build_parser()
+    # The command is `tamper-signal` on both stacks as of 2.0; `receipts` is a
+    # deprecated Python-only alias kept working until 3.0. Show help/usage under
+    # whichever name was invoked, and nudge `receipts` users toward the new name.
+    invoked = os.path.basename(sys.argv[0]) if sys.argv and sys.argv[0] else "tamper-signal"
+    if invoked == "receipts":
+        print(
+            "note: the 'receipts' command is deprecated and will be removed in 3.0 — "
+            "use 'tamper-signal' instead (identical arguments).",
+            file=sys.stderr,
+        )
+        prog = "receipts"
+    else:
+        prog = "tamper-signal"
+    parser = build_parser(prog)
     args = parser.parse_args(argv)
     # --no-color always wins over the environment and isatty; record it before
     # any command renders.

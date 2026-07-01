@@ -94,7 +94,7 @@
       - name: Verify the receipt chain
         run: |
           set +e
-          receipts verify receipts/chain.json --json | tee verdict.json
+          tamper-signal verify receipts/chain.json --json | tee verdict.json
           code=$?
           if [ <span class="s">"$code"</span> = <span class="s">"2"</span> ]; then
             echo <span class="s">"::warning::The light is yellow, a human should look."</span>
@@ -144,7 +144,7 @@
     <p><code>diff</code> shows what changed between two runs: which stage code moved and the totals delta, including which period buckets shifted. <code>log</code> draws the trend, one row per period, each metric with its value and the change from the previous row, marking the runs that breached.</p>
     <div class="honesty">
       <span class="co-label">History is weaker evidence than the chain</span>
-      <p>Two things to disclose. First, declaring a bucket column means the published receipts now carry daily-granularity buckets, so a reader of <code>chain.json</code> sees per-day totals, not just whole-table ones. Second, the run history is CLI-local memory: snapshots sit outside <code>receipt_hashes</code> and outside anchoring, so they are weaker evidence than the chain itself, and <code>receipts serve</code> never exposes the <code>history/</code> directory. The chain is what you prove; history is what helps you read it.</p>
+      <p>Two things to disclose. First, declaring a bucket column means the published receipts now carry daily-granularity buckets, so a reader of <code>chain.json</code> sees per-day totals, not just whole-table ones. Second, the run history is CLI-local memory: snapshots sit outside <code>receipt_hashes</code> and outside anchoring, so they are weaker evidence than the chain itself, and <code>tamper-signal serve</code> never exposes the <code>history/</code> directory. The chain is what you prove; history is what helps you read it.</p>
     </div>
 
     <h2 id="drift">Control-total drift</h2>
@@ -165,8 +165,8 @@
 
     <h2 id="checklist">Before you call it done</h2>
     <ul>
-      <li>Run <code>receipts doctor</code>: it checks the Python version, that the private key exists and is untracked, that <code>.gitignore</code> covers it, and that the chain verifies. Add <code>--url</code> to confirm the chain is reachable over HTTP.</li>
-      <li><code>receipts verify receipts/chain.json --pub keys/signing.pub</code> exits <code>0</code>.</li>
+      <li>Run <code>tamper-signal doctor</code>: it checks the Python version, that the private key exists and is untracked, that <code>.gitignore</code> covers it, and that the chain verifies. Add <code>--url</code> to confirm the chain is reachable over HTTP.</li>
+      <li><code>tamper-signal verify receipts/chain.json --pub keys/signing.pub</code> exits <code>0</code>.</li>
       <li>The host page pill reads <code>VERIFIED · chain intact</code>.</li>
       <li>Negative test against <code>examples/chains/tampered/</code> shows red and names the broken link.</li>
     </ul>

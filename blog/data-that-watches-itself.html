@@ -80,7 +80,7 @@
 
     <p>Plenty of the data worth watching is not a file you re-export. It is a live feed — an API, a JSON endpoint, an RSS stream — updating on its own schedule. 2.0 lets you put that under the same signed continuity, hands-free.</p>
 
-    <pre><code>receipts watch --config feed.json --key keys/watch.key --out receipts/</code></pre>
+    <pre><code>tamper-signal watch --config feed.json --key keys/watch.key --out receipts/</code></pre>
 
     <p>Point the watcher at a source and it polls, judges the new data against the band you already declared, and appends it to the same chain — no re-ingest, no re-sign. New readings flow onto a signed chain of custody with nobody at the desk.</p>
 
@@ -93,8 +93,8 @@
 
     <p>Reviewing is deliberate and leaves a trail. Each held change gets its own signed reason before it commits:</p>
 
-    <pre><code>receipts review                                   # what is waiting
-receipts review accept &lt;hash&gt; --reason "confirmed by the weather desk"</code></pre>
+    <pre><code>tamper-signal review                                   # what is waiting
+tamper-signal review accept &lt;hash&gt; --reason "confirmed by the weather desk"</code></pre>
 
     <p>No batch "accept all," because that would launder a dozen silent edits through one click. One change, one human, one signed reason — and the tool commits exactly the change that was reviewed, not a re-derived one. If newer data landed while it waited, acceptance re-surfaces rather than overwriting what arrived since.</p>
 
@@ -108,7 +108,7 @@ receipts review accept &lt;hash&gt; --reason "confirmed by the weather desk"</co
 
     <h2>The reveal: it is just a cron job</h2>
 
-    <p>The thing watching your data is not a service. There is no server, no account, no dashboard you have to trust. <code>receipts watch</code> is a local process that wakes up on a timer, fetches, judges, and writes signed files to a folder. Put it under a systemd timer or a cron line and that is the entire deployment — a file-writer, not a watchdog-as-a-service. (We hardened the edges you would expect of an unattended fetcher: it only talks to public hosts, refuses redirects into your private network, caps what it will download, rejects hostile XML, and treats the full content — never a "trust me, nothing changed" header — as the truth about whether the data moved.)</p>
+    <p>The thing watching your data is not a service. There is no server, no account, no dashboard you have to trust. <code>tamper-signal watch</code> is a local process that wakes up on a timer, fetches, judges, and writes signed files to a folder. Put it under a systemd timer or a cron line and that is the entire deployment — a file-writer, not a watchdog-as-a-service. (We hardened the edges you would expect of an unattended fetcher: it only talks to public hosts, refuses redirects into your private network, caps what it will download, rejects hostile XML, and treats the full content — never a "trust me, nothing changed" header — as the truth about whether the data moved.)</p>
 
     <h2>Still continuity, not correctness</h2>
 

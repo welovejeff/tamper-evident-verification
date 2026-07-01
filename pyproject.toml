@@ -30,6 +30,10 @@ Homepage = "https://tampersignal.com/"
 Repository = "https://github.com/welovejeff/tamper-evident-verification"
 
 [project.scripts]
+# `tamper-signal` is the primary command on both stacks as of 2.0. `receipts`
+# is kept as a deprecated Python-only alias (it prints a deprecation notice)
+# and is scheduled for removal in 3.0.
+tamper-signal = "tamper_signal.cli:main"
 receipts = "tamper_signal.cli:main"
 
 [tool.setuptools]

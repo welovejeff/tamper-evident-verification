@@ -125,11 +125,11 @@
 
     <pre><code># Python 3.11+ (or: npm install tamper-signal for Node 18.17+)
 pip install tamper-signal
-receipts init                # writes keys/ and an empty receipts/</code></pre>
+tamper-signal init                # writes keys/ and an empty receipts/</code></pre>
 
     <p>Pin the original export in place. <code>ingest</code> records the hash of the raw bytes and the semantic hash of the data, then signs a source receipt, so from here on there is a fixed point to descend from.</p>
 
-    <pre><code>receipts ingest sample_export.xlsx --origin "May finance export, emailed Monday"</code></pre>
+    <pre><code>tamper-signal ingest sample_export.xlsx --origin "May finance export, emailed Monday"</code></pre>
 
     <p>Now wrap each transform the assistant wrote. One decorator turns any function that takes records and returns records into a signed stage. The wrapper verifies the tail of the chain <em>first</em>, refuses to run if its input does not match what the previous stage signed, runs your code, then signs and appends a new receipt. A silent change cannot pass through unattested, because every stage checks the one before it before it does anything.</p>
 
@@ -142,7 +142,7 @@ def aggregate(rows):
 
     <p>Then reduce the whole chain to a light. Add <code>--data</code> to also confirm the file your dashboard actually reads still matches the final receipt. The exit code <em>is</em> the light, so the same command gates a CI job: <code>0</code> green, <code>2</code> yellow, <code>1</code> red.</p>
 
-    <pre><code>receipts verify receipts/chain.json --pub keys/signing.pub --data dashboard.xlsx</code></pre>
+    <pre><code>tamper-signal verify receipts/chain.json --pub keys/signing.pub --data dashboard.xlsx</code></pre>
     <pre><code>✓ The light is green, the data is clean.
   3 receipts · 2 transforms · source → clean → aggregate</code></pre>
 

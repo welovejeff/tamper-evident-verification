@@ -71,7 +71,7 @@
 
     <div class="callout note">
       <span class="co-label">Serve the page over HTTP</span>
-      <p>Every surface <code>fetch()</code>es the chain (and <code>table.json</code>), which the browser blocks on a <code>file://</code> page. Opening <code>index.html</code> directly leaves the signal silently unverified. Serve the page over HTTP: any static server works, and <code>receipts serve</code> is the one-liner for local dev. For a truly offline recipient, send a verified bundle (<code>receipts export --bundle</code>) and verify with the CLI instead.</p>
+      <p>Every surface <code>fetch()</code>es the chain (and <code>table.json</code>), which the browser blocks on a <code>file://</code> page. Opening <code>index.html</code> directly leaves the signal silently unverified. Serve the page over HTTP: any static server works, and <code>tamper-signal serve</code> is the one-liner for local dev. For a truly offline recipient, send a verified bundle (<code>tamper-signal export --bundle</code>) and verify with the CLI instead.</p>
     </div>
 
     <h2 id="surfaces">The four surfaces</h2>
@@ -143,7 +143,7 @@ renderReceiptBadge(el, <span class="s">"/receipts/chain.json"</span>, pubKeyHex)
 &lt;tamper-signal-table chain=<span class="s">"/receipts/chain.json"</span>&gt;&lt;/tamper-signal-table&gt;</code></pre>
 
     <h2 id="console">The console</h2>
-    <p>The chain as an inspectable pipeline: each link carries the hash it proved, a break severs the link with a break card pinned in place, coverage gaps show up as ghost nodes, and the event log mirrors <code>receipts verify</code> line by line. Every attach helper serves it automatically at <code>/tamper-signal/console</code>.</p>
+    <p>The chain as an inspectable pipeline: each link carries the hash it proved, a break severs the link with a break card pinned in place, coverage gaps show up as ghost nodes, and the event log mirrors <code>tamper-signal verify</code> line by line. Every attach helper serves it automatically at <code>/tamper-signal/console</code>.</p>
     <pre><code><span class="k">import</span> { mountReceiptConsole } <span class="k">from</span> <span class="s">"tamper-signal/console"</span>;
 mountReceiptConsole(el, <span class="s">"/receipts/chain.json"</span>);</code></pre>
 
