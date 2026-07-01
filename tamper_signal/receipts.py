@@ -230,7 +230,11 @@ def write_text_atomic(path: Path, text: str, *, overwrite: bool = False) -> Path
         return path
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.parent / f".{path.name}.{os.getpid()}.tmp"
-    tmp.write_text(text, encoding="utf-8")
+    # newline="\n": receipts and chain.json are LF by spec (the byte-hash is
+    # line-ending sensitive, and the cross-stack golden vectors are LF). Without
+    # this, Path.write_text translates \n -> \r\n on Windows, so a hash computed
+    # over the \n text would not match the file bytes on disk.
+    tmp.write_text(text, encoding="utf-8", newline="\n")
     try:
         os.replace(tmp, path)
     except FileExistsError:
@@ -353,11 +357,13 @@ def commit_source_reset(chain_dir: str, manifest: dict[str, Any], public_hex: st
     chain_text = json.dumps(chain, indent=2) + "\n"
 
     receipt_tmp, chain_tmp = _commit_tmp_paths(base)
-    receipt_tmp.write_text(receipt_text, encoding="utf-8")
-    chain_tmp.write_text(chain_text, encoding="utf-8")
+    # newline="\n": the receipt hash was computed over the \n text above, so the
+    # bytes on disk must stay LF (no Windows \r\n translation) or verify goes red.
+    receipt_tmp.write_text(receipt_text, encoding="utf-8", newline="\n")
+    chain_tmp.write_text(chain_text, encoding="utf-8", newline="\n")
     # The marker goes down only once BOTH temps are fully staged — so recovery
     # can trust that a present marker means the new content is complete.
-    (base / _COMMIT_MARKER).write_text("{}\n", encoding="utf-8")
+    (base / _COMMIT_MARKER).write_text("{}\n", encoding="utf-8", newline="\n")
     os.replace(receipt_tmp, base / SOURCE_RECEIPT_NAME)
     os.replace(chain_tmp, base / CHAIN_FILENAME)
     (base / _COMMIT_MARKER).unlink(missing_ok=True)
