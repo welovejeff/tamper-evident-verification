@@ -15,7 +15,6 @@ chain, which is all the console needs to verify.
 from __future__ import annotations
 
 import csv
-import datetime as dt
 import os
 import shutil
 import tempfile
@@ -72,14 +71,23 @@ def build_live(records: list[dict[str, str]]) -> None:
 
 
 def build_withheld(records: list[dict[str, str]]) -> None:
-    # A settled day (well older than the 48h window) whose temperature we nudge
-    # beyond the 3% band — the kind of retroactive edit the watcher must catch.
-    settled_day = (dt.datetime.now(dt.timezone.utc).date() - dt.timedelta(days=5)).isoformat()
-    seed = [r for r in records if not r["time"].startswith(records[-1]["time"][:10])]  # drop last day
+    # Pick a settled day straight from the fetched data — an early one, well
+    # older than the 48h window — rather than a computed date that might fall
+    # outside the API window at a boundary. Nudge its temperature beyond the 3%
+    # band: the kind of retroactive edit the watcher must catch.
+    days = sorted({r["time"][:10] for r in records})
+    if len(days) < 3:
+        raise RuntimeError(f"need >=3 days of data to build the withheld demo, got {days}")
+    settled_day = days[1]  # definitely older than the 48h settle window
+    seed = [r for r in records if r["time"][:10] != days[-1]]  # drop the latest day
     edited = [dict(r) for r in records]
+    n_edited = 0
     for row in edited:
-        if row["time"].startswith(settled_day):
+        if row["time"][:10] == settled_day:
             row["temperature_2m"] = f"{float(row['temperature_2m']) * 1.12:.1f}"
+            n_edited += 1
+    if n_edited == 0:
+        raise RuntimeError(f"no rows matched settled day {settled_day}; cannot build the withheld demo")
 
     with tempfile.TemporaryDirectory() as tmp:
         work = Path(tmp)
@@ -96,6 +104,11 @@ def build_withheld(records: list[dict[str, str]]) -> None:
         held = run_tick(edited, source_id="weather:nyc", origin=URL,
                         chain_dir="receipts/", key_path="keys/signing.key")
         print("edit of settled day", settled_day, "->", held["action"], held.get("caveats"))
+        if held["action"] != "withheld":
+            raise RuntimeError(
+                f"expected the settled edit to be withheld, got {held['action']!r}; "
+                "the demo would misrepresent the feature — aborting."
+            )
         main(["timeline", "receipts/chain.json"])
         _publish(work, "weather-withheld")
 

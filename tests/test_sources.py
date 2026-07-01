@@ -24,9 +24,9 @@ def test_public_ip_allows_global(ip):
     "fc00::1",                                    # IPv6 ULA
     "::ffff:192.168.1.1",                        # IPv4-mapped IPv6 of a private host
     "::ffff:127.0.0.1",                          # IPv4-mapped loopback
-    "64:ff9b::7f00:1",                           # NAT64 of 127.0.0.1
-    "64:ff9b::a00:1",                            # NAT64 of 10.0.0.1
-    "64:ff9b:1::a9fe:a9fe",                      # NAT64 (local prefix) of 169.254.169.254
+    "64:ff9b::7f00:1",                           # NAT64 /96 of 127.0.0.1
+    "64:ff9b::a00:1",                            # NAT64 /96 of 10.0.0.1
+    "64:ff9b:1:a9fe:a9:fe00:808:808",           # NAT64 /48 (RFC 6052) of 169.254.169.254
 ])
 def test_public_ip_refuses_non_global(ip):
     with pytest.raises(SourceError):
@@ -34,8 +34,9 @@ def test_public_ip_refuses_non_global(ip):
 
 
 def test_public_ip_allows_nat64_of_public():
-    # A NAT64 address embedding a *public* IPv4 (8.8.8.8) is fine.
-    assert _public_ip("64:ff9b::808:808")
+    # A NAT64 address embedding a *public* IPv4 is fine, /96 and /48 alike.
+    assert _public_ip("64:ff9b::808:808")          # /96 of 8.8.8.8
+    assert _public_ip("64:ff9b:1:808:0:8:0:0")     # /48 embedding a public IPv4
 
 
 def test_validate_url_rejects_scheme_and_userinfo():

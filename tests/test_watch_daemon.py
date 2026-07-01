@@ -93,6 +93,34 @@ def test_watch_rejects_non_integer_per_tick_cap(tmp_path, monkeypatch):
     assert rc == 1  # invalid cap refused at config load, no opaque mid-tick TypeError
 
 
+def test_watch_rejects_zero_per_tick_cap(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    os.chdir(tmp_path)
+    main(["keygen", "--out", "keys/"])
+    config = tmp_path / "feed.json"
+    config.write_text(json.dumps({
+        "url": "https://feed.example/x", "format": "json", "source_id": "feed:x",
+        "per_tick_cap": 0,  # would silently rate-cap every append forever
+    }), encoding="utf-8")
+    assert main(["watch", "--config", str(config), "--key", "keys/signing.key",
+                 "--out", "receipts/", "--json"]) == 1
+
+
+def test_watch_rejects_malformed_columnar(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    os.chdir(tmp_path)
+    main(["keygen", "--out", "keys/"])
+    for bad in ("hourly", {"path": "hourly"}, {"columns": []}, {"columns": [1, 2]}):
+        config = tmp_path / "feed.json"
+        config.write_text(json.dumps({
+            "url": "https://feed.example/x", "format": "json", "source_id": "feed:x",
+            "columnar": bad,
+        }), encoding="utf-8")
+        # A malformed columnar spec is refused at config load, not as a crash mid-tick.
+        assert main(["watch", "--config", str(config), "--key", "keys/signing.key",
+                     "--out", "receipts/", "--json"]) == 1
+
+
 # ---------------------------------------------------------------------------
 # Integration: the daemon applies tick semantics over an evolving feed and
 # still pauses a settled change — a real, unmocked sign->verify round-trip.

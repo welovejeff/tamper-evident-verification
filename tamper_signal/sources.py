@@ -29,24 +29,27 @@ class SourceError(RuntimeError):
     """A feed could not be fetched or mapped safely (validation, network, parse)."""
 
 
-# NAT64 well-known prefix (RFC 6052) and the RFC 8215 local-use prefix. An
-# IPv6 address inside these embeds an IPv4 in its low 32 bits; a NAT64 gateway
-# routes it to that IPv4, so `64:ff9b::7f00:1` reaches 127.0.0.1 while its bare
-# IPv6 `is_global` reads True. Judge the embedded IPv4, like ipv4_mapped.
-_NAT64_PREFIXES = (
-    ipaddress.ip_network("64:ff9b::/96"),
-    ipaddress.ip_network("64:ff9b:1::/48"),
-)
+# NAT64 prefixes (RFC 6052): an IPv6 address inside these embeds an IPv4 that a
+# NAT64 gateway routes to, so `64:ff9b::7f00:1` reaches 127.0.0.1 while its bare
+# IPv6 `is_global` reads True. The embedded IPv4's position depends on the
+# prefix length: for the well-known /96 it is the low 32 bits; for the /48
+# (RFC 8215 local-use) it is bits 48-63 + 72-87, straddling the reserved u-octet
+# — NOT the low 32 bits. Getting this wrong is an SSRF bypass (a /48 address
+# embedding 169.254.169.254 would look like a global IPv4 under low-32 masking).
+_NAT64_WELLKNOWN = ipaddress.ip_network("64:ff9b::/96")
+_NAT64_LOCAL = ipaddress.ip_network("64:ff9b:1::/48")
 
 
 def _embedded_ipv4(ip: ipaddress.IPv6Address) -> ipaddress.IPv4Address | None:
     """The IPv4 an IPv6 address would actually reach, or None: the ipv4_mapped
-    form (`::ffff:a.b.c.d`) or a NAT64-embedded address."""
+    form (`::ffff:a.b.c.d`) or a NAT64-embedded address, decoded per RFC 6052."""
     if ip.ipv4_mapped is not None:
         return ip.ipv4_mapped
-    for prefix in _NAT64_PREFIXES:
-        if ip in prefix:
-            return ipaddress.IPv4Address(int(ip) & 0xFFFFFFFF)
+    value = int(ip)
+    if ip in _NAT64_WELLKNOWN:  # /96: IPv4 in the low 32 bits
+        return ipaddress.IPv4Address(value & 0xFFFFFFFF)
+    if ip in _NAT64_LOCAL:  # /48: IPv4 in bits 48-63 and 72-87 (skip the u-octet)
+        return ipaddress.IPv4Address((((value >> 64) & 0xFFFF) << 16) | ((value >> 40) & 0xFFFF))
     return None
 
 

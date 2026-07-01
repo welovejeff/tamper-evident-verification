@@ -319,10 +319,14 @@ def recover_torn_commit(chain_dir: str) -> bool:
     if not marker.is_file():
         return False
     receipt_tmp, chain_tmp = _commit_tmp_paths(base)
-    if receipt_tmp.is_file():
-        os.replace(receipt_tmp, base / SOURCE_RECEIPT_NAME)
-    if chain_tmp.is_file():
-        os.replace(chain_tmp, base / CHAIN_FILENAME)
+    # Tolerate a concurrent recoverer/committer winning the rename between the
+    # is_file() check and os.replace: a FileNotFoundError just means the staged
+    # file was already promoted, so recovery is still complete either way.
+    for tmp, final in ((receipt_tmp, SOURCE_RECEIPT_NAME), (chain_tmp, CHAIN_FILENAME)):
+        try:
+            os.replace(tmp, base / final)
+        except FileNotFoundError:
+            pass
     marker.unlink(missing_ok=True)
     return True
 

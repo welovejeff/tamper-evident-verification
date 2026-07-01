@@ -1916,18 +1916,34 @@ def _load_watch_source(args: argparse.Namespace) -> dict[str, Any]:
         raise ValueError(f"watch format must be 'json' or 'rss', got {spec['format']!r}")
     cap = spec.get("per_tick_cap")
     if cap is not None:
-        # JSON authors naturally write 5, "5", or 5.0; coerce to a non-negative
-        # int here so an untyped value cannot TypeError mid-tick inside the
-        # daemon's broad except and loop opaquely forever.
+        # JSON authors naturally write 5, "5", or 5.0; coerce to a positive int
+        # here so an untyped value cannot TypeError mid-tick inside the daemon's
+        # broad except and loop opaquely forever. Reject 0: it would silently
+        # rate-cap EVERY append (nothing ever commits); omit the key for no cap.
         if isinstance(cap, bool):
             raise ValueError("per_tick_cap must be an integer, not a boolean")
         try:
             cap_int = int(cap)
         except (TypeError, ValueError):
             raise ValueError(f"per_tick_cap must be an integer, got {cap!r}") from None
-        if cap_int < 0:
-            raise ValueError(f"per_tick_cap must be >= 0, got {cap_int}")
+        if cap_int < 1:
+            raise ValueError(
+                f"per_tick_cap must be >= 1 (got {cap_int}); omit it entirely for no cap"
+            )
         spec["per_tick_cap"] = cap_int
+
+    columnar = spec.get("columnar")
+    if columnar is not None:
+        # Validate here so a malformed columnar spec fails at config load with a
+        # clean error, not as an AttributeError/TypeError deep inside a tick.
+        if not isinstance(columnar, dict):
+            raise ValueError("columnar must be an object with 'path' and 'columns'")
+        cols = columnar.get("columns")
+        if not isinstance(cols, list) or not cols or not all(isinstance(c, str) for c in cols):
+            raise ValueError("columnar.columns must be a non-empty list of column-name strings")
+        path = columnar.get("path")
+        if path is not None and not isinstance(path, str):
+            raise ValueError("columnar.path must be a string (e.g. 'hourly' or 'a.b')")
     return spec
 
 
