@@ -94,20 +94,33 @@ def validate_public_url(url: str) -> tuple[str, int, list[str]]:
     return host, port, ips
 
 
-def json_records(raw: bytes | str, field_map: dict[str, str] | None = None) -> list[dict[str, str]]:
-    """Map a JSON feed (an array of flat objects) to canonical records.
+def json_records(
+    raw: bytes | str,
+    field_map: dict[str, str] | None = None,
+    *,
+    columnar: dict[str, Any] | None = None,
+) -> list[dict[str, str]]:
+    """Map a JSON feed to canonical records.
 
     Numbers are parsed as strings (`parse_float`/`parse_int`) so a feed's
     `"30.00"` keeps its source text and hashes identically to a CSV's `30.00`
-    through the existing decimal coercion — no false tamper alarm. `field_map`
-    optionally selects/renames columns ({output_column: source_key}); without
-    it, every key is carried through. Non-array payloads raise SourceError.
+    through the existing decimal coercion — no false tamper alarm.
+
+    Two shapes are supported. By default the feed is **an array of flat
+    objects**; `field_map` optionally selects/renames columns ({output_column:
+    source_key}), else every key is carried through. Passing `columnar`
+    ({"path": "hourly", "columns": ["time", "temperature_2m"]}) instead maps a
+    **columnar** feed — an object of parallel arrays (the common shape of
+    weather/finance time-series APIs) — by zipping the named arrays by index.
+    Malformed payloads raise SourceError.
     """
     text = raw.decode("utf-8") if isinstance(raw, bytes) else raw
     try:
         data = json.loads(text, parse_float=str, parse_int=str)
     except (ValueError, UnicodeDecodeError) as exc:
         raise SourceError(f"feed is not valid JSON: {exc}") from exc
+    if columnar is not None:
+        return _columnar_records(data, columnar)
     if not isinstance(data, list):
         raise SourceError("JSON feed must be an array of objects")
     records: list[dict[str, str]] = []
@@ -120,6 +133,37 @@ def json_records(raw: bytes | str, field_map: dict[str, str] | None = None) -> l
             row = {column: _as_text(item.get(source)) for column, source in field_map.items()}
         records.append(row)
     return records
+
+
+def _columnar_records(data: Any, spec: dict[str, Any]) -> list[dict[str, str]]:
+    """Zip an object of parallel arrays into flat records (KTD: real time-series
+    APIs are columnar, not arrays of objects). `spec["path"]` navigates to the
+    container ("hourly", or dotted "a.b"); `spec["columns"]` names the equal-
+    length arrays to zip by index."""
+    columns = spec.get("columns")
+    if not isinstance(columns, list) or not columns:
+        raise SourceError("columnar mapping needs a non-empty 'columns' list")
+    container: Any = data
+    path = spec.get("path")
+    if path:
+        keys = path.split(".") if isinstance(path, str) else list(path)
+        for key in keys:
+            if not isinstance(container, dict) or key not in container:
+                raise SourceError(f"columnar path {path!r} not found in feed")
+            container = container[key]
+    if not isinstance(container, dict):
+        raise SourceError("columnar target must be an object of parallel arrays")
+    arrays: dict[str, list[Any]] = {}
+    for column in columns:
+        value = container.get(column)
+        if not isinstance(value, list):
+            raise SourceError(f"columnar column {column!r} is missing or not an array")
+        arrays[column] = value
+    lengths = {len(v) for v in arrays.values()}
+    if len(lengths) > 1:
+        raise SourceError(f"columnar arrays have mismatched lengths: {sorted(lengths)}")
+    count = lengths.pop() if lengths else 0
+    return [{column: _as_text(arrays[column][index]) for column in columns} for index in range(count)]
 
 
 def _as_text(value: Any) -> str:

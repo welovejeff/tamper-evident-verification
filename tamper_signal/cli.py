@@ -1943,7 +1943,7 @@ def _watch_once(spec: dict[str, Any], args: argparse.Namespace) -> dict[str, Any
     field_map = spec.get("field_map")
     result = sources.fetch(spec["url"])
     if spec["format"] == "json":
-        records = sources.json_records(result.body, field_map)
+        records = sources.json_records(result.body, field_map, columnar=spec.get("columnar"))
     else:
         records = sources.rss_records(result.body, field_map)
     return run_tick(

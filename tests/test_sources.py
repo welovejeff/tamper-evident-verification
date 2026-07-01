@@ -104,3 +104,34 @@ def test_json_non_array_and_malformed_raise():
         json_records("not json at all")
     with pytest.raises(SourceError):
         json_records('["scalars", "not", "objects"]')
+
+
+# ---------------------------------------------------------------------------
+# Columnar JSON: parallel arrays (weather/finance time-series) zip to records
+# ---------------------------------------------------------------------------
+def test_columnar_zips_parallel_arrays():
+    feed = '{"hourly": {"time": ["2026-06-30T00:00", "2026-06-30T01:00"], "temperature_2m": [18.2, 17.9]}}'
+    recs = json_records(feed, columnar={"path": "hourly", "columns": ["time", "temperature_2m"]})
+    assert recs == [
+        {"time": "2026-06-30T00:00", "temperature_2m": "18.2"},
+        {"time": "2026-06-30T01:00", "temperature_2m": "17.9"},
+    ]
+
+
+def test_columnar_values_hash_like_csv():
+    feed = '{"hourly": {"time": ["2026-06-30T00:00"], "temperature_2m": [18.20]}}'
+    json_recs = json_records(feed, columnar={"path": "hourly", "columns": ["time", "temperature_2m"]})
+    csv_recs = _csv_records("time,temperature_2m\n2026-06-30T00:00,18.20\n")
+    assert semantic_hash(json_recs) == semantic_hash(csv_recs)
+
+
+def test_columnar_errors():
+    # Missing path.
+    with pytest.raises(SourceError):
+        json_records('{"other": {}}', columnar={"path": "hourly", "columns": ["time"]})
+    # Mismatched array lengths.
+    with pytest.raises(SourceError):
+        json_records('{"h": {"time": ["a", "b"], "v": [1]}}', columnar={"path": "h", "columns": ["time", "v"]})
+    # A named column that is not an array.
+    with pytest.raises(SourceError):
+        json_records('{"h": {"time": "notarray"}}', columnar={"path": "h", "columns": ["time"]})
