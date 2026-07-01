@@ -37,12 +37,14 @@ from .receipts import (
     build_source_manifest,
     build_transform_receipt,
     code_hash_of,
+    commit_source_reset,
     load_receipts,
     next_receipt_filename,
     output_hash_of,
     read_chain,
     read_chain_files,
     read_receipt,
+    recover_torn_commit,
     verify_chain,
     write_chain,
     write_receipt,
@@ -370,6 +372,10 @@ def judge_candidate_period(
         raise UntrustedSignerError(
             f"no existing chain at {chain_path} to continue; use replace to start a chain"
         )
+    # Heal a torn commit from a prior crashed tick before judging, so the no-op
+    # gate and base_tail see a consistent chain (the watcher self-heals here even
+    # if the feed is stable and would otherwise never trigger a rewrite).
+    recover_torn_commit(chain_dir)
     prior_chain = read_chain(str(chain_path))
     prior_key = prior_chain.get("public_key")
 
@@ -447,12 +453,15 @@ def commit_period(
     chain_dir = chain_dir or candidate["chain_dir"]
     key_path = key_path or candidate["key_path"]
     with _chain_lock(chain_dir):
+        # Heal any commit a prior crash left half-applied before reading the tail.
+        recover_torn_commit(chain_dir)
         if _chain_tail_hash(chain_dir) != candidate["base_tail"]:
             raise StaleCandidateError(
                 "the chain advanced since this candidate was judged; re-judge before committing"
             )
-        write_receipt(chain_dir, SOURCE_RECEIPT_NAME, candidate["manifest"])
-        write_chain(chain_dir, [SOURCE_RECEIPT_NAME], candidate["public_hex"])
+        # Journaled reset: 000_source.json + chain.json land as one crash-safe
+        # transaction (byte-identical to the prior write_receipt+write_chain).
+        commit_source_reset(chain_dir, candidate["manifest"], candidate["public_hex"])
         chain = read_chain(str(Path(chain_dir) / CHAIN_FILENAME))
         receipts = [read_receipt(chain_dir, name) for name in chain.get("receipts", [])]
         archive_run_snapshot(
