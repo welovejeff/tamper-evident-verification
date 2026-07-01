@@ -75,16 +75,58 @@ def test_consecutive_ticks_share_identity_so_judgment_engages(tmp_path, monkeypa
     assert identities == {"feed:x"}
 
 
-def test_identity_drift_between_ticks_is_hard_error(tmp_path, monkeypatch):
+def test_watch_adopts_chain_after_an_intervening_verify(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     _seed(tmp_path)
-    # Tick 1 appends (data differs from the seed) so a snapshot with identity feed:x exists.
+    # A verify between seeding and the first tick archives a snapshot under the
+    # SEED's identity (seed.csv). The watcher must still adopt the chain and
+    # establish its own identity on its first tick, not refuse (the ingest ->
+    # verify -> watch trap).
+    assert main(["verify", "receipts/chain.json", "--json"]) == 0
+    out = run_tick(_rows(("2026-05-01", "10"), ("2026-05-02", "20")), source_id="feed:x",
+                   chain_dir="receipts/", key_path="keys/signing.key")
+    assert out["action"] == "appended"
+
+
+def test_changing_source_id_starts_a_new_lineage(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    _seed(tmp_path)
     run_tick(_rows(("2026-05-01", "10"), ("2026-05-02", "20")), source_id="feed:x",
              chain_dir="receipts/", key_path="keys/signing.key")
-    # A drifting identity would otherwise skip judgment silently — refuse instead.
+    # Renaming the source is a deliberate operator config change (source_id is
+    # never attacker-controlled). With no history under the new id, the watcher
+    # ESTABLISHES a fresh lineage rather than refusing — it does not brick.
+    out = run_tick(_rows(("2026-05-01", "10"), ("2026-05-02", "20"), ("2026-05-03", "30")),
+                   source_id="feed:DIFFERENT", chain_dir="receipts/", key_path="keys/signing.key")
+    assert out["action"] == "appended"
+    from tamper_signal.receipts import SOURCE_RECEIPT_NAME, read_receipt
+    assert read_receipt("receipts/", SOURCE_RECEIPT_NAME)["source"]["filename"] == "feed:DIFFERENT"
+
+
+def test_own_history_unjudgeable_is_hard_error(tmp_path, monkeypatch):
+    # The KTD11 backstop: the watcher's OWN history exists but cannot be judged
+    # (drift/corruption). Simulate by making the judge return the identity-skip
+    # notice on a tick whose own feed:x snapshot exists — the watcher must refuse.
+    import tamper_signal.history as history
+
+    from tamper_signal.watcher import _IDENTITY_SKIPPED
+
+    monkeypatch.chdir(tmp_path)
+    _seed(tmp_path)
+    run_tick(_rows(("2026-05-01", "10"), ("2026-05-02", "20")), source_id="feed:x",
+             chain_dir="receipts/", key_path="keys/signing.key")  # feed:x snapshot now exists
+
+    real_judge = history.judge_cross_run
+
+    def skipping(*args, **kwargs):
+        out = real_judge(*args, **kwargs)
+        out["notices"] = list(out.get("notices", [])) + [_IDENTITY_SKIPPED]
+        return out
+
+    monkeypatch.setattr(history, "judge_cross_run", skipping)
     with pytest.raises(WatchIdentityError):
         run_tick(_rows(("2026-05-01", "10"), ("2026-05-02", "20"), ("2026-05-03", "30")),
-                 source_id="feed:DIFFERENT", chain_dir="receipts/", key_path="keys/signing.key")
+                 source_id="feed:x", chain_dir="receipts/", key_path="keys/signing.key")
 
 
 # ---------------------------------------------------------------------------

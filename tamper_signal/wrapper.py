@@ -420,6 +420,18 @@ def judge_candidate_period(
         [manifest], candidate_chain, [item["snapshot"] for item in items]
     )
 
+    # Does prior history exist under THIS candidate's own identity? The watcher
+    # uses it to tell an establishing first append (only foreign snapshots — e.g.
+    # a seed ingested under its filename, or a verify's snapshot — so nothing to
+    # judge against yet) from a real anomaly (its own history exists but could
+    # not be judged). Only the latter is a refuse-to-append condition (KTD11).
+    candidate_identity = manifest["source"]["filename"]
+    own_history = any(
+        isinstance(item.get("snapshot"), dict)
+        and (item["snapshot"].get("source") or {}).get("filename") == candidate_identity
+        for item in items
+    )
+
     candidate = {
         "manifest": manifest,
         "records": records,
@@ -429,6 +441,7 @@ def judge_candidate_period(
         "key_path": key_path,
         "trusted_keys": trusted_keys,
         "compared": bool(items),
+        "own_history": own_history,
     }
     return candidate, judgment
 

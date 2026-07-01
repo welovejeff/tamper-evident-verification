@@ -168,11 +168,15 @@ def run_tick(
     if candidate["manifest"]["semantic_hash"] == prior.get("semantic_hash"):
         return {"action": "unchanged", "source_id": source_id}
 
-    # KTD11: a skipped judgment while history exists is an identity mismatch.
-    if candidate["compared"] and _IDENTITY_SKIPPED in judgment.get("notices", []):
+    # KTD11: refuse to append unjudged only when the watcher's OWN history
+    # exists but could not be judged (real drift/corruption). A skip against only
+    # foreign snapshots — a seed ingested under its filename, or a verify's
+    # snapshot before the watcher ever ran — is the establishing first append and
+    # is allowed (there is no own baseline to violate yet).
+    if candidate.get("own_history") and _IDENTITY_SKIPPED in judgment.get("notices", []):
         raise WatchIdentityError(
-            f"watch tick for {source_id!r}: source identity differs from history; "
-            "judgment was skipped, refusing to append an unjudged change."
+            f"watch tick for {source_id!r}: the watcher's own history exists but judgment "
+            "was skipped (source identity mismatch/corruption); refusing to append unjudged."
         )
 
     # Gate (KTD2): any caveat withholds — and this MUST precede the volumetric
