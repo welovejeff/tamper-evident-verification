@@ -131,7 +131,7 @@ renderReceiptBadge(el, <span class="s">"/receipts/chain.json"</span>, pubKeyHex)
     <h2 id="table">The data tab</h2>
     <p>Renders the attested table from <code>table.json</code>, re-hashes it in the viewer's browser, and compares against the final receipt. A verified data tab means the rows on screen are byte for byte the attested data, not a fresh query that might disagree.</p>
     <pre><code><span class="c"># 1. export the canonical table (Python or Node)</span>
-<span class="k">receipts</span> export receipts/chain.json --data dashboard.xlsx
+<span class="k">tamper-signal</span> export receipts/chain.json --data dashboard.xlsx
 
 <span class="c"># 2. mount it</span>
 <span class="k">&lt;script</span> type=<span class="s">"module"</span><span class="k">&gt;</span>

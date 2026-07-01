@@ -71,13 +71,13 @@
 
     <h2 id="rotation">Key rotation</h2>
     <p>Keys change. When they do, you do not want every receipt signed under the old key to suddenly read as untrusted. Verification accepts more than one trusted key: pass <code>--pub</code> as many times as you need, and any listed key satisfies a receipt.</p>
-    <pre><code><span class="k">receipts</span> verify receipts/chain.json --pub keys/new.pub --pub keys/old.pub</code></pre>
+    <pre><code><span class="k">tamper-signal</span> verify receipts/chain.json --pub keys/new.pub --pub keys/old.pub</code></pre>
     <p>Old receipts stay green under the old key while new receipts sign under the new one. In the browser surfaces, the <code>pub-key</code> attribute takes a space-separated list for the same effect.</p>
 
     <h2 id="ci-signing">Signing in CI without a key file</h2>
     <p>A private key should never be written to a CI runner's disk. Put the PEM contents in a repository secret and expose it as <code>TAMPER_SIGNAL_KEY</code>. The wrapper, <code>ingest</code>, and <code>export</code> all read it, and it wins over any <code>--key</code> path. The semantics are identical in both stacks.</p>
     <pre><code><span class="k">export</span> TAMPER_SIGNAL_KEY=<span class="s">"$(cat keys/signing.key)"</span>   <span class="c"># from a secret, not the repo</span>
-<span class="k">receipts</span> ingest export.csv --origin <span class="s">"nightly"</span> --out receipts/</code></pre>
+<span class="k">tamper-signal</span> ingest export.csv --origin <span class="s">"nightly"</span> --out receipts/</code></pre>
 
     <h2 id="ci-gate">Gating a build on the light</h2>
     <p>Because the exit code is the light, a CI job can fail on red and merely warn on yellow. This makes a broken chain a build failure, while a caveat surfaces for a human without blocking the pipeline.</p>
@@ -105,10 +105,10 @@
     <h2 id="anchoring">Anchoring to a public log</h2>
     <p>The local key is the day-to-day root of trust, but whoever holds it could in principle re-sign a whole new chain. Anchoring closes that gap for the moments that matter: it records the chain in a Sigstore transparency log, an append-only public ledger, under your identity, witnessed independently of your key. See the <a href="/docs/concepts.html#anchor">notary analogy</a> in concepts.</p>
     <pre><code><span class="k">pip install</span> <span class="s">"tamper-signal[anchor]"</span>
-<span class="k">receipts</span> anchor                              <span class="c"># browser login locally; ambient OIDC in GitHub Actions</span>
-<span class="k">receipts</span> verify receipts/chain.json --anchor</code></pre>
+<span class="k">tamper-signal</span> anchor                              <span class="c"># browser login locally; ambient OIDC in GitHub Actions</span>
+<span class="k">tamper-signal</span> verify receipts/chain.json --anchor</code></pre>
     <p>With <code>--anchor</code>, verify proves this exact chain existed at the logged time under the recorded identity. A missing anchor is a yellow caveat (exit 2); a chain that changed after it was anchored is red (exit 1). In CI you pin the identity and issuer explicitly:</p>
-    <pre><code><span class="k">receipts</span> verify receipts/chain.json --anchor \
+    <pre><code><span class="k">tamper-signal</span> verify receipts/chain.json --anchor \
   --anchor-identity <span class="s">"https://github.com/OWNER/REPO/.github/workflows/anchor.yml@refs/heads/main"</span> \
   --anchor-issuer <span class="s">"https://token.actions.githubusercontent.com"</span></code></pre>
     <div class="honesty">
@@ -129,7 +129,7 @@
     <h2 id="period">Period-over-period continuity</h2>
     <p>A report you refresh on a cadence has a second kind of continuity: not just "did this run stay intact," but "do this run's numbers line up with last run's." A nightly export of the same dashboard should look a lot like yesterday's. Tamper Signal can watch that, but only after the producer says out loud how much movement is normal.</p>
     <p>You declare the tolerance once, at ingest, and it is signed into the source manifest:</p>
-    <pre><code><span class="k">receipts</span> ingest export.csv --origin <span class="s">"nightly"</span> --band <span class="s">5%</span> --settle <span class="s">72h</span> --bucket-column day</code></pre>
+    <pre><code><span class="k">tamper-signal</span> ingest export.csv --origin <span class="s">"nightly"</span> --band <span class="s">5%</span> --settle <span class="s">72h</span> --bucket-column day</code></pre>
     <p><code>--band</code> is how far a number may drift run over run; <code>--settle</code> is how long a period stays soft; <code>--bucket-column</code> is the date column the per-period buckets hang off (omit it and a single date-shaped column is found automatically). Because the declaration is signed, you cannot quietly widen the band later to hide a jump: loosening it breaks the signature.</p>
     <div class="analogy">
       <p class="an-head">The drying-ink rule</p>
@@ -139,8 +139,8 @@
       <p class="an-map">Green for a refresh: <strong>recent buckets moved within the band, settled buckets did not move at all</strong>. Yellow: a recent bucket drifted past the band, or a settled bucket moved, or a period that was there last run vanished from this one.</p>
     </div>
     <p>Every non-red <code>verify</code> quietly archives a snapshot of the run under <code>receipts/history/</code>, and the next run judges itself against that memory. Two read-only commands read the history back; both exit 0 whatever they find:</p>
-    <pre><code><span class="k">receipts</span> diff                          <span class="c"># current chain vs the latest differing snapshot</span>
-<span class="k">receipts</span> log --granularity week        <span class="c"># per-metric trend across runs, oldest first</span></code></pre>
+    <pre><code><span class="k">tamper-signal</span> diff                          <span class="c"># current chain vs the latest differing snapshot</span>
+<span class="k">tamper-signal</span> log --granularity week        <span class="c"># per-metric trend across runs, oldest first</span></code></pre>
     <p><code>diff</code> shows what changed between two runs: which stage code moved and the totals delta, including which period buckets shifted. <code>log</code> draws the trend, one row per period, each metric with its value and the change from the previous row, marking the runs that breached.</p>
     <div class="honesty">
       <span class="co-label">History is weaker evidence than the chain</span>
@@ -149,8 +149,18 @@
 
     <h2 id="drift">Control-total drift</h2>
     <p>Filters and aggregations move totals on purpose, so a moving total is not a tamper by itself. That is why drift warnings are opt-in. Turn them on when you want a human to glance at any movement across links, and leave them off for pipelines that legitimately reshape the data.</p>
-    <pre><code><span class="k">receipts</span> verify receipts/chain.json --pub keys/signing.pub --warn-drift</code></pre>
+    <pre><code><span class="k">tamper-signal</span> verify receipts/chain.json --pub keys/signing.pub --warn-drift</code></pre>
     <p>With <code>--warn-drift</code>, control-total movement becomes a yellow caveat rather than passing silently. The same switch exists as the <code>warnDrift</code> option on the browser surfaces.</p>
+
+    <h2 id="watcher">Live-source watcher</h2>
+    <p>When the source is a live feed rather than a file you re-export by hand, the watcher keeps it on the same signed chain. It polls, judges the new data against the band and settling window you declared (see <a href="#period">Period-over-period</a>), and <strong>auto-appends only a clean change</strong>. A retroactive edit to an already-settled period — or a slow drift that cumulatively breaches the band — is never signed unattended: it is withheld as a signed pending event and paused for a human.</p>
+    <pre><code>pip install "tamper-signal[watch]"
+<span class="k">tamper-signal</span> watch --config feed.json --key keys/watch.key --out receipts/</code></pre>
+    <p>The config is a small JSON file: <code>url</code>, <code>format</code> (<code>json</code> or <code>rss</code>), a stable <code>source_id</code>, an optional <code>field_map</code> or <code>columnar</code> mapping for nested/columnar feeds, and the <code>band</code>/<code>settle</code>/<code>bucket_column</code> tolerance. Change detection is a full-content fingerprint, never a replayable <code>ETag</code>/<code>304</code>. The fetch is SSRF-hardened (public hosts only, redirects off, TLS verified, byte + wall-clock caps; RSS parsed through <code>defusedxml</code>).</p>
+    <p>Withheld changes are reviewed explicitly — each acceptance signs its own reason and commits the exact reviewed candidate:</p>
+    <pre><code><span class="k">tamper-signal</span> review                       <span class="c"># list what is waiting</span>
+<span class="k">tamper-signal</span> review accept &lt;hash&gt; --reason <span class="s">"confirmed by the data desk"</span></code></pre>
+    <p>The recommended deployment is the stateless tick under a systemd timer or cron, so the signing key is not resident between runs — it is a local file-writer, not a server. See <a href="https://github.com/welovejeff/tamper-evident-verification/blob/main/AGENTS.md">AGENTS.md</a> §5c for a hardened systemd unit (dedicated user, <code>NoNewPrivileges</code>, <code>ProtectSystem=strict</code>, the key delivered via <code>LoadCredential=</code>). The <code>watch</code> and <code>review</code> commands are Python-only; the chains they write are read and verified by the Node stack unchanged. See the live weather <a href="/demo.html">demo</a>.</p>
 
     <h2 id="formats">Format-agnostic hashing</h2>
     <p>The semantic hash is taken over the meaning of the data, not its packaging, so the same rows hash the same whether they arrive as xlsx, CSV, TSV, JSON, or NDJSON. Two consequences worth leaning on:</p>

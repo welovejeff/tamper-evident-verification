@@ -6,7 +6,7 @@
 <!-- Site analytics & tagging (GTM + Consent Mode v2). Config lives in /analytics.js -->
 <script src="/analytics.js"></script>
 <title>CLI reference · Tamper Signal docs</title>
-<meta name="description" content="Every Tamper Signal command and flag across both stacks: receipts (Python) and tamper-signal (Node), the green/yellow/red exit codes, and the structured JSON verdict schema." />
+<meta name="description" content="Every Tamper Signal command and flag: the tamper-signal CLI on both the Python and Node stacks, the green/yellow/red exit codes, and the structured JSON verdict schema." />
 <meta property="og:title" content="CLI reference · Tamper Signal docs" />
 <meta property="og:description" content="Every command and flag across both stacks, the exit codes, and the JSON verdict schema." />
 <meta property="og:image" content="https://tampersignal.com/docs/media/og-card.png" />
@@ -67,7 +67,7 @@
     <a class="doc-back" href="/docs/">← Docs home</a>
     <p class="doc-kicker">Reference</p>
     <h1>CLI</h1>
-    <p class="lede">Two command-line tools, one set of ideas. <code>receipts</code> ships with the Python package; <code>tamper-signal</code> ships with the npm package. The chains they produce are interchangeable, and they share the same exit codes.</p>
+    <p class="lede">One command, two stacks. As of 2.0 the CLI is <code>tamper-signal</code> whether it ships with the Python package or the npm package (on Python, <code>receipts</code> still works as a deprecated alias). The chains are interchangeable and the exit codes are identical.</p>
 
     <h2 id="exit-codes">The exit code is the light</h2>
     <p>Every verifying command returns the traffic light as its process exit code, so a shell or CI job can branch on it without parsing anything.</p>
@@ -100,7 +100,7 @@
           <tr><td><code>tamper-signal annotate</code></td><td>Attach a signed reason (and optional self-declared author) to a receipt by its content hash, so the note is tamper-evident and cannot be silently retargeted. A correction supersedes a prior note by hash; nothing is overwritten.</td></tr>
           <tr><td><code>tamper-signal timeline</code></td><td>Write the narrow, published <code>timeline.json</code> (imports, changes, their top-level totals, signed annotations, and any pending changes) that the console renders as the chain of custody. Chain-tail-bound, and signed when a key is available.</td></tr>
           <tr><td><code>tamper-signal custody</code></td><td>Show the CLI-local custody view — run cadence and archived prior chains, each re-verified — without publishing that history. Read-only.</td></tr>
-          <tr><td><code>tamper-signal watch</code></td><td>Poll a live HTTP/JSON-API or RSS/Atom feed and keep it on the same signed chain: new data auto-appends, a change to an already-settled period is withheld for review. Needs <code>pip install "tamper-signal[watch]"</code>. <code>--daemon</code>/<code>--interval</code> loop; default is one stateless tick. See <a href="/docs/advanced.html">Power user</a>.</td></tr>
+          <tr><td><code>tamper-signal watch</code></td><td>Poll a live HTTP/JSON-API or RSS/Atom feed and keep it on the same signed chain: new data auto-appends, a change to an already-settled period is withheld for review. Needs <code>pip install "tamper-signal[watch]"</code>. <code>--daemon</code>/<code>--interval</code> loop; default is one stateless tick. See <a href="/docs/advanced.html#watcher">Power user</a>.</td></tr>
           <tr><td><code>tamper-signal review</code></td><td>List, accept, or reject withheld watch changes. Each <code>accept &lt;hash&gt; --reason</code> signs its own human reason and commits the exact reviewed candidate; <code>reject</code> discards it without touching the chain.</td></tr>
           <tr><td><code>tamper-signal demo</code></td><td>Run the whole story end to end on sample data, then serve a badge showing green, yellow, and red.</td></tr>
         </tbody>

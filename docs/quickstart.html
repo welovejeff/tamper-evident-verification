@@ -82,11 +82,11 @@
 <span class="c"># or Node 18.17+ : gives you the `tamper-signal` CLI and a programmatic API</span>
 <span class="k">npm install</span> tamper-signal</code></pre>
     <p>Confirm it is on your path:</p>
-    <pre><code><span class="k">receipts</span> --help        <span class="c"># exits 0 when healthy</span></code></pre>
+    <pre><code><span class="k">tamper-signal</span> --help        <span class="c"># exits 0 when healthy</span></code></pre>
 
     <h2 id="scaffold">2. Scaffold keys and folders</h2>
     <p>One idempotent command generates your signing keypair, writes a receipts directory, and adds the private key to <code>.gitignore</code> so it can never be committed by accident.</p>
-    <pre><code><span class="k">receipts</span> init</code></pre>
+    <pre><code><span class="k">tamper-signal</span> init</code></pre>
     <p>You now have <code>keys/signing.key</code> (private, PEM, never commit) and <code>keys/signing.pub</code> (public, hex, safe to commit), plus an empty <code>receipts/</code>.</p>
     <div class="callout warn">
       <span class="co-label">Guard the private key</span>
@@ -95,7 +95,7 @@
 
     <h2 id="ingest">3. Ingest the source</h2>
     <p>Ingest pins the original export in place: it records the evidence hash of the raw bytes, the semantic hash of the data, and the control totals, then signs a source receipt. The <code>--origin</code> text is free-form, for humans, and shows up later in the signal.</p>
-    <pre><code><span class="k">receipts</span> ingest sample_export.xlsx \
+    <pre><code><span class="k">tamper-signal</span> ingest sample_export.xlsx \
   --origin <span class="s">"TikTok export, May 2026"</span> \
   --key keys/signing.key \
   --out receipts/</code></pre>
@@ -113,7 +113,7 @@
 
     <h2 id="verify">5. Verify: the green light</h2>
     <p>Walk the chain, check every signature and every link, and reduce it to a light. Add <code>--data</code> to also check that the file your dashboard actually reads still matches the final receipt.</p>
-    <pre><code><span class="k">receipts</span> verify receipts/chain.json \
+    <pre><code><span class="k">tamper-signal</span> verify receipts/chain.json \
   --pub keys/signing.pub \
   --data dashboard.xlsx</code></pre>
     <pre><code><span class="s">✓ The light is green, the data is clean.</span>
@@ -123,7 +123,7 @@
 
     <h2 id="tamper">6. Tamper, and watch it turn red</h2>
     <p>Now break it on purpose. Edit a single value in the data the dashboard reads, drop a few rows, anything, then verify again.</p>
-    <pre><code><span class="k">receipts</span> verify receipts/chain.json --pub keys/signing.pub --data dashboard_edited.xlsx</code></pre>
+    <pre><code><span class="k">tamper-signal</span> verify receipts/chain.json --pub keys/signing.pub --data dashboard_edited.xlsx</code></pre>
     <pre><code><span class="o">✗ CHAIN BROKEN at link 1 → 2 (transform_aggregate)</span>
   expected input hash  a3f1…9c   (output of transform_clean)
   found    input hash  77b2…d4

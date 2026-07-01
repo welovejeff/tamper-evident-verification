@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <!-- Site analytics & tagging (GTM + Consent Mode v2). Config lives in /analytics.js -->
 <script src="/analytics.js"></script>
-<title>Data that watches itself: the live-source watcher in Tamper Signal 2.0 · Tamper Signal</title>
-<meta name="description" content="Tamper Signal 2.0: point the watcher at a live feed and it keeps that source on the same signed chain. New data appends on its own; a retroactive change to an already-settled value is never signed unattended — it is withheld for a human. Plus a chain-of-custody console and a live weather demo." />
+<title>Data that watches itself: the live-source watcher · Tamper Signal</title>
+<meta name="description" content="Tamper Signal 2.0 adds a live-source watcher: new data auto-appends to the signed chain, but a change to an already-settled value is withheld for a human." />
 <meta name="author" content="Jeff MacDonald" />
 <meta property="og:type" content="article" />
 <meta property="article:author" content="https://github.com/welovejeff" />
@@ -25,7 +25,7 @@
   "headline": "Data that watches itself",
   "description": "Tamper Signal 2.0: point the watcher at a live feed and it keeps that source on the same signed chain. New data appends on its own; a change to an already-settled value is withheld for a human, never signed unattended.",
   "image": "https://tampersignal.com/docs/media/thumbs/post-watcher.jpg",
-  "datePublished": "2026-07-01",
+  "datePublished": "2026-06-30",
   "author": { "@type": "Person", "name": "Jeff MacDonald", "url": "https://github.com/welovejeff" },
   "publisher": {
     "@type": "Organization",
@@ -70,7 +70,8 @@
   <div class="wrap">
     <a class="post-back" href="/blog/">← all posts</a>
     <h1>Data that watches itself</h1>
-    <p class="post-meta">By <a href="https://github.com/welovejeff" rel="author">Jeff MacDonald</a> · July 2026 · Tamper Signal 2.0.0</p>
+    <p class="post-meta">By <a href="https://github.com/welovejeff" rel="author">Jeff MacDonald</a> · June 2026 · Tamper Signal 2.0.0</p>
+    <img class="post-hero" src="/docs/media/thumbs/post-watcher.jpg" alt="Data streaming along a rail into a glowing emerald-green signed pool" width="1600" height="900" />
 
     <p>Until now, keeping a dashboard honest was something you <em>did</em>. Every refresh, you re-ran the pipeline, re-signed the chain, and glanced at the light. Version 2.0 does it while you sleep — and, more importantly, knows when to wake you.</p>
 

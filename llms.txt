@@ -19,6 +19,7 @@ Data portability: `receipts export --bundle` writes a verified zip (the data fil
 ## Writing
 
 - [Blog](https://tampersignal.com/blog/): notes on keeping AI-built data pipelines honest
+- [Data that watches itself](https://tampersignal.com/blog/data-that-watches-itself.html): Tamper Signal 2.0 — the live-source watcher (`tamper-signal watch`) keeps a live API/RSS feed on the same signed chain; new data auto-appends, a change to an already-settled value is withheld for human review (`tamper-signal review`)
 - [Your vibe-coded dashboard needs receipts](https://tampersignal.com/blog/your-vibe-coded-dashboard-needs-receipts.html): the pitch, longer; why AI-written data code fails silently and how a signed receipt at every step catches it
 - [Your data is supposed to move](https://tampersignal.com/blog/your-data-is-supposed-to-move.html): tolerance bands and run history, so the light stays believable on a pipeline that refreshes every morning
 - [Show your work](https://tampersignal.com/blog/show-your-work.html): why every dashboard built on verified data should ship a Data tab, the raw verified rows next to the charts
