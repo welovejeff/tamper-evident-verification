@@ -55,6 +55,8 @@ receipts log                  # archived run history as a per-metric trend acros
 receipts doctor               # integration self-check with actionable fixes
 receipts serve                # serve receipts/ on localhost with CORS (dev only)
 receipts assets --out badge/  # vendor the browser surfaces (light/badge/element/table/console.js) into a project
+receipts annotate --reason "backfill approved" --author dana   # sign a reason onto a receipt (chain of custody)
+receipts watch --config feed.json --out receipts/   # poll a live feed onto the chain (needs [watch]; see below)
 ```
 
 `--pub` repeats for key rotation (any trusted key verifies), and `TAMPER_SIGNAL_KEY` can carry the PEM private key in CI so no key file touches disk. `ingest` and `verify --data` accept .xlsx, .csv, .tsv, .json (array of objects), and .ndjson; the semantic hash is identical across formats, so an xlsx ingest verifies against a CSV copy of the same data. `verify` exits with the traffic light: 0 green, 1 red, 2 yellow (verifies, with caveats). Add `--warn-drift` to also flag any control-totals movement across links as a caveat; it is off by default because filters and aggregations legitimately move totals. `--json` emits a structured verdict (schema in `AGENTS.md`) for CI and coding agents.
@@ -172,6 +174,21 @@ The light answers "is it fine?"; the console answers "where, exactly, and by how
 ![The verification console: a pipeline of signed receipts where a tampered stage severs the chain at the exact link](docs/media/console.gif)
 
 *The verification console: calm when green, surgical when red.*
+
+Below the pipeline the console renders the **chain of custody**: the imports and changes, each signed reason attached to the receipt it explains (`receipts annotate`), and any changes **awaiting human review**. It is an additive layer over the published `timeline.json` — it never feeds the verdict above.
+
+## Live-source watcher (optional)
+
+When the source is a live feed rather than a file you re-export by hand, the watcher keeps it on the same signed chain. `receipts watch` (behind `pip install "tamper-signal[watch]"`) polls an HTTP/JSON-API or RSS/Atom endpoint, judges the new data against the declared band/settle, and **auto-appends only a clean change**. A retroactive edit to an already-settled period — or a slow drift that cumulatively breaches the band — is never signed unattended: it is withheld as a signed *pending event* and paused for a human.
+
+```bash
+pip install "tamper-signal[watch]"
+receipts watch --config feed.json --key keys/watch.key --out receipts/   # one tick
+receipts review                                                          # list withheld changes
+receipts review accept <hash> --reason "confirmed by finance"            # sign off + commit
+```
+
+The fetch is SSRF-hardened (public hosts only, redirects off, TLS verified, byte + wall-clock caps; RSS parsed through `defusedxml`), change detection uses a full-content fingerprint rather than a trust-me `ETag`, and the unattended commit is crash-safe. The recommended deployment is the stateless tick under a systemd timer or cron, so the signing key is not resident between runs — see `AGENTS.md` §5c for a hardened unit. `watch`/`review` are Python-only today; the chains they write are read and verified by the JavaScript stack unchanged.
 
 ## Anchoring (optional)
 

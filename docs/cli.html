@@ -97,6 +97,11 @@
           <tr><td><code>receipts serve</code></td><td>Serve <code>receipts/</code> on localhost with CORS, for development.</td></tr>
           <tr><td><code>receipts assets</code></td><td>Copy the bundled browser assets (<code>light.js</code>, <code>badge.js</code>, <code>element.js</code>, <code>table.js</code>, <code>console.js</code>) into a project, default <code>--out badge/</code>, so you can vendor the surfaces without digging through <code>site-packages</code>.</td></tr>
           <tr><td><code>receipts anchor</code></td><td>Record the chain in a Sigstore transparency log under your identity. Optional, see <a href="/docs/advanced.html#anchoring">Power user</a>.</td></tr>
+          <tr><td><code>receipts annotate</code></td><td>Attach a signed reason (and optional self-declared author) to a receipt by its content hash, so the note is tamper-evident and cannot be silently retargeted. A correction supersedes a prior note by hash; nothing is overwritten.</td></tr>
+          <tr><td><code>receipts timeline</code></td><td>Write the narrow, published <code>timeline.json</code> (imports, changes, their top-level totals, signed annotations, and any pending changes) that the console renders as the chain of custody. Chain-tail-bound, and signed when a key is available.</td></tr>
+          <tr><td><code>receipts custody</code></td><td>Show the CLI-local custody view — run cadence and archived prior chains, each re-verified — without publishing that history. Read-only.</td></tr>
+          <tr><td><code>receipts watch</code></td><td>Poll a live HTTP/JSON-API or RSS/Atom feed and keep it on the same signed chain: new data auto-appends, a change to an already-settled period is withheld for review. Needs <code>pip install "tamper-signal[watch]"</code>. <code>--daemon</code>/<code>--interval</code> loop; default is one stateless tick. See <a href="/docs/advanced.html">Power user</a>.</td></tr>
+          <tr><td><code>receipts review</code></td><td>List, accept, or reject withheld watch changes. Each <code>accept &lt;hash&gt; --reason</code> signs its own human reason and commits the exact reviewed candidate; <code>reject</code> discards it without touching the chain.</td></tr>
           <tr><td><code>receipts demo</code></td><td>Run the whole story end to end on sample data, then serve a badge showing green, yellow, and red.</td></tr>
         </tbody>
       </table>
@@ -150,6 +155,11 @@
           <tr><td><code>receipts serve</code></td><td>your bundler's static server, or <code>tamper-signal/express</code></td></tr>
           <tr><td><code>receipts doctor</code></td><td><code>tamper-signal verify</code> (exit 0 = healthy)</td></tr>
           <tr><td><code>receipts anchor</code></td><td><span class="pill py">Python only</span></td></tr>
+          <tr><td><code>receipts annotate</code></td><td><code>tamper-signal annotate</code></td></tr>
+          <tr><td><code>receipts timeline</code></td><td><code>tamper-signal timeline</code></td></tr>
+          <tr><td><code>receipts custody</code></td><td><span class="pill py">Python only</span></td></tr>
+          <tr><td><code>receipts watch</code></td><td><span class="pill py">Python only</span> (the chains it writes are read and verified by the JS stack)</td></tr>
+          <tr><td><code>receipts review</code></td><td><span class="pill py">Python only</span></td></tr>
         </tbody>
       </table>
     </div>

@@ -2,6 +2,28 @@
 
 All notable changes to Tamper Signal are recorded here. The Python (`tamper-signal` on PyPI) and JavaScript (`tamper-signal` on npm) packages are versioned in lockstep and produce interchangeable chains.
 
+## 2.0.0
+
+Data provenance: the chain grows a memory and a chain-of-custody surface, and can keep a **live source** under the same signed continuity. Two tracks land together — the on-disk provenance layer (Phase A) and the live-source watcher (Phase B). Fully backward compatible: existing chains verify unchanged, and every new surface is additive and opt-in.
+
+### Added — provenance & chain of custody
+
+- **Signed annotations** — `receipts annotate` / `tamper-signal annotate` attaches a signed reason (and optional self-declared author) to a specific receipt by its content hash, so the note is tamper-evident and cannot be silently retargeted. Corrections supersede a prior note by hash; nothing is ever overwritten.
+- **Published provenance timeline** — `receipts timeline` writes a narrow `timeline.json` (imports, changes, their top-level totals, and any signed annotations) for the console. It is chain-tail-bound and, when a key is available, signed; the verdict still comes from `chain.json`, never from the timeline.
+- **Provenance console** — the browser console now renders the chain of custody as its default view: imports, changes, and signed reasons, as an additive layer that never affects the verdict.
+- **CLI-local custody view** — `receipts custody` shows run cadence and archived prior chains, each re-verified, without publishing that CLI-local history.
+- **Enforced verified table** — the `<tamper-signal-table>` surface ties the shown data to the verified chain.
+
+### Added — live-source watcher
+
+- **`receipts watch`** (behind the `pip install "tamper-signal[watch]"` extra) polls a live HTTP/JSON-API or RSS/Atom feed and keeps it on the same signed chain: new data auto-appends, but a retroactive change to an already-settled period — or a slow drift that cumulatively breaches the declared band — is **withheld** as a signed pending event for a human, never signed unattended. A `--daemon`/`--interval` loop is available; the recommended deployment is the stateless tick under a systemd timer / cron.
+- **`receipts review`** lists, accepts, or rejects withheld changes; each acceptance signs its own human reason bound to the committed receipt, and commits the exact reviewed candidate. The console surfaces pending changes in a distinct "awaiting review" section.
+- **Hardened by design** — the fetch is SSRF-validated (an affirmative `is_global` gate covering IPv4-mapped and NAT64 embedded addresses, redirects off, TLS verified, byte + wall-clock caps); RSS is parsed through `defusedxml` (billion-laughs / XXE rejected); feed change-detection uses a full-content fingerprint, never a replayable `ETag`/`304`; and the source-reset commit is crash-safe (a torn write is journaled and rolled forward, so the unattended path never self-inflicts a false-RED).
+
+### Notes
+
+- The watcher's `watch` and `review` commands are Python-only for now; the chains they produce are ordinary signed manifests and run snapshots that the JavaScript stack reads and verifies unchanged. See `AGENTS.md` §5c for the runbook and a hardened systemd unit.
+
 ## 1.7.2
 
 Integration-pass fixes: smooth the first hour for an integrator copy-pasting the runbook, from a fresh `pip install` through mounting the verified table.
