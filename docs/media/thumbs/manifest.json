@@ -129,6 +129,34 @@
       "slot": "vibesilent",
       "style_id": "65e64f0a-d9a5-4fee-96fc-7acc7ab1d9be",
       "variant": "b"
+    },
+    "watcher-a": {
+      "image_size": {
+        "height": 800,
+        "width": 1280
+      },
+      "local_path": "docs/media/thumbs/_gen/watcher-a.jpg",
+      "model": "fal-ai/recraft/v3/text-to-image",
+      "prompt": "A single matte charcoal 3D continuous line graph flowing left to right across the center like a live data feed; the recent right end still rising freely, while one point on the older settled left portion has lifted out of line and is held in place, pinned by a glowing emerald-green wax seal as if a quiet watcher caught it and paused it for review; generous negative space, the seal the only saturated glowing element. Minimalist 3D product render, near-black blue-black background, soft studio lighting, matte charcoal rubberized material, gentle soft shadows, subtle radial vignette, generous negative space, single centered hero object, one emerald-green glow as the only saturated light source with a soft bloom halo, shallow depth of field, premium and restrained, no text, no lettering, no logos, high detail, octane render.",
+      "request_id": "019f1bab-a771-7073-a772-10216293f34c",
+      "result_url": "https://v3b.fal.media/files/b/0aa073cf/1VWKnhA_HnMi1tMce6UGX_image.webp",
+      "slot": "watcher",
+      "style_id": "65e64f0a-d9a5-4fee-96fc-7acc7ab1d9be",
+      "variant": "a"
+    },
+    "watcher-b": {
+      "image_size": {
+        "height": 800,
+        "width": 1280
+      },
+      "local_path": "docs/media/thumbs/_gen/watcher-b.jpg",
+      "model": "fal-ai/recraft/v3/text-to-image",
+      "prompt": "A single matte charcoal 3D continuous line graph flowing left to right across the center like a live data feed; the recent right end still rising freely, while one point on the older settled left portion has lifted out of line and is held in place, pinned by a glowing emerald-green wax seal as if a quiet watcher caught it and paused it for review; generous negative space, the seal the only saturated glowing element. Minimalist 3D product render, near-black blue-black background, soft studio lighting, matte charcoal rubberized material, gentle soft shadows, subtle radial vignette, generous negative space, single centered hero object, one emerald-green glow as the only saturated light source with a soft bloom halo, shallow depth of field, premium and restrained, no text, no lettering, no logos, high detail, octane render.",
+      "request_id": "019f1bab-e3c5-7463-9eeb-565ec0f718bc",
+      "result_url": "https://v3b.fal.media/files/b/0aa073d1/71JHe2mModjyMiNkXhwcA_image.webp",
+      "slot": "watcher",
+      "style_id": "65e64f0a-d9a5-4fee-96fc-7acc7ab1d9be",
+      "variant": "b"
     }
   }
 }
