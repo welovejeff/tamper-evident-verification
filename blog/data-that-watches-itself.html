@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<!-- Site analytics & tagging (GTM + Consent Mode v2). Config lives in /analytics.js -->
+<script src="/analytics.js"></script>
+<title>Data that watches itself: the live-source watcher · Tamper Signal</title>
+<meta name="description" content="Tamper Signal 2.0 adds a live-source watcher: new data auto-appends to the signed chain, but a change to an already-settled value is withheld for a human." />
+<meta name="author" content="Jeff MacDonald" />
+<meta property="og:type" content="article" />
+<meta property="article:author" content="https://github.com/welovejeff" />
+<meta property="og:title" content="Data that watches itself: the live-source watcher in Tamper Signal 2.0" />
+<meta property="og:description" content="Point the watcher at a live feed and it keeps that source on the same signed chain. New data appends on its own; a change to an already-settled value is withheld for a human, never signed unattended." />
+<meta property="og:image" content="https://tampersignal.com/docs/media/thumbs/post-watcher.jpg" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:image" content="https://tampersignal.com/docs/media/thumbs/post-watcher.jpg" />
+<link rel="canonical" href="https://tampersignal.com/blog/data-that-watches-itself.html" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='%2334d399'/%3E%3C/svg%3E" />
+<link rel="stylesheet" href="blog.css" />
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Data that watches itself",
+  "description": "Tamper Signal 2.0: point the watcher at a live feed and it keeps that source on the same signed chain. New data appends on its own; a change to an already-settled value is withheld for a human, never signed unattended.",
+  "image": "https://tampersignal.com/docs/media/thumbs/post-watcher.jpg",
+  "datePublished": "2026-06-30",
+  "author": { "@type": "Person", "name": "Jeff MacDonald", "url": "https://github.com/welovejeff" },
+  "publisher": {
+    "@type": "Organization",
+    "name": "Tamper Signal",
+    "logo": { "@type": "ImageObject", "url": "https://tampersignal.com/docs/media/og-card.png" }
+  },
+  "mainEntityOfPage": { "@type": "WebPage", "@id": "https://tampersignal.com/blog/data-that-watches-itself.html" }
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://tampersignal.com/" },
+    { "@type": "ListItem", "position": 2, "name": "Blog", "item": "https://tampersignal.com/blog/" },
+    { "@type": "ListItem", "position": 3, "name": "Data that watches itself", "item": "https://tampersignal.com/blog/data-that-watches-itself.html" }
+  ]
+}
+</script>
+</head>
+<body>
+
+<div class="top">
+  <div class="wrap">
+    <a class="logo-stacked" href="/" aria-label="Tamper Signal — home">
+      <span class="ls-rail" aria-hidden="true"><i class="r"></i><i class="y"></i><i class="g"></i></span>
+      <span class="ls-words">TAMPER<br>SIGNAL</span>
+    </a>
+    <nav>
+      <a href="/#demo">live demo</a>
+      <a href="/#how">how it works</a>
+      <a href="/docs/">docs</a>
+      <a href="/blog/">blog</a>
+      <a href="/#explore">explore</a>
+      <a href="https://github.com/welovejeff/tamper-evident-verification">github</a>
+    </nav>
+  </div>
+</div>
+
+<article class="post">
+  <div class="wrap">
+    <a class="post-back" href="/blog/">← all posts</a>
+    <h1>Data that watches itself</h1>
+    <p class="post-meta">By <a href="https://github.com/welovejeff" rel="author">Jeff MacDonald</a> · June 2026 · Tamper Signal 2.0.0</p>
+    <img class="post-hero" src="/docs/media/thumbs/post-watcher.jpg" alt="Data streaming along a rail into a glowing emerald-green signed pool" width="1600" height="900" />
+
+    <p>Until now, keeping a dashboard honest was something you <em>did</em>. Every refresh, you re-ran the pipeline, re-signed the chain, and glanced at the light. Version 2.0 does it while you sleep — and, more importantly, knows when to wake you.</p>
+
+    <h2>The gap the bands left open</h2>
+
+    <p><a href="/blog/your-data-is-supposed-to-move.html">Version 1.6 taught the chain what normal looks like</a>: a tolerance band you sign at ingest, a settling window, and a memory of past runs. Recent data may drift inside the band and stay green; settled data is frozen, and any movement there asks for a human. That fixed the false alarms. But it still assumed a hand on the keyboard. Every new day was a manual re-ingest. If nobody re-ran the pipeline, nothing watched.</p>
+
+    <p>Plenty of the data worth watching is not a file you re-export. It is a live feed — an API, a JSON endpoint, an RSS stream — updating on its own schedule. 2.0 lets you put that under the same signed continuity, hands-free.</p>
+
+    <pre><code>tamper-signal watch --config feed.json --key keys/watch.key --out receipts/</code></pre>
+
+    <p>Point the watcher at a source and it polls, judges the new data against the band you already declared, and appends it to the same chain — no re-ingest, no re-sign. New readings flow onto a signed chain of custody with nobody at the desk.</p>
+
+    <h2>Why an unattended signer is dangerous — and what we did about it</h2>
+
+    <p>Here is the part that made this a major version rather than a flag. A tool that signs data unattended is only safe if it refuses to sign the wrong thing. So the watcher draws one bright line, and it is exactly the line 1.6 was built to find.</p>
+
+    <div class="verdict"><span class="lt g" aria-hidden="true"></span><p><strong>New data, in-band, auto-appends.</strong> A fresh reading, a still-settling recent value moving within its band — that is the feed doing what feeds do. It signs and appends on its own, and the light stays green.</p></div>
+    <div class="verdict"><span class="lt y" aria-hidden="true"></span><p><strong>A change to an already-settled value is never signed unattended.</strong> A number that already settled is frozen. If the feed quietly rewrites it — or drips a slow drift that cumulatively breaks the band — the watcher catches it, refuses to sign it, and parks it as a <em>signed pending event</em>. The light stays green, because nothing unverified reached the chain. It waits for you.</p></div>
+
+    <p>Reviewing is deliberate and leaves a trail. Each held change gets its own signed reason before it commits:</p>
+
+    <pre><code>tamper-signal review                                   # what is waiting
+tamper-signal review accept &lt;hash&gt; --reason "confirmed by the weather desk"</code></pre>
+
+    <p>No batch "accept all," because that would launder a dozen silent edits through one click. One change, one human, one signed reason — and the tool commits exactly the change that was reviewed, not a re-derived one. If newer data landed while it waited, acceptance re-surfaces rather than overwriting what arrived since.</p>
+
+    <h2>A console that shows the custody, not just the verdict</h2>
+
+    <p>All of this needs somewhere to see it, so the browser console now leads with the <strong>chain of custody</strong>: the imports, the changes, every signed reason attached to the receipt it explains, and any changes still awaiting review. It is an additive layer — it never moves the verdict, which still comes only from the chain itself — but it turns "is it fine?" into "here is everything that happened to this number, and who vouched for it."</p>
+
+    <h2>See it catch one</h2>
+
+    <p>The <a href="/demo.html">live demo</a> now runs a real watcher chain: hourly temperatures for New York, pulled from a public weather API, signed, growing on their own. Flip the switch and a settled day's temperature gets quietly changed — and you watch the watcher refuse it, hold it, and surface it under "awaiting review," all while the light stays honestly green. No mockup; it is the same console you would mount over your own chain.</p>
+
+    <h2>The reveal: it is just a cron job</h2>
+
+    <p>The thing watching your data is not a service. There is no server, no account, no dashboard you have to trust. <code>tamper-signal watch</code> is a local process that wakes up on a timer, fetches, judges, and writes signed files to a folder. Put it under a systemd timer or a cron line and that is the entire deployment — a file-writer, not a watchdog-as-a-service. (We hardened the edges you would expect of an unattended fetcher: it only talks to public hosts, refuses redirects into your private network, caps what it will download, rejects hostile XML, and treats the full content — never a "trust me, nothing changed" header — as the truth about whether the data moved.)</p>
+
+    <h2>Still continuity, not correctness</h2>
+
+    <p>A watcher does not know whether the feed is <em>right</em>. It never claimed to. What it knows is narrower and, like the red light that names the broken link, more useful in practice: it knows when a value that had already settled just moved, and it makes sure a person sees that instead of a silent overwrite. The watcher and its review commands are Python-first today; the chains they write are ordinary signed receipts that the JavaScript side reads and verifies unchanged.</p>
+
+    <p>The light is green, the data is clean — and in 2.0 it stays that way on its own, and tells you the exact moment it can't.</p>
+
+    <p style="margin-top:2rem"><a class="go" href="/demo.html">Watch it catch a change →</a></p>
+  </div>
+</article>
+
+<footer>
+  <div class="wrap">
+    <span>MIT licensed</span><span>·</span>
+    <a href="/blog/">blog</a><span>·</span>
+    <a href="/docs/faq.html">FAQ</a><span>·</span>
+    <a href="/privacy.html">privacy</a>
+    <span>·</span>
+    <a href="https://github.com/welovejeff/tamper-evident-verification">github.com/welovejeff/tamper-evident-verification</a>
+  </div>
+</footer>
+
+</body>
+</html>

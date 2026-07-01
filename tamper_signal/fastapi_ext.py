@@ -14,7 +14,13 @@ from __future__ import annotations
 from pathlib import Path
 from types import SimpleNamespace
 
-from .integrations import ASSET_NAMES, asset_text, console_page, signal_snippet
+from .integrations import (
+    ASSET_NAMES,
+    asset_text,
+    console_page,
+    console_snippet,
+    signal_snippet,
+)
 
 
 def attach(
@@ -27,7 +33,9 @@ def attach(
 ) -> SimpleNamespace:
     """Mount the receipts directory and asset routes on a FastAPI app.
 
-    Returns a handle with `chain_url`, `assets_prefix`, and `snippet`.
+    Returns a handle with `chain_url`, `assets_prefix`, `console_url`,
+    `console_snippet` (the v2 chain-of-custody surface — the primary thing to
+    render inline), and `snippet` (the inline header light, still available).
     """
     from fastapi import HTTPException
     from fastapi.responses import Response
@@ -51,5 +59,6 @@ def attach(
         chain_url=chain_url,
         assets_prefix=assets_prefix,
         console_url=f"{assets_prefix}/console",
+        console_snippet=console_snippet(chain_url, assets_prefix=assets_prefix),
         snippet=signal_snippet(chain_url, assets_prefix=assets_prefix, selector=selector),
     )

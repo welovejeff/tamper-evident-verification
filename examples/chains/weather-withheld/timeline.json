@@ -1,0 +1,37 @@
+{
+  "kind": "timeline",
+  "spec_version": "1.2",
+  "created_at": "2026-07-01T02:58:44Z",
+  "chain_tail": "18c77acb7d9407365b046a1e44f857524796b2b65895fef3b16e60a21db2bad8",
+  "public_key": "3074006c97c2ec6dc58f91fb72aa0cb640553480e3f71a8ef32e594bf04f0fa8",
+  "entries": [
+    {
+      "index": 0,
+      "stage": "source",
+      "created_at": "2026-07-01T02:58:44Z",
+      "output_hash": "06baa457f8c8d7618540fea31ef23f4b9d69392c899ec31917b39e5d19b85b7e",
+      "totals": {
+        "row_count": 192,
+        "numeric_sums": {
+          "temperature_2m": "4717.2"
+        },
+        "null_counts": {}
+      },
+      "kind": "import",
+      "origin": "https://api.open-meteo.com/v1/forecast?latitude=40.71&longitude=-74.01&hourly=temperature_2m&past_days=7&forecast_days=1&timezone=UTC"
+    }
+  ],
+  "pending": [
+    {
+      "source_id": "weather:nyc",
+      "created_at": "2026-07-01T02:58:44Z",
+      "caveat_count": 1,
+      "hash": "e7df1d66169bf4d5d3f99de49b2ac6536870a9b95beaaa66b45265aa598b5916"
+    }
+  ],
+  "signature": {
+    "alg": "ed25519",
+    "key_fingerprint": "5d8fb72afe90ec73",
+    "value": "ca842deafbcce47724af8bfd1083256e80d1896dde7dd9488d8a6f5ecae460b6247b01a5e094b74ca93984e7b58a3d81bed70d873bc08bc745f17f996fa27f07"
+  }
+}

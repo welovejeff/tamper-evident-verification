@@ -7,6 +7,9 @@ Commands:
   receipts diff [A] [B] [--chain receipts/] [--json]
   receipts log [--chain receipts/] [--granularity day|week|month|quarter] [--metric <name>] [--json]
   receipts export [receipts/chain.json] --data <current.csv> [--bundle] [--json]
+  receipts annotate [receipts/chain.json] --reason "..." [--author "..."] [--json]
+  receipts timeline [receipts/chain.json] [--out timeline.json] [--json]
+  receipts custody [receipts/chain.json] [--json]
   receipts init
   receipts doctor [--url http://localhost:8787/chain.json]
   receipts serve
@@ -243,6 +246,19 @@ def _print_json(payload: dict) -> None:
     import json as _json
 
     print(_json.dumps(payload, indent=2))
+
+
+def _fail(args: argparse.Namespace, msg: str) -> int:
+    """Emit a command error honoring --json, and return exit code 1.
+
+    The single source of truth for the failure envelope, so every command's
+    `{"ok": false, "error": ...}` shape stays consistent.
+    """
+    if getattr(args, "json", False):
+        _print_json({"ok": False, "error": msg})
+    else:
+        print(msg, file=sys.stderr)
+    return 1
 
 
 def cmd_ingest(args: argparse.Namespace) -> int:
@@ -763,17 +779,20 @@ def _serve_handler_class(directory: str):
     """The request handler `receipts serve` uses, bound to a directory.
 
     CORS is open and caching is off for every response. Anything under
-    history/ or archive/ is 404'd: run snapshots and archived prior chains are
-    CLI-local memory, not published receipts (they leak run cadence, per-day
-    totals, and the reset/migration trail).
+    history/, archive/, or pending/ is 404'd: run snapshots, archived prior
+    chains, and withheld pending events are CLI-local memory, not published
+    receipts (they leak run cadence, per-day totals, the reset/migration trail,
+    and unreviewed candidate data).
     """
     import http.server
 
+    from .annotations import PENDING_DIRNAME
     from .history import HISTORY_DIRNAME
 
     blocked_dirs = [
         (Path(directory) / HISTORY_DIRNAME).resolve(),
         (Path(directory) / ARCHIVE_DIRNAME).resolve(),
+        (Path(directory) / PENDING_DIRNAME).resolve(),
     ]
 
     class Handler(http.server.SimpleHTTPRequestHandler):
@@ -865,6 +884,220 @@ def cmd_assets(args: argparse.Namespace) -> int:
     for name in names:
         print(f"  {name}")
     print(f'Import them at the path you serve them, e.g. "/{out_dir.name}/light.js".')
+    return 0
+
+
+def cmd_annotate(args: argparse.Namespace) -> int:
+    """Attach a signed reason (and optional self-declared author) to a receipt.
+
+    Binds to a receipt by its content hash (the chain tail by default), so the
+    reason cannot be silently retargeted. A correction supersedes a prior
+    annotation by its hash; nothing is overwritten.
+    """
+    from .annotations import annotation_body_hash, build_annotation, write_annotation
+
+    def fail(msg: str) -> int:
+        return _fail(args, msg)
+
+    chain_path = args.chain_arg or args.chain
+    try:
+        chain = read_chain(chain_path)
+    except (OSError, ValueError) as exc:
+        return fail(f"Cannot read chain: {exc}")
+    chain_dir = str(Path(chain_path).parent)
+    receipts = chain.get("receipts", [])
+    if not receipts:
+        return fail("Chain is empty; nothing to annotate.")
+    tail = receipts[-1]
+    target = args.target or chain.get("receipt_hashes", {}).get(tail)
+    if not target:
+        return fail(f"No content hash for tail receipt {tail!r}; re-run the pipeline.")
+    try:
+        key = load_private_key(args.key)
+    except (OSError, ValueError) as exc:
+        return fail(f"Cannot load signing key: {exc}")
+    # An annotation resolves only under the chain's embedded key, so a mismatched
+    # key would write a file that is silently dropped at render time. Refuse
+    # loudly instead of returning a misleading success.
+    signer_hex = public_hex_from_private(key)
+    chain_key = chain.get("public_key")
+    if chain_key and signer_hex != chain_key:
+        return fail(
+            "Signing key does not match the chain's key; the annotation would not verify "
+            f"(chain key {chain_key[:12]}…, your key {signer_hex[:12]}…)."
+        )
+
+    annotation = build_annotation(
+        target=target,
+        reason=args.reason,
+        author=args.author or "",
+        supersedes=args.supersedes,
+        private_key=key,
+    )
+    path = write_annotation(chain_dir, annotation)
+    body_hash = annotation_body_hash(annotation)
+    if args.json:
+        _print_json({
+            "annotation": str(path),
+            "hash": body_hash,
+            "target": target,
+            "author": args.author or "",
+            "supersedes": args.supersedes,
+        })
+        return 0
+    print(f"Signed annotation written: {path}")
+    print(f"  bound to {tail} ({target[:12]}…)")
+    if args.author:
+        print(f"  self-declared author: {args.author} (attribution, not verified identity)")
+    if args.supersedes:
+        print(f"  supersedes {args.supersedes[:12]}…")
+    return 0
+
+
+def cmd_timeline(args: argparse.Namespace) -> int:
+    """Write the narrow, published provenance timeline (timeline.json).
+
+    The console fetches this for the chain-of-custody view; the verdict still
+    comes from chain.json. Signed when a key is available; always bound to the
+    chain tail so a timeline from another chain is rejected.
+    """
+    from .timeline import build_timeline, write_timeline
+
+    def fail(msg: str) -> int:
+        return _fail(args, msg)
+
+    chain_path = args.chain_arg or args.chain
+    try:
+        chain = read_chain(chain_path)
+    except (OSError, ValueError) as exc:
+        return fail(f"Cannot read chain: {exc}")
+    chain_dir = str(Path(chain_path).parent)
+    try:
+        receipts = [read_receipt(chain_dir, name) for name in chain.get("receipts", [])]
+    except ValueError as exc:
+        return fail(f"Cannot load chain: {exc}")
+    if not receipts:
+        return fail("Chain is empty; nothing to build a timeline from.")
+
+    # Sign only with the chain's own key: a signature under any other key would
+    # not verify against the chain and the console would reject the whole
+    # timeline. If the resolved key does not match, write an unsigned timeline
+    # (the console renders its chain-bound structure but withholds annotations).
+    key = _resolve_snapshot_key()
+    if key is not None and public_hex_from_private(key) != (chain.get("public_key") or ""):
+        print(
+            "Signing key does not match the chain's key; writing an unsigned timeline.",
+            file=sys.stderr,
+        )
+        key = None
+    try:
+        document = build_timeline(receipts, chain, chain_dir, key=key)
+    except (TypeError, ValueError) as exc:
+        # A malformed receipt (e.g. a float in control totals) makes the signed
+        # body uncanonicalizable; fail cleanly instead of dumping a traceback.
+        return fail(f"Cannot build timeline: {exc}")
+    path = write_timeline(chain_dir, document, args.out)
+    signed = "signature" in document
+    if args.json:
+        _print_json({
+            "output": str(path),
+            "entries": len(document["entries"]),
+            "signed": signed,
+            "chain_tail": document["chain_tail"],
+        })
+        return 0
+    state = "signed" if signed else "unsigned"
+    print(f"Wrote provenance timeline: {path}")
+    print(f"  {len(document['entries'])} entries, {state}, bound to chain tail {document['chain_tail'][:12]}…")
+    return 0
+
+
+def _verify_chain_dir(chain_dir: str):
+    """Re-verify the chain in `chain_dir` (enforcing receipt byte-hashes when
+    recorded). Returns (ChainResult, chain dict) or None if unreadable."""
+    chain_file = Path(chain_dir) / CHAIN_FILENAME
+    if not chain_file.exists():
+        return None
+    try:
+        chain = read_chain(str(chain_file))
+        receipts = [read_receipt(chain_dir, name) for name in chain.get("receipts", [])]
+    except (OSError, ValueError):
+        return None
+    recorded = chain.get("receipt_hashes")
+    recorded = recorded if isinstance(recorded, dict) else None
+    actual = receipt_file_hashes(chain_dir, chain.get("receipts", [])) if recorded else None
+    result = verify_chain(
+        receipts,
+        chain.get("public_key") or "",
+        chain_public_hex=chain.get("public_key"),
+        receipt_names=chain.get("receipts", []),
+        recorded_hashes=recorded,
+        actual_hashes=actual,
+    )
+    return result, chain
+
+
+def cmd_custody(args: argparse.Namespace) -> int:
+    """The CLI-local rich custody view: run cadence and every archived prior
+    chain, each re-verified (R10).
+
+    Reads `history/` and `archive/` directly and never publishes them: this is
+    the CLI-local counterpart to the narrow published timeline (KTD2).
+    """
+    from .history import load_snapshots
+
+    def fail(msg: str) -> int:
+        return _fail(args, msg)
+
+    chain_path = args.chain_arg or args.chain
+    try:
+        chain = read_chain(chain_path)
+    except (OSError, ValueError) as exc:
+        return fail(f"Cannot read chain: {exc}")
+    chain_dir = str(Path(chain_path).parent)
+
+    current = _verify_chain_dir(chain_dir)
+    current_verdict = current[0].verdict if current else "unknown"
+
+    snapshots = load_snapshots(chain_dir, trusted_keys=[chain.get("public_key") or ""])
+    runs = sorted(s["created_at"] for s in snapshots if s.get("created_at"))
+
+    priors = []
+    archive = Path(chain_dir) / ARCHIVE_DIRNAME
+    if archive.is_dir():
+        for entry in sorted(p for p in archive.iterdir() if p.is_dir()):
+            verified = _verify_chain_dir(str(entry))
+            if verified is None:
+                continue
+            result, prior_chain = verified
+            priors.append({
+                "tail": entry.name,
+                "verdict": result.verdict,
+                "receipts": len(prior_chain.get("receipts", [])),
+            })
+
+    if args.json:
+        _print_json({
+            "current": current_verdict,
+            "runs": len(snapshots),
+            "first_run": runs[0] if runs else None,
+            "last_run": runs[-1] if runs else None,
+            "priors": priors,
+        })
+        return 0
+
+    print("Chain of custody (CLI-local; not published)")
+    print(f"  current chain: {current_verdict}")
+    if runs:
+        print(f"  run history: {len(snapshots)} runs, {runs[0]} → {runs[-1]}")
+    else:
+        print("  run history: none recorded yet")
+    if priors:
+        print(f"  archived prior chains ({len(priors)}), re-verified:")
+        for prior in priors:
+            print(f"    {prior['tail'][:12]}… · {prior['verdict']} · {prior['receipts']} receipts")
+    else:
+        print("  archived prior chains: none")
     return 0
 
 
@@ -1655,15 +1888,351 @@ def _check_anchor(
     return 1
 
 
+def _load_watch_source(args: argparse.Namespace) -> dict[str, Any]:
+    """Merge a watch source config (a JSON file via --config) with inline flag
+    overrides into one spec, validating the required fields. Raises ValueError
+    on a missing url / format / source-id or an unreadable config."""
+    import json
+
+    spec: dict[str, Any] = {}
+    if getattr(args, "config", None):
+        try:
+            spec = json.loads(Path(args.config).read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            raise ValueError(f"could not read --config {args.config!r}: {exc}") from exc
+        if not isinstance(spec, dict):
+            raise ValueError("watch --config must be a JSON object")
+    for key, flag in (("url", "url"), ("format", "format"), ("source_id", "source_id")):
+        inline = getattr(args, flag, None)
+        if inline is not None:
+            spec[key] = inline
+    missing = [k for k in ("url", "format", "source_id") if not spec.get(k)]
+    if missing:
+        raise ValueError(
+            f"watch source is missing required field(s): {', '.join(missing)} "
+            "(set them in --config or via --url/--format/--source-id)"
+        )
+    if spec["format"] not in ("json", "rss"):
+        raise ValueError(f"watch format must be 'json' or 'rss', got {spec['format']!r}")
+    cap = spec.get("per_tick_cap")
+    if cap is not None:
+        # JSON authors naturally write 5, "5", or 5.0; coerce to a positive int
+        # here so an untyped value cannot TypeError mid-tick inside the daemon's
+        # broad except and loop opaquely forever. Reject 0: it would silently
+        # rate-cap EVERY append (nothing ever commits); omit the key for no cap.
+        if isinstance(cap, bool):
+            raise ValueError("per_tick_cap must be an integer, not a boolean")
+        try:
+            cap_int = int(cap)
+        except (TypeError, ValueError):
+            raise ValueError(f"per_tick_cap must be an integer, got {cap!r}") from None
+        if cap_int < 1:
+            raise ValueError(
+                f"per_tick_cap must be >= 1 (got {cap_int}); omit it entirely for no cap"
+            )
+        spec["per_tick_cap"] = cap_int
+
+    columnar = spec.get("columnar")
+    if columnar is not None:
+        # Validate here so a malformed columnar spec fails at config load with a
+        # clean error, not as an AttributeError/TypeError deep inside a tick.
+        if not isinstance(columnar, dict):
+            raise ValueError("columnar must be an object with 'path' and 'columns'")
+        cols = columnar.get("columns")
+        if not isinstance(cols, list) or not cols or not all(isinstance(c, str) for c in cols):
+            raise ValueError("columnar.columns must be a non-empty list of column-name strings")
+        path = columnar.get("path")
+        if path is not None and not isinstance(path, str):
+            raise ValueError("columnar.path must be a string (e.g. 'hourly' or 'a.b')")
+    return spec
+
+
+def _watch_once(spec: dict[str, Any], args: argparse.Namespace) -> dict[str, Any]:
+    """Fetch + map the configured source and run one judge-then-commit tick.
+
+    Returns the decision dict. Raises SourceError (fetch/parse), UntrustedSignerError
+    (key trust), or WatchIdentityError (KTD11) — the caller decides whether a
+    failure aborts (single tick) or is logged and skipped (daemon loop)."""
+    from . import sources
+    from .watcher import run_tick
+
+    field_map = spec.get("field_map")
+    result = sources.fetch(spec["url"])
+    if spec["format"] == "json":
+        records = sources.json_records(result.body, field_map, columnar=spec.get("columnar"))
+    else:
+        records = sources.rss_records(result.body, field_map)
+    return run_tick(
+        records,
+        source_id=spec["source_id"],
+        origin=spec.get("origin") or spec["url"],
+        chain_dir=args.out,
+        key_path=args.key,
+        trusted_pub_hexes=tuple(args.pub or ()),
+        band=spec.get("band"),
+        settle=spec.get("settle"),
+        bucket_column=spec.get("bucket_column"),
+        per_tick_cap=spec.get("per_tick_cap"),
+    )
+
+
+def _print_watch_decision(decision: dict[str, Any], spec: dict[str, Any]) -> None:
+    action = decision["action"]
+    if action == "appended":
+        print(f"appended {spec['source_id']} -> {color.dim(decision['source_hash'])}")
+    elif action == "unchanged":
+        print(f"unchanged: {spec['source_id']} matches the committed source")
+    elif action == "withheld":
+        print(f"withheld {spec['source_id']}: {', '.join(decision['caveats']) or 'caveat'} "
+              "(needs human review)")
+    elif action == "rate_capped":
+        print(f"rate-capped {spec['source_id']}: {decision['new_periods']} new periods "
+              f"exceeds the per-tick cap of {decision['cap']}; nothing appended")
+
+
+def _watch_daemon(
+    tick_fn: Callable[[], Any], interval: float, *, sleep=None, max_consecutive_failures: int = 10
+) -> bool:
+    """Loop a watch tick on an interval until interrupted (plan U6). Returns True
+    if it stopped because of the consecutive-failure ceiling, else False.
+
+    A thin local file-writer, NOT a server: it polls, writes receipts, and
+    sleeps. A *transient* failing tick is logged and the loop continues, but a
+    PERSISTENT error (a rotated/untrusted key, a full disk, a feed that is
+    permanently stale) would otherwise spin forever — especially at a small
+    interval — so the loop gives up after `max_consecutive_failures` in a row
+    and exits non-zero for a supervisor to restart/alert on. A success resets
+    the counter. Ctrl-C (or SIGINT) stops cleanly, mirroring `receipts serve`.
+    `sleep` is injectable for tests."""
+    import time
+
+    sleeper = sleep or time.sleep
+    print(f"watcher running every {interval:g}s; Ctrl-C to stop", file=sys.stderr)
+    failures = 0
+    try:
+        while True:
+            try:
+                tick_fn()
+                failures = 0
+            except Exception as exc:  # a transient bad tick is logged, not fatal
+                failures += 1
+                print(f"watch tick failed ({failures}/{max_consecutive_failures}): {exc}", file=sys.stderr)
+                if failures >= max_consecutive_failures:
+                    print(
+                        f"watcher stopping after {failures} consecutive failures "
+                        "(persistent error — check the key, disk, and feed)",
+                        file=sys.stderr,
+                    )
+                    return True
+            sleeper(interval)
+    except KeyboardInterrupt:
+        print("watcher stopped", file=sys.stderr)
+    return False
+
+
+def _assert_watch_key_private(key_path: str) -> str | None:
+    """Return an error if the watcher key file is group/world-accessible (KTD8):
+    an unattended signing key must be 0600. No-op when signing from
+    TAMPER_SIGNAL_KEY (no file on disk) or where POSIX modes are not meaningful."""
+    if os.environ.get("TAMPER_SIGNAL_KEY") or os.name != "posix":
+        return None
+    try:
+        mode = os.stat(key_path).st_mode
+    except OSError:
+        return None  # a missing key surfaces later as a clean load error
+    if mode & 0o077:
+        return (
+            f"watch key {key_path!r} is group/world-accessible (mode {mode & 0o777:o}); "
+            f"an unattended signing key must be 0600 — run: chmod 600 {key_path}"
+        )
+    return None
+
+
+def cmd_watch(args: argparse.Namespace) -> int:
+    """Fetch the configured live source, judge a candidate, and auto-append it
+    only if the judgment is clean (plan U3). With --daemon, loop on --interval
+    (plan U6); the default is a single stateless tick (the recommended
+    deployment, under a systemd timer / cron, keeps no key resident between)."""
+    from .watcher import WatchIdentityError, run_tick  # noqa: F401  (re-exported for tests)
+    from .wrapper import StaleCandidateError, UntrustedSignerError
+
+    try:
+        spec = _load_watch_source(args)
+    except ValueError as exc:
+        return _fail(args, str(exc))
+
+    key_error = _assert_watch_key_private(args.key)
+    if key_error:
+        return _fail(args, key_error)
+
+    # The connector's network/parsing deps ride the optional [watch] extra.
+    try:
+        from . import sources
+    except ImportError:  # pragma: no cover - defensive
+        return _fail(args, 'the watcher needs: pip install "tamper-signal[watch]"')
+
+    if getattr(args, "daemon", False):
+        def one() -> None:
+            decision = _watch_once(spec, args)
+            if args.json:
+                _print_json({"ok": True, **decision})
+            else:
+                _print_watch_decision(decision, spec)
+        hit_ceiling = _watch_daemon(one, float(args.interval))
+        return 1 if hit_ceiling else 0
+
+    try:
+        decision = _watch_once(spec, args)
+    except sources.SourceError as exc:
+        return _fail(args, f"source fetch/parse failed: {exc}")
+    except (UntrustedSignerError, WatchIdentityError, StaleCandidateError) as exc:
+        return _fail(args, str(exc))
+
+    if args.json:
+        _print_json({"ok": True, **decision})
+        return 0
+    _print_watch_decision(decision, spec)
+    return 0
+
+
+def cmd_review(args: argparse.Namespace) -> int:
+    """List, accept, or reject withheld pending watch changes (plan U5).
+
+    Accepting signs a human reason bound to the committed receipt (with an
+    `accepts` link to the exact reviewed event) and commits the candidate stored
+    in the pending event — never a re-derived one. If the chain advanced since
+    the change was withheld, acceptance re-surfaces for review instead of
+    overwriting newer data (the commit tail-assert). Rejecting discards the
+    event without touching the chain.
+    """
+    from .annotations import (
+        build_annotation,
+        pending_event_body_hash,
+        read_pending_events,
+        remove_pending_event,
+        write_annotation,
+    )
+    from .receipts import verify_signature
+    from .wrapper import StaleCandidateError, commit_period
+
+    try:
+        chain = read_chain(args.chain)
+    except (OSError, ValueError) as exc:
+        return _fail(args, f"Cannot read chain: {exc}")
+    chain_dir = str(Path(args.chain).parent)
+    chain_key = chain.get("public_key")
+    by_hash = {pending_event_body_hash(e): e for e in read_pending_events(chain_dir)}
+
+    action = args.action or "list"
+    if action == "list":
+        items = [
+            {
+                "hash": h,
+                "source_id": e.get("source_id", ""),
+                "created_at": e.get("created_at", ""),
+                "caveats": e.get("caveats", []),
+            }
+            for h, e in by_hash.items()
+        ]
+        if args.json:
+            _print_json({"ok": True, "pending": items})
+            return 0
+        if not items:
+            print("No pending changes awaiting review.")
+            return 0
+        for item in items:
+            print(f"{item['hash'][:12]}…  {item['source_id']}  {item['created_at']}")
+            for caveat in item["caveats"]:
+                print(f"    - {caveat}")
+        return 0
+
+    if not args.hash:
+        return _fail(args, f"{action} needs a pending event hash (see: receipts review list)")
+    matches = [h for h in by_hash if h.startswith(args.hash)]
+    if len(matches) != 1:
+        return _fail(args, f"hash {args.hash!r} matched {len(matches)} pending events; be more specific")
+    pending_hash = matches[0]
+    event = by_hash[pending_hash]
+
+    if action == "reject":
+        remove_pending_event(chain_dir, pending_hash)
+        if args.json:
+            _print_json({"ok": True, "action": "rejected", "hash": pending_hash})
+        else:
+            print(f"Rejected pending change {pending_hash[:12]}… (chain untouched)")
+        return 0
+
+    # accept
+    if not args.reason:
+        return _fail(args, "accept needs --reason (each acceptance signs its own human reason)")
+    # Fail CLOSED, never open: with no chain key the event cannot be verified, so
+    # refuse rather than committing an unverifiable (possibly forged on-disk)
+    # pending candidate into the chain.
+    if not chain_key:
+        return _fail(args, "chain has no public key; cannot verify the pending event — refusing to accept")
+    if not verify_signature(event, chain_key):
+        return _fail(args, "pending event does not verify under the chain key; refusing to accept")
+    try:
+        key = load_private_key(args.key)
+    except (OSError, ValueError) as exc:
+        return _fail(args, f"Cannot load signing key: {exc}")
+    if chain_key and public_hex_from_private(key) != chain_key:
+        return _fail(args, "signing key does not match the chain key; the acceptance would not verify")
+
+    cand = event["candidate"]
+    candidate = {
+        "manifest": cand["manifest"],
+        "records": cand["records"],
+        "public_hex": cand["public_hex"],
+        "base_tail": event.get("base_tail"),
+        "chain_dir": chain_dir,
+        "key_path": args.key,
+        "trusted_keys": cand.get("trusted_keys", []),
+        "compared": True,
+    }
+    judgment = {
+        "breached": event.get("breached") or None,
+        "caveats": event.get("caveats", []),
+        "details": event.get("details", []),
+    }
+    try:
+        commit_period(candidate, judgment, chain_dir=chain_dir, key_path=args.key)
+    except StaleCandidateError:
+        return _fail(
+            args,
+            "the chain advanced since this change was withheld; re-review the pending event "
+            "before accepting (it may now conflict with newer data). Nothing was committed.",
+        )
+
+    chain = read_chain(args.chain)
+    tail_name = chain["receipts"][-1]
+    new_tail = chain.get("receipt_hashes", {}).get(tail_name, "")
+    annotation = build_annotation(
+        target=new_tail, reason=args.reason, author=args.author or "",
+        accepts=pending_hash, private_key=key,
+    )
+    write_annotation(chain_dir, annotation)
+    remove_pending_event(chain_dir, pending_hash)
+    if args.json:
+        _print_json({
+            "ok": True, "action": "accepted", "hash": pending_hash,
+            "target": new_tail, "reason": args.reason,
+        })
+        return 0
+    print(f"Accepted pending change {pending_hash[:12]}… and committed it.")
+    print(f"  signed reason bound to {new_tail[:12]}… (accepts {pending_hash[:12]}…)")
+    return 0
+
+
 def cmd_demo(args: argparse.Namespace) -> int:
     from .demo import run_demo
 
     return run_demo(serve=not args.no_serve, port=args.port)
 
 
-def build_parser() -> argparse.ArgumentParser:
+def build_parser(prog: str = "tamper-signal") -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="receipts",
+        prog=prog,
         description="Tamper Signal: signed receipts for analytics pipelines.",
     )
     sub = parser.add_subparsers(dest="command", required=True)
@@ -1899,6 +2468,94 @@ def build_parser() -> argparse.ArgumentParser:
     p_assets.add_argument("--json", action="store_true", help="Emit a JSON summary")
     p_assets.set_defaults(func=cmd_assets)
 
+    p_annotate = sub.add_parser(
+        "annotate",
+        help="Attach a signed reason/author to a receipt (the chain tail by default)",
+    )
+    p_annotate.add_argument(
+        "chain_arg", nargs="?", metavar="chain", help="Path to chain.json (positional; same as --chain)"
+    )
+    p_annotate.add_argument("--chain", default="receipts/chain.json", help="Path to chain.json")
+    p_annotate.add_argument("--reason", required=True, help="Why/what changed (signed into the chain)")
+    p_annotate.add_argument(
+        "--author",
+        default=None,
+        help="Self-declared author (signed attribution, not verified identity)",
+    )
+    p_annotate.add_argument(
+        "--supersedes", default=None, help="Content hash of a prior annotation this corrects"
+    )
+    p_annotate.add_argument(
+        "--target", default=None, help="Receipt content hash to bind to (default: the chain tail)"
+    )
+    p_annotate.add_argument(
+        "--key", default="keys/signing.key", help="Private signing key (TAMPER_SIGNAL_KEY env wins)"
+    )
+    p_annotate.add_argument("--json", action="store_true", help="Emit a JSON summary")
+    p_annotate.set_defaults(func=cmd_annotate)
+
+    p_timeline = sub.add_parser(
+        "timeline",
+        help="Write the narrow published provenance timeline (timeline.json) for the console",
+    )
+    p_timeline.add_argument(
+        "chain_arg", nargs="?", metavar="chain", help="Path to chain.json (positional; same as --chain)"
+    )
+    p_timeline.add_argument("--chain", default="receipts/chain.json", help="Path to chain.json")
+    p_timeline.add_argument(
+        "--out", default=None, help="Output path (default: timeline.json next to the chain)"
+    )
+    p_timeline.add_argument("--json", action="store_true", help="Emit a JSON summary")
+    p_timeline.set_defaults(func=cmd_timeline)
+
+    p_custody = sub.add_parser(
+        "custody",
+        help="Show the CLI-local custody view: run cadence and archived prior chains, each re-verified",
+    )
+    p_custody.add_argument(
+        "chain_arg", nargs="?", metavar="chain", help="Path to chain.json (positional; same as --chain)"
+    )
+    p_custody.add_argument("--chain", default="receipts/chain.json", help="Path to chain.json")
+    p_custody.add_argument("--json", action="store_true", help="Emit a JSON summary")
+    p_custody.set_defaults(func=cmd_custody)
+
+    p_watch = sub.add_parser(
+        "watch",
+        help="One tick: fetch a live source and auto-append clean data, else withhold "
+        "(needs tamper-signal[watch])",
+    )
+    p_watch.add_argument("--config", help="JSON file describing the source (url, format, source_id, ...)")
+    p_watch.add_argument("--url", help="Source URL (overrides --config)")
+    p_watch.add_argument("--format", choices=["json", "rss"], help="Source format (overrides --config)")
+    p_watch.add_argument("--source-id", dest="source_id", help="Stable identity for this source (overrides --config)")
+    p_watch.add_argument("--out", default="receipts/", help="Chain directory to continue")
+    p_watch.add_argument("--key", default="keys/signing.key", help="Signing key (the chain's trusted signer)")
+    p_watch.add_argument(
+        "--pub", action="append", help="Additional trusted public key hex (repeat); the watcher key must be trusted"
+    )
+    p_watch.add_argument(
+        "--daemon", action="store_true",
+        help="Poll continuously on --interval instead of a single tick (a local file-writer, not a server)",
+    )
+    p_watch.add_argument(
+        "--interval", type=float, default=300.0, help="Seconds between ticks in --daemon mode (default 300)"
+    )
+    p_watch.add_argument("--json", action="store_true", help="Emit a JSON summary")
+    p_watch.set_defaults(func=cmd_watch)
+
+    p_review = sub.add_parser(
+        "review",
+        help="List/accept/reject withheld watch changes awaiting human sign-off",
+    )
+    p_review.add_argument("action", nargs="?", choices=["list", "accept", "reject"], default="list")
+    p_review.add_argument("hash", nargs="?", help="Pending event hash (prefix ok) for accept/reject")
+    p_review.add_argument("--chain", default="receipts/chain.json", help="Path to chain.json")
+    p_review.add_argument("--reason", help="Human reason (required to accept)")
+    p_review.add_argument("--author", help="Self-declared author (attribution, not verified identity)")
+    p_review.add_argument("--key", default="keys/signing.key", help="The chain's signing key")
+    p_review.add_argument("--json", action="store_true", help="Emit a JSON summary")
+    p_review.set_defaults(func=cmd_review)
+
     p_demo = sub.add_parser("demo", help="Run the full end-to-end demo")
     p_demo.add_argument("--no-serve", action="store_true", help="Skip serving the badge")
     p_demo.add_argument("--port", type=int, default=8000, help="Badge server port")
@@ -1917,7 +2574,20 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = build_parser()
+    # The command is `tamper-signal` on both stacks as of 2.0; `receipts` is a
+    # deprecated Python-only alias kept working until 3.0. Show help/usage under
+    # whichever name was invoked, and nudge `receipts` users toward the new name.
+    invoked = os.path.basename(sys.argv[0]) if sys.argv and sys.argv[0] else "tamper-signal"
+    if invoked == "receipts":
+        print(
+            "note: the 'receipts' command is deprecated and will be removed in 3.0 — "
+            "use 'tamper-signal' instead (identical arguments).",
+            file=sys.stderr,
+        )
+        prog = "receipts"
+    else:
+        prog = "tamper-signal"
+    parser = build_parser(prog)
     args = parser.parse_args(argv)
     # --no-color always wins over the environment and isatty; record it before
     # any command renders.

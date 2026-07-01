@@ -71,6 +71,7 @@ test("tamperSignal wires an app and returns the snippet", () => {
   assert.deepEqual(uses.map(([p]) => p), ["/receipts", "/tamper-signal", "/tamper-signal"]);
   assert.equal(handle.chainUrl, "/receipts/chain.json");
   assert.match(handle.snippet, /mountTamperSignal/);
+  assert.match(handle.consoleSnippet, /mountReceiptConsole/); // v2 primary surface
   assert.match(signalSnippet(), /light\.js/);
 });
 

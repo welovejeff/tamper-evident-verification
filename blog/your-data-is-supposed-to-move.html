@@ -92,7 +92,7 @@
 
     <p>The sense of normal is a tolerance band you declare once, at ingest, and sign into the chain:</p>
 
-    <pre><code>receipts ingest export.csv --origin "TikTok, May 2026" --band 5% --settle 72h</code></pre>
+    <pre><code>tamper-signal ingest export.csv --origin "TikTok, May 2026" --band 5% --settle 72h</code></pre>
 
     <p>You are telling the tool the truth about your data: expect movement up to five percent day over day, and expect it to keep settling for about seventy-two hours. Because the declaration is signed into the manifest, nobody can quietly widen the band later to hide a problem. Loosening the rules breaks the signature.</p>
 
@@ -107,8 +107,8 @@
 
     <p>The second half is history. Every time you verify, Tamper Signal now quietly archives a small signed snapshot of that run. Over weeks and quarters those snapshots become a record you can interrogate.</p>
 
-    <pre><code>receipts diff      # what moved since the last run, and at which stage
-receipts log       # the trend, day over day, week over week</code></pre>
+    <pre><code>tamper-signal diff      # what moved since the last run, and at which stage
+tamper-signal log       # the trend, day over day, week over week</code></pre>
 
     <p>When this week's number looks off, you no longer have to guess whether the data moved or the AI rewrote your transform. <code>diff</code> tells you exactly which stage's code changed and exactly how the totals shifted. <code>log</code> shows you the settling curve flattening over two or three days, the way it always does, which is what makes the one day it does not jump out.</p>
 

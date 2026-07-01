@@ -75,6 +75,13 @@ SLOTS = {
                   "is falling away unnoticed, while a small emerald-green "
                   "wax-sealed receipt tag hangs from the pipe as the only "
                   "glowing element, as if quietly auditing the flow.",
+    "watcher": "A single matte charcoal 3D continuous line graph flowing left to "
+               "right across the center like a live data feed; the recent right "
+               "end still rising freely, while one point on the older settled "
+               "left portion has lifted out of line and is held in place, pinned "
+               "by a glowing emerald-green wax seal as if a quiet watcher caught "
+               "it and paused it for review; generous negative space, the seal "
+               "the only saturated glowing element.",
 }
 
 SIZE = {"width": 1280, "height": 800}  # 16:10, matches the card thumb aspect

@@ -1,0 +1,90 @@
+{
+  "kind": "source_manifest",
+  "spec_version": "1.2",
+  "created_at": "2026-07-01T02:58:44Z",
+  "source": {
+    "filename": "seed.csv",
+    "evidence_hash": "7f012cf956f7ab80fe69fd2fc9d43406381edff5e41f40d190589d3a7ed944e4",
+    "byte_size": 4244,
+    "declared_origin": "https://api.open-meteo.com/v1/forecast?latitude=40.71&longitude=-74.01&hourly=temperature_2m&past_days=7&forecast_days=1&timezone=UTC"
+  },
+  "semantic_hash": "06baa457f8c8d7618540fea31ef23f4b9d69392c899ec31917b39e5d19b85b7e",
+  "control_totals": {
+    "row_count": 192,
+    "column_count": 2,
+    "numeric_sums": {
+      "temperature_2m": "4717.2"
+    },
+    "date_ranges": {},
+    "null_counts": {},
+    "bucket_column": "time",
+    "period_buckets": {
+      "2026-06-24": {
+        "row_count": 24,
+        "numeric_sums": {
+          "temperature_2m": "531.7"
+        },
+        "null_counts": {}
+      },
+      "2026-06-25": {
+        "row_count": 24,
+        "numeric_sums": {
+          "temperature_2m": "567.6"
+        },
+        "null_counts": {}
+      },
+      "2026-06-26": {
+        "row_count": 24,
+        "numeric_sums": {
+          "temperature_2m": "562.1"
+        },
+        "null_counts": {}
+      },
+      "2026-06-27": {
+        "row_count": 24,
+        "numeric_sums": {
+          "temperature_2m": "564.2"
+        },
+        "null_counts": {}
+      },
+      "2026-06-28": {
+        "row_count": 24,
+        "numeric_sums": {
+          "temperature_2m": "560.5"
+        },
+        "null_counts": {}
+      },
+      "2026-06-29": {
+        "row_count": 24,
+        "numeric_sums": {
+          "temperature_2m": "593.8"
+        },
+        "null_counts": {}
+      },
+      "2026-06-30": {
+        "row_count": 24,
+        "numeric_sums": {
+          "temperature_2m": "648.2"
+        },
+        "null_counts": {}
+      },
+      "2026-07-01": {
+        "row_count": 24,
+        "numeric_sums": {
+          "temperature_2m": "689.1"
+        },
+        "null_counts": {}
+      }
+    }
+  },
+  "tolerance": {
+    "band": "0.03",
+    "settle_hours": 48,
+    "bucket_column": "time"
+  },
+  "signature": {
+    "alg": "ed25519",
+    "key_fingerprint": "185e251b2d6114e1",
+    "value": "be0602c7f613466dcf003e2a921a6069c559d3a179258b7dab48557598cfb9e78d67954026605d2b8d4105b63ec84cda7c68b4a8dd9a08ac58930a676a90790e"
+  }
+}

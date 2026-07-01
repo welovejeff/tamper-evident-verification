@@ -1,6 +1,6 @@
 {
   "name": "tamper-signal",
-  "version": "1.7.2",
+  "version": "2.0.0",
   "description": "Signed receipts for vibe-coded data pipelines. Proves nobody changed your data, and shows the exact link if they did.",
   "type": "module",
   "license": "MIT",
@@ -64,7 +64,7 @@
     "AGENTS.md"
   ],
   "scripts": {
-    "test": "node --test node/test/badge.test.js node/test/canonical.test.js node/test/chain.test.js node/test/interop.test.js node/test/express.test.js node/test/totals.test.js node/test/pipeline.test.js node/test/history.test.js node/test/diff.test.js node/test/log.test.js node/test/judgment.test.js node/test/theme.test.js node/test/zip.test.js node/test/append_period.test.js node/test/color.test.js node/test/json_surface.test.js node/test/cli_color.test.js"
+    "test": "node --test node/test/badge.test.js node/test/canonical.test.js node/test/chain.test.js node/test/interop.test.js node/test/express.test.js node/test/totals.test.js node/test/pipeline.test.js node/test/history.test.js node/test/diff.test.js node/test/log.test.js node/test/judgment.test.js node/test/theme.test.js node/test/zip.test.js node/test/append_period.test.js node/test/color.test.js node/test/json_surface.test.js node/test/cli_color.test.js node/test/annotations.test.js node/test/timeline.test.js"
   },
   "engines": {
     "node": ">=18.17"

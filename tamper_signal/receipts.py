@@ -14,6 +14,7 @@ import datetime as dt
 import hashlib
 import inspect
 import json
+import os
 from pathlib import Path
 from typing import Any, Callable
 
@@ -200,10 +201,44 @@ def _receipt_body(receipt: dict[str, Any]) -> dict[str, Any]:
 
 
 def write_receipt(chain_dir: str, filename: str, receipt: dict[str, Any]) -> Path:
-    """Write a receipt JSON file (pretty-printed for human inspection)."""
+    """Write a receipt JSON file (pretty-printed for human inspection).
+
+    Atomic overwrite: a crash mid-write can never leave a half-written,
+    unparseable receipt — verify sees either the whole prior file or the whole
+    new one. Matters on the unattended watcher path (`commit_period`)."""
     path = Path(chain_dir) / filename
+    return write_text_atomic(path, json.dumps(receipt, indent=2) + "\n", overwrite=True)
+
+
+def write_text_atomic(path: Path, text: str, *, overwrite: bool = False) -> Path:
+    """Write `text` to `path` via a temp file + atomic rename.
+
+    `overwrite=False` (default) is for content-addressed immutables (run
+    snapshots, annotations, pending events): an existing file is left untouched
+    (its name already promises these exact bytes), the temp name carries the pid
+    so concurrent writers of the same content do not collide on staging, and a
+    FileExistsError on rename means another writer landed the identical bytes
+    first (harmless).
+
+    `overwrite=True` is for in-place mutable files (receipts, chain.json): the
+    file is always atomically replaced, so a crash mid-write never leaves a
+    half-written, unparseable file (torn-within-a-file corruption).
+    """
+    import os
+
+    if not overwrite and path.exists():
+        return path
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(receipt, indent=2) + "\n", encoding="utf-8")
+    tmp = path.parent / f".{path.name}.{os.getpid()}.tmp"
+    # newline="\n": receipts and chain.json are LF by spec (the byte-hash is
+    # line-ending sensitive, and the cross-stack golden vectors are LF). Without
+    # this, Path.write_text translates \n -> \r\n on Windows, so a hash computed
+    # over the \n text would not match the file bytes on disk.
+    tmp.write_text(text, encoding="utf-8", newline="\n")
+    try:
+        os.replace(tmp, path)
+    except FileExistsError:
+        tmp.unlink(missing_ok=True)
     return path
 
 
@@ -250,9 +285,88 @@ def write_chain(chain_dir: str, receipt_files: list[str], public_hex: str) -> Pa
         "receipt_hashes": receipt_file_hashes(chain_dir, receipt_files),
     }
     path = Path(chain_dir) / CHAIN_FILENAME
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(chain, indent=2) + "\n", encoding="utf-8")
-    return path
+    # Atomic overwrite: a torn write must never leave an unparseable chain.json
+    # (which would brick `verify` entirely) on the unattended watcher path.
+    return write_text_atomic(path, json.dumps(chain, indent=2) + "\n", overwrite=True)
+
+
+# --- Crash-safe source-reset commit (the unattended watcher path) -------------
+#
+# `commit_period` resets the chain to a single source manifest, rewriting BOTH
+# 000_source.json and chain.json. Each write is atomic on its own (above), but
+# two mutable files cannot be renamed atomically *together*: a crash between them
+# leaves a new receipt against an old chain (a hash mismatch = a self-inflicted
+# false-RED that a stable feed would never heal on its own). A tiny journal makes
+# the pair crash-safe: a marker records an in-flight commit, and
+# `recover_torn_commit` rolls it forward (both files to their new content) after
+# a crash. Written before every judge/commit so the watcher self-heals on its
+# next tick.
+_COMMIT_MARKER = ".commit.pending"
+
+
+def _commit_tmp_paths(base: Path) -> tuple[Path, Path]:
+    return (
+        base / f".{SOURCE_RECEIPT_NAME}.commit.tmp",
+        base / f".{CHAIN_FILENAME}.commit.tmp",
+    )
+
+
+def recover_torn_commit(chain_dir: str) -> bool:
+    """Roll a crash-interrupted source-reset commit forward. Idempotent; a no-op
+    when no commit was in flight. Returns True if a torn commit was recovered.
+
+    The marker is written only AFTER both staged temp files are complete, so its
+    presence means the new content is fully staged: re-applying the (idempotent)
+    renames always lands the fully-new, consistent pair."""
+    base = Path(chain_dir)
+    marker = base / _COMMIT_MARKER
+    if not marker.is_file():
+        return False
+    receipt_tmp, chain_tmp = _commit_tmp_paths(base)
+    # Tolerate a concurrent recoverer/committer winning the rename between the
+    # is_file() check and os.replace: a FileNotFoundError just means the staged
+    # file was already promoted, so recovery is still complete either way.
+    for tmp, final in ((receipt_tmp, SOURCE_RECEIPT_NAME), (chain_tmp, CHAIN_FILENAME)):
+        try:
+            os.replace(tmp, base / final)
+        except FileNotFoundError:
+            pass
+    marker.unlink(missing_ok=True)
+    return True
+
+
+def commit_source_reset(chain_dir: str, manifest: dict[str, Any], public_hex: str) -> None:
+    """Reset the chain to a single source manifest as one crash-safe transaction.
+
+    Writes both 000_source.json and chain.json (chain hashes computed from the
+    exact staged receipt bytes) via the journal above, so a crash at any point
+    leaves the chain either fully-old or fully-new — never a mismatched pair.
+    Byte-for-byte identical output to the prior write_receipt+write_chain pair."""
+    base = Path(chain_dir)
+    base.mkdir(parents=True, exist_ok=True)
+    recover_torn_commit(chain_dir)  # finish any prior torn commit first
+
+    receipt_text = json.dumps(manifest, indent=2) + "\n"
+    receipt_hash = hashlib.sha256(receipt_text.encode("utf-8")).hexdigest()
+    chain = {
+        "spec_version": SPEC_VERSION,
+        "public_key": public_hex,
+        "receipts": [SOURCE_RECEIPT_NAME],
+        "receipt_hashes": {SOURCE_RECEIPT_NAME: receipt_hash},
+    }
+    chain_text = json.dumps(chain, indent=2) + "\n"
+
+    receipt_tmp, chain_tmp = _commit_tmp_paths(base)
+    # newline="\n": the receipt hash was computed over the \n text above, so the
+    # bytes on disk must stay LF (no Windows \r\n translation) or verify goes red.
+    receipt_tmp.write_text(receipt_text, encoding="utf-8", newline="\n")
+    chain_tmp.write_text(chain_text, encoding="utf-8", newline="\n")
+    # The marker goes down only once BOTH temps are fully staged — so recovery
+    # can trust that a present marker means the new content is complete.
+    (base / _COMMIT_MARKER).write_text("{}\n", encoding="utf-8", newline="\n")
+    os.replace(receipt_tmp, base / SOURCE_RECEIPT_NAME)
+    os.replace(chain_tmp, base / CHAIN_FILENAME)
+    (base / _COMMIT_MARKER).unlink(missing_ok=True)
 
 
 def next_receipt_filename(chain_dir: str, transform_name: str) -> str:

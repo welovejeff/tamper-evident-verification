@@ -1,0 +1,10 @@
+{
+  "spec_version": "1.2",
+  "public_key": "3074006c97c2ec6dc58f91fb72aa0cb640553480e3f71a8ef32e594bf04f0fa8",
+  "receipts": [
+    "000_source.json"
+  ],
+  "receipt_hashes": {
+    "000_source.json": "18c77acb7d9407365b046a1e44f857524796b2b65895fef3b16e60a21db2bad8"
+  }
+}

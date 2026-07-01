@@ -96,8 +96,8 @@
 
     <p><strong>2. Seal it at intake.</strong> Ingest the untouched export immediately. The origin string is the custody label, so write it for a human who will read it during a dispute:</p>
 
-    <pre><code>receipts init
-receipts ingest tiktok_may2026.xlsx \
+    <pre><code>tamper-signal init
+tamper-signal ingest tiktok_may2026.xlsx \
   --origin "TikTok Analytics, @brandhandle, 2026-05-01 to 2026-05-31, downloaded 2026-06-01 by J. Rivera" \
   --key keys/signing.key --out receipts/</code></pre>
 
@@ -107,20 +107,20 @@ receipts ingest tiktok_may2026.xlsx \
 
     <p><strong>4. For recurring reports, declare what "normal movement" means.</strong> A weekly refresh legitimately changes the numbers. Declare a tolerance at intake so settled periods are locked while recent ones can still settle:</p>
 
-    <pre><code>receipts ingest weekly.csv --origin "weekly refresh" \
+    <pre><code>tamper-signal ingest weekly.csv --origin "weekly refresh" \
   --band 5% --settle 72h --bucket-column day --key keys/signing.key --out receipts/</code></pre>
 
     <p>The declaration is signed into the source, so nobody can quietly loosen the band after the fact.</p>
 
     <p><strong>5. Export the attested table.</strong> A dashboard built on verified data should be able to show that data, not just charts on top of it.</p>
 
-    <pre><code>receipts export --chain receipts/chain.json --data dashboard_data.xlsx</code></pre>
+    <pre><code>tamper-signal export --chain receipts/chain.json --data dashboard_data.xlsx</code></pre>
 
     <p>This writes <code>receipts/table.json</code> and refuses unless the data matches the final receipt, so the Data tab only ever shows attested rows.</p>
 
     <p><strong>6. Verify before anything ships.</strong> This is the gate. Green ships, yellow gets human eyes, red does not leave the building.</p>
 
-    <pre><code>receipts verify receipts/chain.json --pub keys/signing.pub --data dashboard_data.xlsx</code></pre>
+    <pre><code>tamper-signal verify receipts/chain.json --pub keys/signing.pub --data dashboard_data.xlsx</code></pre>
 
     <div class="verdict"><span class="lt g" aria-hidden="true"></span><p><strong>The light is green, the data is clean.</strong> Every link verifies, every signature checks. Ship it.</p></div>
     <div class="verdict"><span class="lt y" aria-hidden="true"></span><p><strong>The light is yellow, a human should look.</strong> A coverage gap, an unrecognized key, or <a href="/blog/your-data-is-supposed-to-move.html">declared drift</a>. Resolve before delivery.</p></div>
@@ -128,8 +128,8 @@ receipts ingest tiktok_may2026.xlsx \
 
     <p><strong>7. Anchor when a client or auditor is on the other end.</strong> The local key proves the chain was not edited, but whoever holds the key could re-sign a fresh chain. For client-facing work, anchor the chain in the public Sigstore transparency log so existence-at-a-time is provable in a dispute:</p>
 
-    <pre><code>receipts anchor
-receipts verify receipts/chain.json --anchor</code></pre>
+    <pre><code>tamper-signal anchor
+tamper-signal verify receipts/chain.json --anchor</code></pre>
 
     <p><strong>8. Deliver with the light in the dashboard.</strong> Mount the signal so the client's own browser re-verifies the whole chain on page load, with no trust in you required. <strong>9. Keep the keys straight:</strong> the private key never leaves the producer's machine or CI secret store and is always gitignored; the public key and the receipts travel with the deliverable. The client verifies against the public key and never needs yours.</p>
 
@@ -149,7 +149,7 @@ receipts verify receipts/chain.json --anchor</code></pre>
 
       <div class="lang-py">
         <pre><code>pip install tamper-signal
-receipts init                 # keys, gitignore safety, receipts/</code></pre>
+tamper-signal init                 # keys, gitignore safety, receipts/</code></pre>
       </div>
       <div class="lang-js">
         <pre><code>npm install tamper-signal
@@ -160,7 +160,7 @@ npx tamper-signal keygen --out keys/   # receipts/ is created on first ingest</c
       <p><strong>Ingest the source</strong> to seal custody at intake.</p>
 
       <div class="lang-py">
-        <pre><code>receipts ingest tiktok_may2026.xlsx \
+        <pre><code>tamper-signal ingest tiktok_may2026.xlsx \
   --origin "TikTok export, @brandhandle, May 2026" \
   --key keys/signing.key --out receipts/</code></pre>
       </div>
@@ -197,7 +197,7 @@ await rebuildChain({
       <p><strong>Export the attested table</strong> so the Data tab shows the verified rows the charts came from.</p>
 
       <div class="lang-py">
-        <pre><code>receipts export --chain receipts/chain.json --data dashboard_data.xlsx</code></pre>
+        <pre><code>tamper-signal export --chain receipts/chain.json --data dashboard_data.xlsx</code></pre>
       </div>
       <div class="lang-js">
         <pre><code>npx tamper-signal export receipts/chain.json --data dashboard_data.csv</code></pre>
@@ -213,7 +213,7 @@ await rebuildChain({
       <p>React hosts can use <code>&lt;TamperSignal chain="/receipts/chain.json" /&gt;</code> from <code>tamper-signal/react</code>; any framework or plain HTML can use the <code>&lt;tamper-signal chain="/receipts/chain.json"&gt;&lt;/tamper-signal&gt;</code> element instead. When you think you are done, prove it:</p>
 
       <div class="lang-py">
-        <pre><code>receipts doctor   # checks Python version, key is gitignored, chain verifies</code></pre>
+        <pre><code>tamper-signal doctor   # checks Python version, key is gitignored, chain verifies</code></pre>
       </div>
       <div class="lang-js">
         <pre><code>npx tamper-signal verify receipts/chain.json   # exit 0 = healthy; confirm the key is gitignored yourself</code></pre>
@@ -237,7 +237,7 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
       - run: pip install tamper-signal
-      - run: receipts verify receipts/chain.json --json</code></pre>
+      - run: tamper-signal verify receipts/chain.json --json</code></pre>
       </div>
       <div class="lang-js">
         <pre><code># .github/workflows/tamper-signal.yml

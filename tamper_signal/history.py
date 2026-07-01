@@ -41,6 +41,7 @@ from .receipts import (
     stage_name_of,
     totals_of,
     verify_signature,
+    write_text_atomic,
 )
 
 HISTORY_DIRNAME = "history"
@@ -195,26 +196,8 @@ def write_run_snapshot(chain_dir: str, snapshot: dict[str, Any]) -> Path:
     filename, and an existing file is left untouched (duplicate writes are
     harmless by construction).
     """
-    history = Path(chain_dir) / HISTORY_DIRNAME
-    history.mkdir(parents=True, exist_ok=True)
-    path = history / f"{snapshot_body_hash(snapshot)}.json"
-    if not path.exists():
-        # Write to a temp file in the same directory, then atomically rename so
-        # a crash mid-write can never leave a truncated file whose
-        # content-addressed name lies about its bytes. The temp name carries
-        # the pid so concurrent writers of the same snapshot do not collide on
-        # the staging file. os.replace is atomic on the same filesystem; a
-        # FileExistsError on rename means another writer landed the identical
-        # bytes first (content-addressed = identical), so it is harmless.
-        import os
-
-        tmp = history / f".{path.name}.{os.getpid()}.tmp"
-        tmp.write_text(json.dumps(snapshot, indent=2) + "\n", encoding="utf-8")
-        try:
-            os.replace(tmp, path)
-        except FileExistsError:
-            tmp.unlink(missing_ok=True)
-    return path
+    path = Path(chain_dir) / HISTORY_DIRNAME / f"{snapshot_body_hash(snapshot)}.json"
+    return write_text_atomic(path, json.dumps(snapshot, indent=2) + "\n")
 
 
 def _parse_created_at(value: Any) -> dt.datetime | None:

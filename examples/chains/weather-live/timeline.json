@@ -1,0 +1,38 @@
+{
+  "kind": "timeline",
+  "spec_version": "1.2",
+  "created_at": "2026-07-01T02:58:44Z",
+  "chain_tail": "aa45626dcf30f52c6e2b4bdcc79c9ba06e850009357652b3cafdb7ef3a846c4f",
+  "public_key": "95f99eafba46f4ba770ada3c2253b27978da99ebb038c65e0bcbf23d3beb9897",
+  "entries": [
+    {
+      "index": 0,
+      "stage": "source",
+      "created_at": "2026-07-01T02:58:44Z",
+      "output_hash": "06baa457f8c8d7618540fea31ef23f4b9d69392c899ec31917b39e5d19b85b7e",
+      "totals": {
+        "row_count": 192,
+        "numeric_sums": {
+          "temperature_2m": "4717.2"
+        },
+        "null_counts": {}
+      },
+      "kind": "import",
+      "origin": "https://api.open-meteo.com/v1/forecast?latitude=40.71&longitude=-74.01&hourly=temperature_2m&past_days=7&forecast_days=1&timezone=UTC",
+      "annotations": [
+        {
+          "reason": "Live source: Open-Meteo hourly temperature (NYC), polled on a schedule.",
+          "author": "tamper-signal watcher",
+          "self_declared": true,
+          "superseded": false,
+          "hash": "00e090098ba3e84eb4435cf556e8df1c5dd59891e8907f6db49f81decc17cf06"
+        }
+      ]
+    }
+  ],
+  "signature": {
+    "alg": "ed25519",
+    "key_fingerprint": "185e251b2d6114e1",
+    "value": "2ccecd18a94f700978820eefb8bc237d8e6eed0fc0c3a2d6b163384c924d034713c1d71c167de13a5c34814a7e8df35b0000880e553bc3e14d231022dfbe2b06"
+  }
+}

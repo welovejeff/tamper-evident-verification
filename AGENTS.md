@@ -7,7 +7,7 @@ every step is verifiable.
 
 What you are installing: signed receipts for a data pipeline. Every pipeline
 stage signs a receipt (a hash of its input, its code, and its output, plus
-human-legible control totals). Receipts link into a chain; `receipts verify`
+human-legible control totals). Receipts link into a chain; `tamper-signal verify`
 and an in-browser signal re-verify the whole chain and report a traffic light.
 Green: intact. Yellow: verifies, with caveats a human should look at. Red:
 broken, at an exact link, with the totals delta.
@@ -46,21 +46,22 @@ pip install tamper-signal
 (Installing from source also works:
 `pip install git+https://github.com/welovejeff/tamper-evident-verification.git`)
 
-This provides the `receipts` CLI and the `tamper_signal` Python package.
-Verify: `receipts --help` exits 0. JavaScript-only project? Use step 1b and
-the JS equivalents; the two stacks produce interchangeable chains.
+This provides the `tamper-signal` CLI and the `tamper_signal` Python package.
+Verify: `tamper-signal --help` exits 0. (`receipts` is a deprecated alias kept
+working through the 2.x line — prefer `tamper-signal`.) JavaScript-only project?
+Use step 1b; both stacks share the `tamper-signal` command and interchangeable chains.
 
-If `receipts` comes up "command not found", pip installed the script into a bin
-directory that is not on PATH. This is common on the python.org framework
+If `tamper-signal` comes up "command not found", pip installed the script into a
+bin directory that is not on PATH. This is common on the python.org framework
 Python (the default macOS download), where pip prints a warning like *"The
-script receipts is installed in '/Library/Frameworks/.../bin' which is not on
-PATH."* Two fixes, either works:
+script tamper-signal is installed in '/Library/Frameworks/.../bin' which is not
+on PATH."* Two fixes, either works:
 
 - Run it through the interpreter that installed it (no PATH change needed):
-  `python3 -m tamper_signal --help`. Every `receipts <args>` works as
+  `python3 -m tamper_signal --help`. Every `tamper-signal <args>` works as
   `python3 -m tamper_signal <args>`.
 - Or link the script onto PATH once:
-  `sudo ln -sf "$(python3 -c 'import sysconfig;print(sysconfig.get_path("scripts"))')/receipts" /usr/local/bin/receipts`.
+  `sudo ln -sf "$(python3 -c 'import sysconfig;print(sysconfig.get_path("scripts"))')/tamper-signal" /usr/local/bin/tamper-signal`.
 
 ## 1b. Install (JavaScript pipelines)
 
@@ -162,22 +163,29 @@ tamper-signal`); the resulting chain verifies interchangeably on the JS side.
 
 ### Command parity (and what is Python-only)
 
-Most `receipts` subcommands have a JS equivalent; a few are Python-only. On a
-JS-only project, use the equivalent and skip the rest of this runbook's Python
-commands:
+As of 2.0 the command is `tamper-signal` on both stacks (on Python, `receipts`
+is a deprecated alias that still works). Every subcommand runs on both installs
+**except** these, which are Python-only for now; on a JS-only project use the
+noted equivalent and skip them:
 
-| `receipts` (Python) | JavaScript |
+| Python-only subcommand | On Node |
 | --- | --- |
-| `receipts init` | `tamper-signal keygen`; `receipts/` is created on first `ingest` (no scaffold command) |
-| `receipts ingest` | `tamper-signal ingest` / `ingestFile()` |
-| `receipts verify` | `tamper-signal verify` / `verifyChain()` |
-| `receipts diff` | `tamper-signal diff` (same args and JSON shape) |
-| `receipts log` | `tamper-signal log` (same args and JSON shape) |
-| `receipts export` | `tamper-signal export` / `canonicalDocument()` |
-| `receipts assets` | `tamper-signal assets` (copy the browser bundle into a project) |
-| `receipts serve` | your bundler's static server, or `tamper-signal/express` |
-| `receipts doctor` | `tamper-signal verify` (exit 0 = healthy); confirm the key is gitignored yourself |
-| `receipts anchor` | Python-only today (transparency-log anchoring) |
+| `tamper-signal doctor` | use `tamper-signal verify` (exit 0 = healthy); confirm the key is gitignored yourself |
+| `tamper-signal anchor` | Python-only today (transparency-log anchoring; Node support planned for 2.1) |
+| `tamper-signal custody` | Python-only today (the CLI-local custody view over history/archive) |
+| `tamper-signal watch` | Python-only today (the live-source watcher; see §5c) — its signed manifests and snapshots stay fully readable/verifiable by the JS stack |
+| `tamper-signal review` | Python-only today (human sign-off for withheld watch changes) |
+
+Shared subcommands (`ingest`, `verify`, `diff`, `log`, `export`, `assets`,
+`annotate`, `timeline`, `keygen`, `serve`) behave identically on both, with the
+Node programmatic API alongside (`ingestFile()`, `verifyChain()`,
+`canonicalDocument()`). `serve` on Node is your bundler's static server or
+`tamper-signal/express`.
+
+If you run a Node host and want a live source kept under custody, the watcher
+itself runs as a Python sidecar process (`pip install "tamper-signal[watch]"`)
+writing into the same `receipts/` directory your Node app serves — the chains
+stay interchangeable, only the `watch`/`review` *commands* are Python-only.
 
 CI signing works here too: `TAMPER_SIGNAL_KEY` (PEM contents of the private
 key) wins over any key path, same semantics as the Python side (step 5).
@@ -186,18 +194,18 @@ key) wins over any key path, same semantics as the Python side (step 5).
 ## 2. Scaffold the project (once)
 
 ```bash
-receipts init
+tamper-signal init
 ```
 
 Idempotent. Generates `keys/signing.key` (private, PEM; never commit) and
 `keys/signing.pub` (raw hex; safe to commit), adds `keys/` and `*.key` to
 .gitignore, creates `receipts/`, and prints exactly what it did. The pieces
-are also available separately (`receipts keygen --out keys/`).
+are also available separately (`tamper-signal keygen --out keys/`).
 
 ## 3. Start the chain at the source export
 
 ```bash
-receipts ingest path/to/export.xlsx --origin "TikTok export, May 2026" \
+tamper-signal ingest path/to/export.xlsx --origin "TikTok export, May 2026" \
   --key keys/signing.key --out receipts/
 ```
 
@@ -236,7 +244,7 @@ the user has a source export and a hand-built artifact (say a generated
 wrap. That is fine. Ingest the source and stop:
 
 ```bash
-receipts ingest path/to/export.csv --origin "TikTok export, May 2026" \
+tamper-signal ingest path/to/export.csv --origin "TikTok export, May 2026" \
   --key keys/signing.key --out receipts/
 ```
 
@@ -259,7 +267,7 @@ verified table. Until then, a source-only chain is the honest amount of proof.
 ## 5. Verify from the command line
 
 ```bash
-receipts verify receipts/chain.json --pub keys/signing.pub --data path/to/dashboard_data.xlsx
+tamper-signal verify receipts/chain.json --pub keys/signing.pub --data path/to/dashboard_data.xlsx
 ```
 
 Exit codes are the traffic light: **0 green, 1 red, 2 yellow**. `--data` is
@@ -268,7 +276,7 @@ receipt. `--warn-drift` additionally flags any control-totals movement across
 links (only for pipelines expected to preserve totals).
 
 Key rotation: `--pub` repeats. Old chains stay green while new receipts sign
-under a new key: `receipts verify chain.json --pub new.pub --pub old.pub`. A
+under a new key: `tamper-signal verify chain.json --pub new.pub --pub old.pub`. A
 signature valid under any trusted key is trusted; the browser surfaces accept
 a list the same way (the `<tamper-signal>` element takes a space-separated
 `pub-key` list).
@@ -279,7 +287,7 @@ on disk. The env var wins over any `--key` path while set. The Node CLI
 (`tamper-signal ingest`) honors the same env var with the same precedence.
 
 Add `--json` to get a structured verdict instead of the text report (both
-CLIs: `receipts verify --json` and `tamper-signal verify --json` emit the
+CLIs: `tamper-signal verify --json` and `tamper-signal verify --json` emit the
 same payload). Parse this rather than scraping text:
 
 ```json
@@ -381,7 +389,7 @@ jobs:
       - name: Verify the receipt chain
         run: |
           set +e
-          receipts verify receipts/chain.json --json | tee verdict.json
+          tamper-signal verify receipts/chain.json --json | tee verdict.json
           code=$?
           if [ "$code" = "2" ]; then
             echo "::warning::The light is yellow, a human should look: $(python -c 'import json;print("; ".join(json.load(open("verdict.json"))["caveats"]))')"
@@ -401,7 +409,7 @@ run. This is opt-in and starts at ingest, where the producer declares how much
 movement is normal:
 
 ```bash
-receipts ingest export.csv --origin "nightly" --band 5% --settle 72h \
+tamper-signal ingest export.csv --origin "nightly" --band 5% --settle 72h \
   --bucket-column day --key keys/signing.key --out receipts/
 ```
 
@@ -424,7 +432,7 @@ Run history is automatic. Every non-red CLI `verify` archives a compact run
 snapshot under `receipts/history/` (signed when a private key is available).
 Snapshots are what give the chain a memory; the cross-run judgment reads them
 on the next verify and folds its findings in as yellow caveats (never red).
-History is CLI-local: `receipts serve` 404s anything under `history/`, because
+History is CLI-local: `tamper-signal serve` 404s anything under `history/`, because
 snapshots carry per-day totals and run cadence that the published receipts do
 not. History is weaker evidence than the chain itself: snapshots sit outside
 `receipt_hashes` and outside anchoring.
@@ -432,8 +440,8 @@ not. History is weaker evidence than the chain itself: snapshots sit outside
 Two read-only commands work the archived history, both exit 0:
 
 ```bash
-receipts diff                          # current chain vs the latest differing snapshot
-receipts log --granularity week        # per-metric trend across runs, oldest first
+tamper-signal diff                          # current chain vs the latest differing snapshot
+tamper-signal log --granularity week        # per-metric trend across runs, oldest first
 ```
 
 `diff` reports per-stage code-hash changes and a structured totals delta
@@ -452,11 +460,11 @@ transparency log:
 
 ```bash
 pip install "tamper-signal[anchor]"
-receipts anchor                       # browser login locally; automatic in GitHub Actions
-receipts verify receipts/chain.json --anchor
+tamper-signal anchor                       # browser login locally; automatic in GitHub Actions
+tamper-signal verify receipts/chain.json --anchor
 ```
 
-Agent note: run `receipts anchor` in CI (GitHub Actions and similar), where
+Agent note: run `tamper-signal anchor` in CI (GitHub Actions and similar), where
 an ambient OIDC credential makes it non-interactive. Outside CI it opens a
 browser login and blocks until a human completes it; do not invoke it from
 an unattended session.
@@ -471,7 +479,7 @@ pipeline re-runs.
 `anchor.json` (next to chain.json) records the Sigstore bundle plus the
 identity and issuer used; `verify --anchor` enforces that identity, reports
 the logged time on success, exits 2 when no anchor exists, and exits 1 when
-the chain changed after anchoring. `receipts anchor --json` emits the anchor
+the chain changed after anchoring. `tamper-signal anchor --json` emits the anchor
 record (identity, issuer, integrated time) as JSON for CI logs. An anchor
 made with `--staging` is rejected at verify time unless you pass
 `--anchor-staging`, so the anchor file cannot pick a weaker trust root. To
@@ -480,7 +488,7 @@ pin whose anchor is acceptable instead of trusting the recorded one, pass
 like:
 
 ```bash
-receipts verify receipts/chain.json --anchor \
+tamper-signal verify receipts/chain.json --anchor \
   --anchor-identity "https://github.com/OWNER/REPO/.github/workflows/anchor.yml@refs/heads/main" \
   --anchor-issuer "https://token.actions.githubusercontent.com"
 ```
@@ -488,6 +496,78 @@ receipts verify receipts/chain.json --anchor \
 Re-anchor after every pipeline run that changes the chain. Honest scope: an
 anchor proves this exact chain existed at the logged time under the recorded
 identity, nothing more.
+
+## 5c. Live-source watcher (optional, for feeds you do not re-export by hand)
+
+When the source is a live HTTP/JSON-API or RSS feed rather than a file you
+re-export, the watcher keeps it on the same signed chain: it polls, judges the
+new data against the declared band/settle (§5a), and **auto-appends only a
+clean change**. A retroactive change to an already-settled period — or a slow
+drift that cumulatively breaches the band — is **not** signed unattended; it is
+withheld as a signed *pending event* and paused for a human reason.
+
+```bash
+pip install "tamper-signal[watch]"
+# Seed the chain once from any first sample, declaring the tolerance (§5a):
+tamper-signal ingest first.csv --origin "https://feed.example/rates" \
+  --band 5% --settle 72h --bucket-column day --key keys/watch.key --out receipts/
+
+# One tick (poll once, judge, append-if-clean, else withhold). Config is a
+# small JSON file: {url, format: json|rss, source_id, optional field_map,
+# band/settle/bucket_column, per_tick_cap}.
+tamper-signal watch --config feed.json --key keys/watch.key --out receipts/
+```
+
+- **`source_id`** is a STABLE identity for the feed (a feed has no filename).
+  Keep it constant across ticks, or cross-run judgment cannot match history and
+  the watcher refuses rather than appending unjudged.
+- Change detection is a **full-content fingerprint**, never the server's
+  `ETag`/`304` — a compromised origin cannot replay an old validator to hide a
+  mutation.
+- The fetch is **SSRF-hardened**: only public hosts (an affirmative `is_global`
+  check), redirects off, TLS verified, bounded by bytes and wall-clock. RSS is
+  parsed through `defusedxml` (billion-laughs / XXE rejected).
+- The watcher key must be the chain's trusted signer (else it fails closed).
+  Use a **dedicated** key, distinct from any interactive human key, for
+  isolation and revocability.
+
+Withheld changes are reviewed explicitly — each acceptance signs its own reason:
+
+```bash
+tamper-signal review                       # list pending changes awaiting sign-off
+tamper-signal review accept <hash> --reason "confirmed by finance" --author dana
+tamper-signal review reject <hash>         # discard; the chain is untouched
+```
+
+Accepting commits the exact reviewed candidate and signs a reason linked to it;
+if later ticks advanced the chain in the meantime, acceptance re-surfaces for
+review instead of overwriting newer data. The console shows pending changes in
+a distinct "AWAITING REVIEW" section that never affects the verdict.
+
+**Deployment — a local file-writer, not a server.** The recommended shape is
+the **stateless tick under a systemd timer / cron**, so the signing key is not
+resident between runs. A `--daemon --interval <seconds>` loop exists for hosts
+without a scheduler; it only polls and writes files. Harden the unit:
+
+```ini
+# /etc/systemd/system/tamper-watch.service  (paired with a .timer)
+[Service]
+Type=oneshot
+User=tamper-watch                 # dedicated, unprivileged user
+ExecStart=/usr/bin/tamper-signal watch --config /etc/tamper/feed.json \
+  --key %d/watch.key --out /var/lib/tamper/receipts
+LoadCredential=watch.key:/etc/tamper/watch.key   # key material via $CREDENTIALS_DIRECTORY, not the env
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/tamper/receipts
+PrivateTmp=true
+```
+
+Deliver the key with `LoadCredential=` (it lands under `%d`/`$CREDENTIALS_DIRECTORY`,
+mode 0400, never in the process environment) — do **not** put the key material
+in `EnvironmentFile`, which would expose it via `/proc/<pid>/environ`. Keep the
+key file `0600`; the watcher fails closed if it is group/world-readable.
 
 ## 6. Add the signal to the host UI
 
@@ -497,7 +577,7 @@ the browser assets into the host app. The CLI does this for you (no hunting
 through `site-packages` or `node_modules`):
 
 ```bash
-receipts assets --out badge/        # Python; tamper-signal assets --out badge/ on Node
+tamper-signal assets --out badge/        # Python; tamper-signal assets --out badge/ on Node
 ```
 
 That writes `light.js`, `badge.js`, `element.js`, `table.js`, and `console.js`
@@ -522,8 +602,8 @@ you vendored into `badge/` and serve it at `/badge/`:
 table all `fetch()` the chain (and table.json), which the browser blocks on a
 `file://` page, so opening `index.html` directly leaves them silently
 unverified. Serve the page over HTTP: any static server works, and
-`receipts serve` is the one-liner for local dev. There is no `file://` mode; an
-offline recipient verifies with the CLI on a bundle (`receipts export --bundle`,
+`tamper-signal serve` is the one-liner for local dev. There is no `file://` mode; an
+offline recipient verifies with the CLI on a bundle (`tamper-signal export --bundle`,
 step 8) instead.
 
 React hosts: `import { TamperSignal } from "tamper-signal/react"` (or vendor
@@ -588,7 +668,7 @@ over; it is the page to open when the light is anything but green.
 Manual fallback when no helper fits: serve the directory statically (Flask
 `static_folder="receipts"`, FastAPI `StaticFiles`, Express
 `express.static("receipts")`), or copy `receipts/` into the public dir of a
-static site at build time. For local development, `receipts serve` serves
+static site at build time. For local development, `tamper-signal serve` serves
 the directory on localhost with CORS open and caching off.
 
 Placement: the right end of the host header, after the host's own controls.
@@ -633,7 +713,7 @@ verified table, not just charts. Two steps:
 
    ```bash
    # Python
-   receipts export receipts/chain.json --data path/to/dashboard_data.xlsx
+   tamper-signal export receipts/chain.json --data path/to/dashboard_data.xlsx
    # JavaScript
    tamper-signal export receipts/chain.json --data path/to/dashboard_data.csv
    ```
@@ -648,7 +728,7 @@ verified table, not just charts. Two steps:
    `canonicalDocument(finalRecords)` (see step 1b).
 
 2. Mount the table (vendor `badge/table.js` beside badge.js with
-   `receipts assets`, or import `tamper-signal/table`):
+   `tamper-signal assets`, or import `tamper-signal/table`):
 
    ```html
    <script type="module">
@@ -667,8 +747,13 @@ verified table, not just charts. Two steps:
    ```
 
    Attributes: `chain` (required), `table` (table.json URL; defaults to
-   table.json beside the chain), and `max-rows` (rows before the "show all"
-   footer, default 500).
+   table.json beside the chain), `max-rows` (rows before the "show all"
+   footer, default 500), and `strict` (present = the table emits its verdict
+   with `strict: true` so the host can gate other views on a broken chain). The
+   table never blocks UI itself; after each verification it fires a bubbling
+   `tamper-signal:state` event (and an `onState` callback) carrying
+   `{ state, attested, strict }`. Default (no `strict`) stays always-on and
+   always-honest. Recommended host gate: `strict && (state === "red" || !attested)`.
 
 The component re-hashes the served document in the viewer's browser and
 compares it against the final receipt, so VERIFIED means the rows on screen
@@ -679,7 +764,7 @@ attested data" when table.json is stale or edited. Design reference:
 
 ## 9. Verify your work before reporting done
 
-On a Python project, run `receipts doctor` first: it checks the Python version,
+On a Python project, run `tamper-signal doctor` first: it checks the Python version,
 that the private key exists and is not tracked by git, that .gitignore covers
 it, and that the chain verifies; pass `--url http://localhost:PORT/chain.json`
 to also confirm the receipts directory is reachable over HTTP. Every failure
@@ -688,7 +773,7 @@ Python-only; on a JS project, `tamper-signal verify receipts/chain.json` exits
 0 when the chain is healthy, and you should confirm the private key is
 gitignored yourself.) Then confirm the user-visible surfaces:
 
-1. `receipts verify receipts/chain.json --pub keys/signing.pub` exits 0.
+1. `tamper-signal verify receipts/chain.json --pub keys/signing.pub` exits 0.
 2. Load the host page: the pill reads `VERIFIED · chain intact` (click it for
    the per-stage popover).
 3. Negative test without touching the user's real chain: this repo commits
