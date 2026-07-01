@@ -54,6 +54,9 @@
   .switcher button[data-set="green"] i { background: var(--green); }
   .switcher button[data-set="yellow"] i { background: var(--amber); }
   .switcher button[data-set="red"] i { background: var(--red); }
+  .switcher button[data-watch="live"] i { background: var(--green); }
+  .switcher button[data-watch="withheld"] i { background: var(--amber); }
+  .watcher-demo { margin-top: 56px; padding-top: 40px; border-top: 1px solid var(--border); }
   .btn { font: 12px var(--mono); color: var(--cyan); background: none; border: 1px solid var(--border); border-radius: 7px; padding: 7px 14px; cursor: pointer; letter-spacing: 0.4px; }
   .btn:hover:not(:disabled) { border-color: var(--faint); }
   .btn:disabled { color: var(--faint); cursor: not-allowed; opacity: 0.6; }
@@ -157,6 +160,37 @@
       <pre id="rt-cli"># bring an edited file back under your key (re-attests; never silent):
 receipts ingest report.csv --as period --key keys/signing.key</pre>
     </div>
+
+    <div class="watcher-demo">
+      <p class="kicker">new in v2.0 · the live-source watcher</p>
+      <h2>Data that watches itself</h2>
+      <p class="lede">
+        Point the watcher at a live feed and it keeps that source on the same signed chain —
+        new readings append on their own. But a retroactive edit to an <em>already-settled</em>
+        value is never signed unattended: it's judged against the declared band, withheld, and
+        paused for a human. Below is a real chain of hourly temperatures for New York, signed.
+        Flip the switch to see what happens when a settled day's number is quietly changed.
+      </p>
+
+      <div class="controls">
+        <div class="switcher" role="group" aria-label="Watcher state">
+          <span class="sw-label">TRY IT ·</span>
+          <button type="button" data-watch="live" aria-pressed="true"><i></i>LIVE · WATCHING</button>
+          <button type="button" data-watch="withheld" aria-pressed="false"><i></i>A SETTLED VALUE CHANGED</button>
+        </div>
+      </div>
+      <p class="state-note" id="watch-note"></p>
+
+      <div class="grid">
+        <div class="card full">
+          <h2>Inspector console</h2>
+          <div id="slot-watch-console"></div>
+        </div>
+      </div>
+      <pre># the whole thing is one scheduled command writing signed files — no server:
+receipts watch --config feed.json --key keys/watch.key --out receipts/
+receipts review accept &lt;hash&gt; --reason "confirmed by the weather desk"</pre>
+    </div>
   </div>
 </main>
 
@@ -241,6 +275,33 @@ receipts ingest report.csv --as period --key keys/signing.key</pre>
 
   buttons.forEach((b) => b.addEventListener("click", () => setState(b.dataset.set)));
   document.getElementById("reset").addEventListener("click", () => setState("green"));
+
+  // ----- The live-source watcher (v2) ----------------------------------------
+  // Two pre-baked chains of real hourly NYC temperatures: one clean and growing,
+  // one where a settled day's value was edited after the fact and the watcher
+  // withheld it. Both verify green — the withheld change never touched the chain;
+  // the console's chain-of-custody surfaces it as "awaiting review".
+  const WATCH_CHAINS = {
+    live: "examples/chains/weather-live/chain.json",
+    withheld: "examples/chains/weather-withheld/chain.json",
+  };
+  const WATCH_NOTES = {
+    live: "A live source under custody: hourly temperatures for New York, signed. New readings append on their own and the light stays green. The chain of custody below records the import and the watcher's signed note.",
+    withheld: "A settled day's temperature was changed after the fact. The watcher judged it against the declared band, refused to sign it unattended, and parked it under “awaiting review”. The light stays green — nothing unverified reached the chain — until a human signs off with a reason.",
+  };
+  const watchSlot = document.getElementById("slot-watch-console");
+  const watchNote = document.getElementById("watch-note");
+  const watchButtons = [...document.querySelectorAll(".switcher button[data-watch]")];
+  let watchHandle = null;
+
+  function setWatch(name) {
+    watchButtons.forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.watch === name)));
+    watchNote.textContent = WATCH_NOTES[name];
+    if (watchHandle) { watchHandle.destroy(); watchHandle = null; }
+    watchHandle = mountReceiptConsole(watchSlot, WATCH_CHAINS[name]);
+  }
+  watchButtons.forEach((b) => b.addEventListener("click", () => setWatch(b.dataset.watch)));
+  setWatch("live");
 
   // ----- The live round-trip -------------------------------------------------
   // The attested hash is sha256(canonicalize({headers, rows})). The round-trip
