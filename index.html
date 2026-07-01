@@ -113,6 +113,11 @@
     /* static state: the light is green */
   }
   .hero .kicker { font: 12px var(--mono); color: var(--faint); letter-spacing: 1.5px; margin: 0 0 14px; }
+  .hero .v2-badge { display: inline-flex; align-items: center; gap: 8px; font: 12px var(--mono); letter-spacing: 0.4px; color: var(--green); text-decoration: none; border: 1px solid var(--border); border-radius: 999px; padding: 5px 13px; margin: 0 0 18px; transition: border-color .15s, transform .15s; }
+  .hero .v2-badge i { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 8px var(--green); }
+  .hero .v2-badge .v2-arrow { color: var(--faint); transition: transform .15s; }
+  .hero .v2-badge:hover { border-color: var(--green); }
+  .hero .v2-badge:hover .v2-arrow { transform: translateX(3px); color: var(--green); }
   .hero h1 {
     font-size: clamp(34px, 6vw, 58px);
     letter-spacing: -1.5px;
@@ -462,6 +467,7 @@
       </svg>
     </div>
     <p class="kicker">SIGNED RECEIPTS FOR VIBE-CODED DATA PIPELINES</p>
+    <a class="v2-badge" href="/blog/data-that-watches-itself.html"><i aria-hidden="true"></i>v2.0.0 — the live-source watcher is here <span class="v2-arrow">→</span></a>
     <h1>The light is <span class="lit">green</span>, the data is clean.</h1>
     <p class="lede">
       You pulled the export. Your AI built the dashboard. Tamper Signal keeps
