@@ -61,29 +61,47 @@ export function assetsMiddleware() {
   };
 }
 
+// The attach-level verification policy (trusted keys, warn-drift) must reach
+// EVERY mount the helper emits, or the pill and the room could disagree about
+// the same chain (and their verifyReceipts calls would stop coalescing).
+function trustedKeys(pubKey) {
+  if (!pubKey) return undefined;
+  return Array.isArray(pubKey) ? pubKey : [pubKey];
+}
+
 export function signalSnippet(
   chainUrl = "/receipts/chain.json",
-  { assetsPrefix = "/tamper-signal", selector = "header", receiptsHref } = {},
+  { assetsPrefix = "/tamper-signal", selector = "header", receiptsHref, pubKey, warnDrift = false } = {},
 ) {
-  const opts = receiptsHref ? `, undefined, { receiptsHref: ${JSON.stringify(receiptsHref)} }` : "";
+  const keys = trustedKeys(pubKey);
+  const optPairs = [];
+  if (receiptsHref) optPairs.push(`receiptsHref: ${JSON.stringify(receiptsHref)}`);
+  if (warnDrift) optPairs.push("warnDrift: true");
+  let extra = "";
+  if (keys || optPairs.length) {
+    extra = `, ${keys ? JSON.stringify(keys) : "undefined"}`;
+    if (optPairs.length) extra += `, { ${optPairs.join(", ")} }`;
+  }
   return (
     `<script type="module">` +
     `import { mountTamperSignal } from "${assetsPrefix}/light.js"; ` +
-    `mountTamperSignal(document.querySelector(${JSON.stringify(selector)}) ?? document.body, ${JSON.stringify(chainUrl)}${opts});` +
+    `mountTamperSignal(document.querySelector(${JSON.stringify(selector)}) ?? document.body, ${JSON.stringify(chainUrl)}${extra});` +
     `</script>`
   );
 }
 
 export function roomSnippet(
   chainUrl = "/receipts/chain.json",
-  { assetsPrefix = "/tamper-signal", selector = "#tamper-signal-room", strict = false } = {},
+  { assetsPrefix = "/tamper-signal", selector = "#tamper-signal-room", strict = false, pubKey, warnDrift = false } = {},
 ) {
   // An inline embedded-density room, for hosts that render their own Data tab.
+  const keys = trustedKeys(pubKey);
   return (
     `<script type="module">` +
     `import { mountSignalRoom } from "${assetsPrefix}/room.js"; ` +
     `mountSignalRoom(document.querySelector(${JSON.stringify(selector)}) ?? document.body, ${JSON.stringify(chainUrl)}, ` +
-    `{ strict: ${JSON.stringify(Boolean(strict))} });` +
+    `${keys ? JSON.stringify(keys) : "undefined"}, ` +
+    `{ strict: ${JSON.stringify(Boolean(strict))}, warnDrift: ${JSON.stringify(Boolean(warnDrift))} });` +
     `</script>`
   );
 }
@@ -169,8 +187,8 @@ export function tamperSignal(app, {
     assetsPrefix,
     roomUrl,
     consoleUrl: `${assetsPrefix}/console`,
-    roomSnippet: roomSnippet(chainUrl, { assetsPrefix, strict }),
+    roomSnippet: roomSnippet(chainUrl, { assetsPrefix, strict, pubKey, warnDrift }),
     consoleSnippet: consoleSnippet(chainUrl, { assetsPrefix }),
-    snippet: signalSnippet(chainUrl, { assetsPrefix, selector, receiptsHref }),
+    snippet: signalSnippet(chainUrl, { assetsPrefix, selector, receiptsHref, pubKey, warnDrift }),
   };
 }

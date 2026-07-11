@@ -100,6 +100,23 @@ test("tamperSignal serves the room page (and the console alias, room-backed)", a
   assert.match(consoleAlias.body, /"console"/);
 });
 
+test("tamperSignal bakes one verification policy into the pill, the room page, and the room snippet", async () => {
+  const handlers = [];
+  const app = { use: (prefix, fn) => handlers.push([prefix, fn]) };
+  const key = "ab".repeat(32);
+  const handle = tamperSignal(app, { receiptsDir: intactDir, pubKey: key, warnDrift: true });
+  // The light snippet carries the same trusted keyset and drift policy the
+  // served room page bakes in, so the two can never disagree.
+  assert.ok(handle.snippet.includes(JSON.stringify([key])));
+  assert.match(handle.snippet, /warnDrift: true/);
+  assert.ok(handle.roomSnippet.includes(JSON.stringify([key])));
+  assert.match(handle.roomSnippet, /"warnDrift": true|warnDrift: true/);
+  const roomHandler = handlers.find(([p, f]) => p === "/tamper-signal" && f.name === "tamperSignalRoom")[1];
+  const { body } = await run(roomHandler, "/receipts");
+  assert.ok(body.includes(JSON.stringify([key])));
+  assert.match(body, /"warnDrift": true|warnDrift: true/);
+});
+
 test("tamperSignal room:false skips the route and the receiptsHref wiring", async () => {
   const handlers = [];
   const app = { use: (prefix, fn) => handlers.push([prefix, fn]) };

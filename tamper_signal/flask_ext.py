@@ -95,10 +95,13 @@ def attach(
         assets_prefix=assets_prefix,
         room_url=room_url,
         console_url=f"{assets_prefix}/console",
-        room_snippet=room_snippet(chain_url, assets_prefix=assets_prefix, strict=strict),
+        room_snippet=room_snippet(
+            chain_url, assets_prefix=assets_prefix, strict=strict,
+            pub_key=pub_key, warn_drift=warn_drift,
+        ),
         console_snippet=console_snippet(chain_url, assets_prefix=assets_prefix),
         snippet=signal_snippet(
             chain_url, assets_prefix=assets_prefix, selector=selector,
-            receipts_href=receipts_href,
+            receipts_href=receipts_href, pub_key=pub_key, warn_drift=warn_drift,
         ),
     )

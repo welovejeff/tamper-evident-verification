@@ -17,17 +17,31 @@ export function assetsMiddleware(): Middleware;
 
 /** A `<script type="module">` snippet that mounts the inline light. When
  * `receiptsHref` is set, the light's "view receipts →" link lands there
- * (the attach helper pre-wires it to the served room page). */
+ * (the attach helper pre-wires it to the served room page). `pubKey` and
+ * `warnDrift` carry the attach-level verification policy so the pill and the
+ * room can never disagree. */
 export function signalSnippet(
   chainUrl?: string,
-  options?: { assetsPrefix?: string; selector?: string; receiptsHref?: string },
+  options?: {
+    assetsPrefix?: string;
+    selector?: string;
+    receiptsHref?: string;
+    pubKey?: string | string[];
+    warnDrift?: boolean;
+  },
 ): string;
 
 /** A `<script type="module">` snippet that mounts an inline embedded-density
  * Signal Room, for hosts that render their own Data tab. */
 export function roomSnippet(
   chainUrl?: string,
-  options?: { assetsPrefix?: string; selector?: string; strict?: boolean },
+  options?: {
+    assetsPrefix?: string;
+    selector?: string;
+    strict?: boolean;
+    pubKey?: string | string[];
+    warnDrift?: boolean;
+  },
 ): string;
 
 /** Deprecated alias of the room mount: the console is a room preset since 2.1. */

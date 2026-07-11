@@ -355,9 +355,17 @@ export function invalidateVerification(chainUrl) {
 }
 
 export function verifyReceipts(chainUrl, pubKeyHex, opts = {}) {
+  // Opportunistic pruning keeps the memo bounded on long-lived pages that
+  // verify many distinct chains or keysets; in-flight entries are kept.
+  const now = Date.now();
+  for (const [staleKey, entry] of verifyMemo) {
+    if (entry.settledAt !== null && now - entry.settledAt > VERIFY_MEMO_TTL_MS) {
+      verifyMemo.delete(staleKey);
+    }
+  }
   const key = verifyMemoKey(chainUrl, pubKeyHex, opts);
   const hit = verifyMemo.get(key);
-  if (hit && (hit.settledAt === null || Date.now() - hit.settledAt <= VERIFY_MEMO_TTL_MS)) {
+  if (hit && (hit.settledAt === null || now - hit.settledAt <= VERIFY_MEMO_TTL_MS)) {
     return hit.promise;
   }
   const entry = { promise: null, settledAt: null };

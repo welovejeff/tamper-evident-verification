@@ -26,26 +26,52 @@ def asset_text(name: str) -> str:
     return resources.files("tamper_signal").joinpath("static", name).read_text(encoding="utf-8")
 
 
+def _trusted_keys(pub_key: str | list[str] | None) -> list[str] | None:
+    """Normalize the attach-level trusted-key option to a rotation list.
+
+    The verification policy (trusted keys, warn-drift) must reach EVERY mount
+    a helper emits, or the pill and the room could disagree about the same
+    chain (and their verifyReceipts calls would stop coalescing).
+    """
+    if not pub_key:
+        return None
+    return [pub_key] if isinstance(pub_key, str) else pub_key
+
+
 def signal_snippet(
     chain_url: str = "/receipts/chain.json",
     *,
     assets_prefix: str = "/tamper-signal",
     selector: str = "header",
     receipts_href: str | None = None,
+    pub_key: str | list[str] | None = None,
+    warn_drift: bool = False,
 ) -> str:
     """The one-line HTML snippet that mounts the signal in a host page.
 
     Falls back to document.body when the selector matches nothing, so the
     light always lands somewhere visible. When ``receipts_href`` is set (the
     attach helpers pass the served room page), the light's "view receipts"
-    link lands there instead of on raw chain.json.
+    link lands there instead of on raw chain.json. ``pub_key``/``warn_drift``
+    carry the attach-level verification policy into the pill so it always
+    agrees with the served room page.
     """
-    opts = f", undefined, {{ receiptsHref: {receipts_href!r} }}" if receipts_href else ""
+    keys = _trusted_keys(pub_key)
+    opt_pairs = []
+    if receipts_href:
+        opt_pairs.append(f"receiptsHref: {receipts_href!r}")
+    if warn_drift:
+        opt_pairs.append("warnDrift: true")
+    extra = ""
+    if keys or opt_pairs:
+        extra = f", {json.dumps(keys) if keys else 'undefined'}"
+        if opt_pairs:
+            extra += ", { " + ", ".join(opt_pairs) + " }"
     return (
         '<script type="module">'
         f'import {{ mountTamperSignal }} from "{assets_prefix}/light.js"; '
         f"mountTamperSignal(document.querySelector({selector!r}) ?? document.body, "
-        f"{chain_url!r}{opts});"
+        f"{chain_url!r}{extra});"
         "</script>"
     )
 
@@ -56,6 +82,8 @@ def room_snippet(
     assets_prefix: str = "/tamper-signal",
     selector: str = "#tamper-signal-room",
     strict: bool = False,
+    pub_key: str | list[str] | None = None,
+    warn_drift: bool = False,
 ) -> str:
     """One-line snippet mounting an inline embedded-density Signal Room.
 
@@ -63,11 +91,13 @@ def room_snippet(
     the bubbling ``tamper-signal:state`` event, and paint your own dot on your
     own tab. Falls back to document.body when the selector matches nothing.
     """
+    keys = _trusted_keys(pub_key)
     return (
         '<script type="module">'
         f'import {{ mountSignalRoom }} from "{assets_prefix}/room.js"; '
         f"mountSignalRoom(document.querySelector({selector!r}) ?? document.body, "
-        f"{chain_url!r}, {{ strict: {json.dumps(bool(strict))} }});"
+        f"{chain_url!r}, {json.dumps(keys) if keys else 'undefined'}, "
+        f"{{ strict: {json.dumps(bool(strict))}, warnDrift: {json.dumps(bool(warn_drift))} }});"
         "</script>"
     )
 

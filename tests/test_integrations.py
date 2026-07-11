@@ -56,6 +56,27 @@ def test_attach_wires_light_to_the_room(tmp_path, monkeypatch):
     assert "mountReceiptConsole" in handle.console_snippet  # deprecated alias survives 2.x
 
 
+def test_attach_bakes_one_policy_into_pill_room_page_and_room_snippet(tmp_path, monkeypatch):
+    flask = pytest.importorskip("flask")
+    monkeypatch.chdir(tmp_path)
+    _seed_chain(tmp_path)
+    from tamper_signal.flask_ext import attach
+
+    key = "ab" * 32
+    app = flask.Flask(__name__)
+    handle = attach(
+        app, receipts_dir=str(tmp_path / "receipts"), pub_key=key, warn_drift=True
+    )
+    # The light snippet carries the same trusted keyset and drift policy the
+    # served room page bakes in, so the two can never disagree.
+    assert f'["{key}"]' in handle.snippet
+    assert "warnDrift: true" in handle.snippet
+    assert f'["{key}"]' in handle.room_snippet
+    page = app.test_client().get(handle.room_url).data.decode()
+    assert f'["{key}"]' in page
+    assert "warnDrift: true" in page
+
+
 def test_attach_room_false_reverts_to_raw_chain(tmp_path, monkeypatch):
     pytest.importorskip("flask")
     monkeypatch.chdir(tmp_path)
