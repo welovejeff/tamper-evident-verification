@@ -1,5 +1,16 @@
 # Next Steps — Tamper Signal (formerly lineage-receipts)
 
+> **Status update, 2026-07-11 (the Signal Room, 2.1.0):** the UI unification
+> shipped — one light, one room (`badge/room.js`), table/console as
+> room-backed shims, attach helpers serving the room and pre-wiring the
+> light's `receiptsHref`. Deferred from the design-board spec, still worth
+> doing: (a) an opt-in `exportTable: true` on `rebuildChain()` and
+> `write_table=True` on the Python pipeline wrapper so `table.json` is
+> written as the last pipeline step automatically; (b) a one-line reminder in
+> both verify CLIs when `table.json` beside the chain is missing or does not
+> hash to the final receipt's output (needs care: many CLI tests assert exact
+> verify output, and the reminder must not join the verdict lines).
+
 Handoff outline for the next work session. Written 2026-06-10, after commit
 `fa676bd` (the traffic-light repositioning) was pushed to main.
 

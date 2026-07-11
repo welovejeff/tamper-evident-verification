@@ -569,7 +569,15 @@ mode 0400, never in the process environment) — do **not** put the key material
 in `EnvironmentFile`, which would expose it via `/proc/<pid>/environ`. Keep the
 key file `0600`; the watcher fails closed if it is group/world-readable.
 
-## 6. Add the signal to the host UI
+## 6. Add the light to the host UI (the room is already served)
+
+The UI is two things, always shipped together: **the light** (the inline
+status pill, the lightest touch) and **the room** (the one robust surface
+behind it — the attested data table with the chain rail, break exhibit,
+receipt inspector, event log, chain of custody, and evidence export). The
+attach helpers below serve the room automatically and pre-wire the light's
+"view receipts →" link to it; if you mount by hand, wiring `receiptsHref` to
+a room is YOUR one extra line — the light must never dead-end in raw JSON.
 
 With a bundler, import straight from the npm package
 (`import { mountTamperSignal } from "tamper-signal/light"`). Without one, copy
@@ -580,23 +588,33 @@ through `site-packages` or `node_modules`):
 tamper-signal assets --out badge/        # Python; tamper-signal assets --out badge/ on Node
 ```
 
-That writes `light.js`, `badge.js`, `element.js`, `table.js`, and `console.js`
-into `badge/`. For the inline signal you need two of them side by side (light.js
-imports `./badge.js` relatively):
+That writes `light.js`, `badge.js`, `element.js`, `table.js`, `console.js`,
+and `room.js` into `badge/`. For the inline signal you need two of them side
+by side (light.js imports `./badge.js` relatively); the room needs `room.js`
+and `badge.js`:
 
-- `badge/badge.js` (verification core + the expandable badge)
+- `badge/badge.js` (the shared verification core)
 - `badge/light.js` (the signal: the inline status light)
+- `badge/room.js` (the room: `mountSignalRoom`, `<tamper-signal-room>`)
 
 Serve the `receipts/` directory statically, then mount the signal in the host
-header. Import the asset from wherever you served it; the snippets here assume
-you vendored into `badge/` and serve it at `/badge/`:
+header and a room for it to link to. Import the assets from wherever you
+served them; the snippets here assume you vendored into `badge/` and serve it
+at `/badge/`:
 
 ```html
 <script type="module">
   import { mountTamperSignal } from "/badge/light.js";
-  mountTamperSignal(document.querySelector("header"), "/receipts/chain.json");
+  import { mountSignalRoom } from "/badge/room.js";
+  mountSignalRoom(document.querySelector("#data"), "/receipts/chain.json");
+  mountTamperSignal(document.querySelector("header"), "/receipts/chain.json",
+    undefined, { receiptsHref: "#tamper-room" });
 </script>
 ```
+
+(The first room in a document owns the id `tamper-room`, so `#tamper-room`
+always reaches it. If the room lives on its own page, point `receiptsHref` at
+that URL instead — the attach helpers do exactly this.)
 
 **These surfaces verify over HTTP, not from `file://`.** The signal, badge, and
 table all `fetch()` the chain (and table.json), which the browser blocks on a
@@ -615,22 +633,30 @@ in the `exports` map), so imports like `tamper-signal/react`, `/table`, and
 the Node entries (`.`, `/express`) expect `@types/node` as a normal Node
 project already has.
 
-Any other framework, or plain HTML: the web component. Import
+Any other framework, or plain HTML: the web components. Import
 `tamper-signal/element` (or vendor `badge/element.js`, which needs light.js
-and badge.js beside it) and write one tag:
+and badge.js beside it) for the light, `tamper-signal/room` (or
+`badge/room.js`) for the room, and write one tag each:
 
 ```html
-<tamper-signal chain="/receipts/chain.json"></tamper-signal>
+<tamper-signal chain="/receipts/chain.json" receipts-href="#tamper-room"></tamper-signal>
+<tamper-signal-room chain="/receipts/chain.json"></tamper-signal-room>
 ```
 
-Attributes mirror the options: `pub-key`, `watch`, `warn-drift`,
+Light attributes mirror the options: `pub-key`, `watch`, `warn-drift`,
 `receipts-href`, `surface` (`"light"` default or `"dark"` for a dark host),
 `invert` (present = shortcut for `surface="dark"`); `theme` is the deprecated
-alias of `surface="dark"`.
+alias of `surface="dark"`. Room attributes: `chain` (required), `table`,
+`timeline`, `pub-key`, `watch`, `warn-drift`, `strict`, `max-rows`, `focus`,
+`preset` (`room` | `table` | `console`), `density` (`embedded` | `page`).
+React hosts use `<tamper-signal-room>` straight from JSX (`badge/room.d.ts`
+ships the JSX typing) — import `tamper-signal/room` for the side effect.
 
-Prefer the one-call attach helpers; each serves the receipts directory AND
-the bundled browser assets, and returns a `snippet` to render once in the
-layout (it mounts the signal into `header`, falling back to `body`):
+Prefer the one-call attach helpers; each serves the receipts directory, the
+bundled browser assets, AND the room page at `<assets_prefix>/receipts`, and
+returns a `snippet` to render once in the layout (it mounts the signal into
+`header`, falling back to `body`, with `receiptsHref` pre-wired to the served
+room):
 
 ```python
 # Flask
@@ -659,11 +685,19 @@ These verify SERVER-SIDE with the Python verifier and the pill says so;
 Streamlit cannot serve the receipts directory for the in-browser walk, and
 faking the stronger claim would violate rule 1.
 
-Every attach helper also serves the verification console at
-`<assets_prefix>/console` (e.g. `/tamper-signal/console`): the chain as an
-inspectable pipeline with the break pinned at the severed link, for the
-dashboard's builder and for auditors. Mention it to the user when handing
-over; it is the page to open when the light is anything but green.
+Every attach helper serves the room at `<assets_prefix>/receipts` (e.g.
+`/tamper-signal/receipts`) and adds `?focus=auto` to the light's link, so a
+red chain opens scrolled to the break exhibit and a yellow one to the first
+caveat. The helper return exposes `roomUrl` and `roomSnippet` (an inline
+embedded room, for a host that renders its own Data tab); `console_url` /
+`consoleUrl` stays reachable, serving the same room with its rail open.
+Opting out (`room=False` / `{ room: false }`) is not recommended; the light
+will link to raw JSON. Mention the room to the user when handing over; it is
+the page to open when the light is anything but green.
+
+Hosts that want their own tab chrome: mount `roomSnippet` inside the tab,
+pass `strict`, listen for the bubbling `tamper-signal:state` event, and paint
+your own dot on your own tab — the room never touches host chrome.
 
 Manual fallback when no helper fits: serve the directory statically (Flask
 `static_folder="receipts"`, FastAPI `StaticFiles`, Express
@@ -679,8 +713,8 @@ Options on the fourth argument: `watch` (re-verify every N ms), `warnDrift`,
 boolean shortcut for `surface: "dark"`); the old `theme: "light"` still works
 as the `surface: "dark"` alias.
 
-The expandable badge (`renderReceiptBadge(el, "/receipts/chain.json")`) is the
-alternative for pages with room for a full-width strip.
+The expandable badge (`renderReceiptBadge`) is deprecated (removed in 3.0):
+mount the light with the room behind it instead.
 
 ## 7. Let the signal flag broken metrics
 
@@ -704,63 +738,48 @@ is 1234 or 1.234?). Fix it upstream with a signed normalize stage that strips
 the separators before the receipt is written. `tamper-signal ingest` prints a
 warning naming any such columns; programmatically, call `groupedNumericColumns(records)`.
 
-## 8. The Data tab (when asked for table UI or views)
+## 8. Publish table.json so the room's landing plane fills
 
-The project's stance: a dashboard built on verified data should show the
-verified table, not just charts. Two steps:
+The room's primary content is the attested data table. It fills from
+`table.json`, the canonical table document, which the room re-hashes in the
+viewer's browser against the final receipt — so its VERIFIED means the rows
+on screen are byte-for-byte the attested data. Export it as the LAST step of
+every pipeline run:
 
-1. After the pipeline runs, export the canonical table document:
+```bash
+# Python
+tamper-signal export receipts/chain.json --data path/to/dashboard_data.xlsx
+# JavaScript
+tamper-signal export receipts/chain.json --data path/to/dashboard_data.csv
+```
 
-   ```bash
-   # Python
-   tamper-signal export receipts/chain.json --data path/to/dashboard_data.xlsx
-   # JavaScript
-   tamper-signal export receipts/chain.json --data path/to/dashboard_data.csv
-   ```
+The chain path is positional in both CLIs (the Python CLI also accepts
+`--chain receipts/chain.json` for the same value). The command refuses if the
+data does not match the final receipt — the room only ever shows attested
+data. In a JS build you can write it programmatically instead with
+`canonicalDocument(finalRecords)` (see step 1b).
 
-   The chain path is positional in both CLIs (the Python CLI also accepts
-   `--chain receipts/chain.json` for the same value).
+Skipping or forgetting this step degrades honestly, never silently:
 
-   This writes `receipts/table.json` and refuses if the data does not match
-   the final receipt (the Data tab only ever shows attested data). Re-run it
-   whenever the pipeline runs, or the tab will honestly report a stale table.
-   In a JS build you can write it programmatically instead with
-   `canonicalDocument(finalRecords)` (see step 1b).
+- **No table.json published**: the room's table plane shows a grey "NO
+  ATTESTED TABLE PUBLISHED" slab naming the export command. The chain
+  verdict, rail, and drawers still render; grey, because absence is not
+  tampering. The emitted state carries `attested: false`.
+- **Stale table.json** (pipeline re-ran, export didn't): the room's verdict
+  reads `NOT THE ATTESTED DATA` with the exact re-run command — a
+  build-behind state, deliberately distinct from a broken chain.
 
-2. Mount the table (vendor `badge/table.js` beside badge.js with
-   `tamper-signal assets`, or import `tamper-signal/table`):
+So: wire the export into the pipeline run itself, not a manual step.
 
-   ```html
-   <script type="module">
-     import { mountReceiptTable } from "/badge/table.js";
-     mountReceiptTable(document.querySelector("#data-tab"), "/receipts/chain.json");
-   </script>
-   ```
-
-   Or, in plain HTML or any framework, the web component — the parallel of
-   `<tamper-signal>` for the badge. Importing `tamper-signal/table` (or
-   `badge/table.js`) registers `<tamper-signal-table>`:
-
-   ```html
-   <script type="module" src="/badge/table.js"></script>
-   <tamper-signal-table chain="/receipts/chain.json"></tamper-signal-table>
-   ```
-
-   Attributes: `chain` (required), `table` (table.json URL; defaults to
-   table.json beside the chain), `max-rows` (rows before the "show all"
-   footer, default 500), and `strict` (present = the table emits its verdict
-   with `strict: true` so the host can gate other views on a broken chain). The
-   table never blocks UI itself; after each verification it fires a bubbling
-   `tamper-signal:state` event (and an `onState` callback) carrying
-   `{ state, attested, strict }`. Default (no `strict`) stays always-on and
-   always-honest. Recommended host gate: `strict && (state === "red" || !attested)`.
-
-The component re-hashes the served document in the viewer's browser and
-compares it against the final receipt, so VERIFIED means the rows on screen
-are byte-for-byte the attested data. It renders its own states: green, yellow
-with caveats, chain broken (with the moved columns flagged), and "not the
-attested data" when table.json is stale or edited. Design reference:
-`designs/03-data-tab.html`.
+Embedding the room inline (instead of the helper-served page): mount
+`mountSignalRoom` / `<tamper-signal-room>` where the old Data tab lived. The
+`table.js` shim (`mountReceiptTable`, `<tamper-signal-table>`) keeps working
+through 2.x and now renders the room's table preset. The state contract is
+unchanged: after each verification the room fires a bubbling
+`tamper-signal:state` event (and an `onState` callback) carrying
+`{ state, attested, strict }`, where `state` is the chain verdict and
+`attested` the byte-identity boolean. The room never blocks UI itself.
+Recommended host gate: `strict && (state === "red" || !attested)`.
 
 ## 9. Verify your work before reporting done
 
@@ -776,11 +795,19 @@ gitignored yourself.) Then confirm the user-visible surfaces:
 1. `tamper-signal verify receipts/chain.json --pub keys/signing.pub` exits 0.
 2. Load the host page: the pill reads `VERIFIED · chain intact` (click it for
    the per-stage popover).
-3. Negative test without touching the user's real chain: this repo commits
-   known-good fixtures under `examples/chains/` (`intact/` verifies green;
-   `tampered/` is broken at link 1 -> 2). Point the signal at each to confirm
-   both states render.
-4. If the pill reads `UNVERIFIED · could not load chain`, the receipts
+3. Click the pill's `view receipts →` link and confirm it lands in the room
+   (the served page or an inline mount), NOT on raw chain.json. If it opens
+   unstyled JSON, `receiptsHref` was never wired — fix it (the attach helpers
+   do it for you).
+4. Confirm the room's table plane shows the attested rows with the signed
+   control-totals row (not the grey "no attested table published" slab). If
+   it shows the slab, the export step (§8) is missing from the pipeline run.
+5. Negative test without touching the user's real chain: this repo commits
+   known-good fixtures under `examples/chains/`. Point the room at
+   `tampered/` and confirm the break exhibit leads with business numbers;
+   point it at `gap/` and confirm the located caveat card and the ghost node
+   in the expanded rail.
+6. If the pill reads `UNVERIFIED · could not load chain`, the receipts
    directory is not being served at the URL you passed (or it is blocked by
    CORS). That state is a capability fallback, not a verdict.
 
@@ -802,8 +829,9 @@ gitignored yourself.) Then confirm the user-visible surfaces:
 |---|---|
 | `tamper_signal/` | Python package: canonicalization, keys, receipts, verify, `receipt_step` |
 | `node/` | JavaScript package: same API (`receiptStep`, `verifyChain`), interchangeable chains |
-| `badge/badge.js` | Browser verification core + the receipt badge |
+| `badge/badge.js` | Browser verification core (shared by every surface) |
 | `badge/light.js` | The signal (inline status light), `mountTamperSignal` |
+| `badge/room.js` | The room (the one robust surface), `mountSignalRoom`, `<tamper-signal-room>` |
 | `badge/light-react.js` | `<TamperSignal />` React wrapper |
 | `examples/chains/` | Committed known-good and known-broken demo chains |
 | `designs/` | Working HTML mockups for the signal, console, and Data tab |

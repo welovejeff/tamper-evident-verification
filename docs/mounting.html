@@ -6,9 +6,9 @@
 <!-- Site analytics & tagging (GTM + Consent Mode v2). Config lives in /analytics.js -->
 <script src="/analytics.js"></script>
 <title>Mounting the signal · Tamper Signal docs</title>
-<meta name="description" content="Put the verdict on the page: the inline status light, the badge, the data tab, and the console, plus one-call attach helpers for Flask, FastAPI, Express, Next.js, and Streamlit, and flagging a broken metric in place." />
+<meta name="description" content="Put the verdict on the page: the inline status light and the Signal Room behind it, plus one-call attach helpers for Flask, FastAPI, Express, Next.js, and Streamlit, and flagging a broken metric in place." />
 <meta property="og:title" content="Mounting the signal · Tamper Signal docs" />
-<meta property="og:description" content="Put the verdict on the page: status light, badge, data tab, console, framework helpers, and metric flagging." />
+<meta property="og:description" content="Put the verdict on the page: the light, the room behind it, framework helpers, and metric flagging." />
 <meta property="og:image" content="https://tampersignal.com/docs/media/og-card.png" />
 <link rel="canonical" href="https://tampersignal.com/docs/mounting.html" />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='%2334d399'/%3E%3C/svg%3E" />
@@ -67,25 +67,24 @@
     <a class="doc-back" href="/docs/">← Docs home</a>
     <p class="doc-kicker">Reference</p>
     <h1>Mounting the signal</h1>
-    <p class="lede">The light is most useful where the numbers live: on the dashboard itself. Everything here re-verifies the chain in the viewer's own browser using Web Crypto, with no build step, no framework requirement, and no server state. There are four surfaces; pick by how much you want to show.</p>
+    <p class="lede">The light is most useful where the numbers live: on the dashboard itself. Everything here re-verifies the chain in the viewer's own browser using Web Crypto, with no build step, no framework requirement, and no server state. The UI is two things, always shipped together: <strong>the light</strong> — a small pill in the header, the lightest touch — and <strong>the room</strong> — the one robust surface behind it, where the light's "view receipts" link lands.</p>
 
     <div class="callout note">
       <span class="co-label">Serve the page over HTTP</span>
       <p>Every surface <code>fetch()</code>es the chain (and <code>table.json</code>), which the browser blocks on a <code>file://</code> page. Opening <code>index.html</code> directly leaves the signal silently unverified. Serve the page over HTTP: any static server works, and <code>tamper-signal serve</code> is the one-liner for local dev. For a truly offline recipient, send a verified bundle (<code>tamper-signal export --bundle</code>) and verify with the CLI instead.</p>
     </div>
 
-    <h2 id="surfaces">The four surfaces</h2>
+    <h2 id="surfaces">One light, one room</h2>
     <div class="tbl-scroll">
       <table class="ref">
         <thead><tr><th>Surface</th><th>Import</th><th>For</th></tr></thead>
         <tbody>
-          <tr><td><strong>Status light</strong></td><td><code>tamper-signal/light</code></td><td>A small pill in the dashboard header. The flagship surface.</td></tr>
-          <tr><td><strong>Badge</strong></td><td><code>tamper-signal/badge</code></td><td>A one-line verdict that expands to a per-stage table.</td></tr>
-          <tr><td><strong>Data tab</strong></td><td><code>tamper-signal/table</code></td><td>The verified table itself, re-hashed in the browser.</td></tr>
-          <tr><td><strong>Console</strong></td><td><code>tamper-signal/console</code></td><td>The chain as an inspectable pipeline, link by link.</td></tr>
+          <tr><td><strong>The light</strong></td><td><code>tamper-signal/light</code></td><td>A small pill in the dashboard header. The whole footprint on your page.</td></tr>
+          <tr><td><strong>The room</strong></td><td><code>tamper-signal/room</code></td><td>Everything behind the light: the attested table, the chain, the break exhibit, the inspector, the log, the custody timeline, the export.</td></tr>
         </tbody>
       </table>
     </div>
+    <p>Compat shims (2.x): <code>tamper-signal/table</code> and <code>tamper-signal/console</code> keep their old signatures and now render the room's table and console presets. <code>tamper-signal/badge</code>'s <code>renderReceiptBadge</code> is deprecated (removed in 3.0).</p>
 
     <h2 id="light">The inline status light</h2>
     <p>A dark, monospace pill that shows the traffic light and expands to a popover: a per-stage table when green, the caveat list when yellow, the broken link and totals delta when red.</p>
@@ -122,33 +121,24 @@
 <span class="c">// Plain HTML, via tamper-signal/element</span>
 &lt;tamper-signal chain=<span class="s">"/receipts/chain.json"</span>&gt;&lt;/tamper-signal&gt;</code></pre>
 
-    <h2 id="badge">The badge</h2>
-    <p>A compact verified line that expands into a per-stage table. Good for the top of a report rather than a live header.</p>
-    <pre><code><span class="k">import</span> { renderReceiptBadge } <span class="k">from</span> <span class="s">"tamper-signal/badge"</span>;
-renderReceiptBadge(el, <span class="s">"/receipts/chain.json"</span>, pubKeyHex);</code></pre>
-    <p>Collapsed it reads, in green, <code>✓ Verified · TikTok export, May 2026 · 48,212 rows · 2 transforms · chain intact</code>, or in red, <code>✗ Chain broken at transform_aggregate</code>.</p>
-
-    <h2 id="table">The data tab</h2>
-    <p>Renders the attested table from <code>table.json</code>, re-hashes it in the viewer's browser, and compares against the final receipt. A verified data tab means the rows on screen are byte for byte the attested data, not a fresh query that might disagree.</p>
-    <pre><code><span class="c"># 1. export the canonical table (Python or Node)</span>
+    <h2 id="room">The room</h2>
+    <p>The one surface behind the light. The attested table is the landing plane — re-hashed in the viewer's browser against the final receipt, so its VERIFIED means the rows on screen are byte for byte the attested data — with the chain as a provenance rail above it, the break exhibit in business numbers when the chain is red, and the receipt inspector, CLI-mirror event log, and chain-of-custody timeline one drawer away. Green earns silence; the layout leads with whatever the verdict demands.</p>
+    <pre><code><span class="c"># 1. export the canonical table as the last pipeline step (Python or Node)</span>
 <span class="k">tamper-signal</span> export receipts/chain.json --data dashboard.xlsx
 
 <span class="c"># 2. mount it</span>
 <span class="k">&lt;script</span> type=<span class="s">"module"</span><span class="k">&gt;</span>
-  <span class="k">import</span> { mountReceiptTable } <span class="k">from</span> <span class="s">"/badge/table.js"</span>;
-  mountReceiptTable(document.querySelector(<span class="s">"#data-tab"</span>), <span class="s">"/receipts/chain.json"</span>);
+  <span class="k">import</span> { mountSignalRoom } <span class="k">from</span> <span class="s">"/badge/room.js"</span>;
+  mountSignalRoom(document.querySelector(<span class="s">"#data-tab"</span>), <span class="s">"/receipts/chain.json"</span>);
 <span class="k">&lt;/script&gt;</span></code></pre>
-    <p>Or the web component, the parallel of <code>&lt;tamper-signal&gt;</code> for the badge. Importing <code>tamper-signal/table</code> registers <code>&lt;tamper-signal-table&gt;</code>:</p>
-    <pre><code><span class="k">&lt;script</span> type=<span class="s">"module"</span> src=<span class="s">"/badge/table.js"</span><span class="k">&gt;&lt;/script&gt;</span>
-&lt;tamper-signal-table chain=<span class="s">"/receipts/chain.json"</span>&gt;&lt;/tamper-signal-table&gt;</code></pre>
-
-    <h2 id="console">The console</h2>
-    <p>The chain as an inspectable pipeline: each link carries the hash it proved, a break severs the link with a break card pinned in place, coverage gaps show up as ghost nodes, and the event log mirrors <code>tamper-signal verify</code> line by line. Every attach helper serves it automatically at <code>/tamper-signal/console</code>.</p>
-    <pre><code><span class="k">import</span> { mountReceiptConsole } <span class="k">from</span> <span class="s">"tamper-signal/console"</span>;
-mountReceiptConsole(el, <span class="s">"/receipts/chain.json"</span>);</code></pre>
+    <p>Or the web component (works from React JSX too — importing <code>tamper-signal/room</code> registers it and ships the JSX typing):</p>
+    <pre><code><span class="k">&lt;script</span> type=<span class="s">"module"</span> src=<span class="s">"/badge/room.js"</span><span class="k">&gt;&lt;/script&gt;</span>
+&lt;tamper-signal-room chain=<span class="s">"/receipts/chain.json"</span>&gt;&lt;/tamper-signal-room&gt;</code></pre>
+    <p>Attributes: <code>chain</code> (required), <code>table</code>, <code>timeline</code>, <code>pub-key</code>, <code>watch</code>, <code>warn-drift</code>, <code>strict</code>, <code>max-rows</code>, <code>focus</code>, <code>preset</code> (<code>room</code> | <code>table</code> | <code>console</code>), <code>density</code> (<code>embedded</code> | <code>page</code>). After each verification the room fires a bubbling <code>tamper-signal:state</code> event carrying <code>{ state, attested, strict }</code>; the documented host gate is <code>strict &amp;&amp; (state === "red" || !attested)</code>. Skipping the export step degrades honestly: no <code>table.json</code> shows a grey "no attested table published" slab, a stale one reads <code>NOT THE ATTESTED DATA</code> with the re-run command.</p>
+    <p>Every attach helper serves the room automatically at <code>/tamper-signal/receipts</code> and points the light's "view receipts" link there with <code>?focus=auto</code>, so a red chain opens scrolled to the break. <code>/tamper-signal/console</code> stays reachable, serving the room with its rail open.</p>
 
     <h2 id="helpers">One-call framework helpers</h2>
-    <p>Each attach helper serves your <code>receipts/</code> directory and the verifier assets, and returns a ready-to-drop snippet so you do not wire paths by hand.</p>
+    <p>Each attach helper serves three things from one call — your <code>receipts/</code> directory, the verifier assets, and the room page — and returns a ready-to-drop snippet with the light's <code>receiptsHref</code> pre-wired to the room, so you do not wire paths by hand. You structurally cannot ship the light without a live room behind it. (<code>room=False</code> / <code>{ room: false }</code> opts out; not recommended — the light will link to raw JSON.)</p>
     <pre><code><span class="c"># Flask</span>
 <span class="k">from</span> tamper_signal.flask_ext <span class="k">import</span> attach
 signal = attach(app, receipts_dir=<span class="s">"receipts/"</span>)   <span class="c"># {{ signal.snippet | safe }}</span>
@@ -187,6 +177,8 @@ signal = attach(app, receipts_dir=<span class="s">"receipts/"</span>)</code></pr
     <h2 id="verify-ui">Verify your wiring</h2>
     <ul>
       <li>The pill reads <code>VERIFIED · chain intact</code>; click it for the per-stage popover.</li>
+      <li>The pill's "view receipts →" link lands in the room, not on raw <code>chain.json</code>. If it opens unstyled JSON, <code>receiptsHref</code> was never wired (the attach helpers do it for you).</li>
+      <li>The room's table plane shows the attested rows with the signed control-totals row. If it shows the grey "no attested table published" slab, the export step is missing from the pipeline run.</li>
       <li>Point it at <code>examples/chains/intact/</code> for green and <code>examples/chains/tampered/</code> for red, as a negative test.</li>
       <li>If it reads <code>UNVERIFIED · could not load chain</code>, the receipts directory is not being served at that URL (usually CORS). That state is a capability fallback, not a verdict about your data.</li>
       <li>If it reads <code>verification unsupported in this browser</code>, the browser lacks Web Crypto Ed25519; verify from the CLI instead.</li>

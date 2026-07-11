@@ -104,11 +104,14 @@
           <tr><td><code>receiptStep(fn, opts)</code></td><td>Wrap a transform so it signs and appends a receipt.</td></tr>
           <tr><td><code>rebuildChain({ file, stages, chainDir, keyPath })</code></td><td>Re-ingest the source and replay every stage from a clean tail. The idempotent way to rebuild when data changes.</td></tr>
           <tr><td><code>appendPeriod({ file, chainDir, keyPath, trustedPubHexes })</code></td><td>Bring a file back as the next period of the chain's run history, judged against prior runs through the prior run's signed band. Continues only under a trusted signer (the chain's key or one in <code>trustedPubHexes</code>); throws <code>UntrustedSignerError</code> otherwise. The JS counterpart to <code>tamper-signal ingest --as period</code>.</td></tr>
-          <tr><td><code>canonicalDocument(records)</code></td><td>Produce the canonical attested table. Write it to <code>table.json</code> for the data tab.</td></tr>
+          <tr><td><code>canonicalDocument(records)</code></td><td>Produce the canonical attested table. Write it to <code>table.json</code> so the room's landing plane fills.</td></tr>
           <tr><td><code>verifyChain({ chainDir, pub, data })</code></td><td>Verify in process; returns the same structured verdict as the CLI.</td></tr>
         </tbody>
       </table>
     </div>
+
+    <h3 id="room-api">Browser: the light and the room</h3>
+    <p>Two browser entry points, always shipped together: <code>tamper-signal/light</code> exports <code>mountTamperSignal(el, chainUrl, pubKey?, opts?)</code> (the inline status pill), and <code>tamper-signal/room</code> exports <code>mountSignalRoom(el, chainUrl, pubKey?, opts?)</code> — the one robust surface behind it (attested table, provenance rail, break exhibit, receipt inspector, event log, chain of custody, evidence export) — plus the <code>&lt;tamper-signal-room&gt;</code> element, usable straight from React JSX. Room options: <code>tableUrl</code>, <code>timelineUrl</code>, <code>warnDrift</code>, <code>watch</code>, <code>strict</code>, <code>maxRows</code>, <code>onState</code>, <code>focus</code>, <code>preset</code> (<code>room</code>&thinsp;|&thinsp;<code>table</code>&thinsp;|&thinsp;<code>console</code>), <code>density</code> (<code>embedded</code>&thinsp;|&thinsp;<code>page</code>). The handle exposes <code>ready</code>, <code>refresh()</code>, <code>getState()</code>, <code>open(target)</code>, <code>destroy()</code>. The 2.0 <code>tamper-signal/table</code> and <code>tamper-signal/console</code> mounts keep working as room-backed presets through 2.x.</p>
 
     <h3 id="rebuild">Rebuilding idempotently</h3>
     <p>Pipelines re-run whenever the source changes. Appending to an existing chain would stack stale receipts, so reset first. Two equivalent patterns:</p>
@@ -126,7 +129,7 @@
 records = <span class="k">await</span> clean(records);
 records = <span class="k">await</span> aggregate(records);</code></pre>
 
-    <h3 id="table">Emit the data tab table</h3>
+    <h3 id="table">Emit the room's table</h3>
     <pre><code><span class="k">import</span> { writeFileSync } <span class="k">from</span> <span class="s">"node:fs"</span>;
 <span class="k">import</span> { canonicalDocument } <span class="k">from</span> <span class="s">"tamper-signal"</span>;
 

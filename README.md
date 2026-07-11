@@ -28,7 +28,11 @@ The badge and the verifier reduce the whole chain to one state:
 
 *The inline status light: a small dark instrument in your dashboard's header. When the chain breaks, it reaches into the page and flags the exact metric that no longer descends from the source.*
 
-Honest status: all three verdicts are implemented in `tamper-signal verify` and the browser badge. Yellow today covers two detectable caveats (a coverage gap in the receipt numbering, and signatures that only verify under the chain's embedded key rather than the key you trust) plus opt-in control-total drift via `--warn-drift`. The animations in this README are renders of the design mockups in `designs/`; the interfaces they depict have since shipped (`badge/light.js`, `badge/table.js`, `badge/console.js`). The badge also renders a separate amber state ("could not load" or "verification unsupported in this browser"); that is a capability fallback that says nothing about the chain, not the yellow verdict.
+Honest status: all three verdicts are implemented in `tamper-signal verify` and the browser surfaces. Yellow today covers two detectable caveats (a coverage gap in the receipt numbering, and signatures that only verify under the chain's embedded key rather than the key you trust) plus opt-in control-total drift via `--warn-drift`. The animations in this README are renders of the design mockups in `designs/`; the interfaces they depict have since shipped and, as of 2.1, unified. The surfaces also render a separate grey state ("could not load" or "verification unsupported in this browser"); that is a capability fallback that says nothing about the chain, not the yellow verdict.
+
+## One light, one room
+
+The browser UI is two things, always shipped together. **The light** (`badge/light.js`) is the whole footprint on your dashboard: a small dark pill in the header. **The room** (`badge/room.js`, since 2.1) is the one surface behind it, where the pill's "view receipts →" lands: the attested data table as the landing plane — re-hashed in the viewer's browser against the final receipt — with the chain as a provenance rail, the break exhibit in business numbers when something is wrong, and the receipt inspector, CLI-mirror event log, chain-of-custody timeline, and "Take your data" evidence export one drawer away. Green earns silence; the layout leads with whatever the verdict demands. The attach helpers serve the room automatically and wire the light to it, so the default integration is both halves in one call. (`tamper-signal/table` and `tamper-signal/console` from 2.0 keep working as room presets.)
 
 ## 60-second quickstart
 
@@ -54,7 +58,7 @@ tamper-signal diff                 # compare two runs: code-hash changes and tot
 tamper-signal log                  # archived run history as a per-metric trend across runs (read-only)
 tamper-signal doctor               # integration self-check with actionable fixes
 tamper-signal serve                # serve receipts/ on localhost with CORS (dev only)
-tamper-signal assets --out badge/  # vendor the browser surfaces (light/badge/element/table/console.js) into a project
+tamper-signal assets --out badge/  # vendor the browser surfaces (light/badge/element/table/console/room.js) into a project
 tamper-signal annotate --reason "backfill approved" --author dana   # sign a reason onto a receipt (chain of custody)
 tamper-signal watch --config feed.json --out receipts/   # poll a live feed onto the chain (needs [watch]; see below)
 ```
@@ -89,7 +93,7 @@ const clean = receiptStep(
 const output = await clean(loadCsv("export.csv"));
 ```
 
-JavaScript reads .csv, .tsv, .json, and .ndjson; spreadsheets go through the Python CLI. The browser surfaces ship in the same package: `tamper-signal/light`, `tamper-signal/badge`, `tamper-signal/element`, `tamper-signal/react`.
+JavaScript reads .csv, .tsv, .json, and .ndjson; spreadsheets go through the Python CLI. The browser surfaces ship in the same package: `tamper-signal/light`, `tamper-signal/room`, `tamper-signal/element`, `tamper-signal/react` (plus the 2.0 `tamper-signal/table` and `tamper-signal/console`, now room presets).
 
 ## How the chain works
 
