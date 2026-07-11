@@ -1,7 +1,7 @@
-// Express/Connect attach helper: serve the receipts directory and the browser
-// surfaces in one call. Framework-free internally (plain (req, res, next)
-// handlers), so it also works with Connect, Polka, or bare http routers that
-// accept middleware.
+// Express/Connect attach helper: serve the receipts directory, the browser
+// surfaces, and the Signal Room in one call. Framework-free internally (plain
+// (req, res, next) handlers), so it also works with Connect, Polka, or bare
+// http routers that accept middleware.
 //
 //   import express from "express";
 //   import { tamperSignal } from "tamper-signal/express";
@@ -10,6 +10,12 @@
 //   const signal = tamperSignal(app, { receiptsDir: "receipts/" });
 //   // serve signal.snippet once in your layout, or add the script tag by hand
 //
+// One call serves three things: the receipts directory, the browser assets,
+// and the room page at `${assetsPrefix}/receipts` — and the returned snippet
+// pre-wires the light's receiptsHref to that page. You structurally cannot
+// ship the light without a live room behind it. Opt out with { room: false }
+// (not recommended; the light will link to raw JSON).
+//
 // The npm package ships the browser files; they are served from the package
 // itself, side by side, so their relative imports resolve.
 
@@ -17,7 +23,7 @@ import { createReadStream, existsSync, statSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const ASSET_NAMES = ["badge.js", "light.js", "element.js", "table.js", "console.js"];
+const ASSET_NAMES = ["badge.js", "light.js", "element.js", "table.js", "console.js", "room.js"];
 const ASSET_DIR = fileURLToPath(new URL("../badge/", import.meta.url));
 
 const TYPES = { ".json": "application/json", ".js": "text/javascript", ".pub": "text/plain" };
@@ -55,11 +61,29 @@ export function assetsMiddleware() {
   };
 }
 
-export function signalSnippet(chainUrl = "/receipts/chain.json", { assetsPrefix = "/tamper-signal", selector = "header" } = {}) {
+export function signalSnippet(
+  chainUrl = "/receipts/chain.json",
+  { assetsPrefix = "/tamper-signal", selector = "header", receiptsHref } = {},
+) {
+  const opts = receiptsHref ? `, undefined, { receiptsHref: ${JSON.stringify(receiptsHref)} }` : "";
   return (
     `<script type="module">` +
     `import { mountTamperSignal } from "${assetsPrefix}/light.js"; ` +
-    `mountTamperSignal(document.querySelector(${JSON.stringify(selector)}) ?? document.body, ${JSON.stringify(chainUrl)});` +
+    `mountTamperSignal(document.querySelector(${JSON.stringify(selector)}) ?? document.body, ${JSON.stringify(chainUrl)}${opts});` +
+    `</script>`
+  );
+}
+
+export function roomSnippet(
+  chainUrl = "/receipts/chain.json",
+  { assetsPrefix = "/tamper-signal", selector = "#tamper-signal-room", strict = false } = {},
+) {
+  // An inline embedded-density room, for hosts that render their own Data tab.
+  return (
+    `<script type="module">` +
+    `import { mountSignalRoom } from "${assetsPrefix}/room.js"; ` +
+    `mountSignalRoom(document.querySelector(${JSON.stringify(selector)}) ?? document.body, ${JSON.stringify(chainUrl)}, ` +
+    `{ strict: ${JSON.stringify(Boolean(strict))} });` +
     `</script>`
   );
 }
@@ -68,8 +92,7 @@ export function consoleSnippet(
   chainUrl = "/receipts/chain.json",
   { assetsPrefix = "/tamper-signal", selector = "#tamper-signal-console" } = {},
 ) {
-  // v2's primary surface: the chain-of-custody console, rendered inline from
-  // chain.json plus the timeline.json it derives beside the chain.
+  // Deprecated alias: the console is a preset of the room since 2.1.
   return (
     `<script type="module">` +
     `import { mountReceiptConsole } from "${assetsPrefix}/console.js"; ` +
@@ -78,18 +101,35 @@ export function consoleSnippet(
   );
 }
 
-export function consolePage(chainUrl = "/receipts/chain.json", { assetsPrefix = "/tamper-signal" } = {}) {
+export function roomPage(
+  chainUrl = "/receipts/chain.json",
+  { assetsPrefix = "/tamper-signal", preset = "room", strict = false, pubKey, warnDrift = false } = {},
+) {
+  // The served room honors ?focus=auto and hash deep links itself (page
+  // density); the attach-level options are baked in so the light snippet and
+  // this page can never disagree about keys or drift.
+  const keys = pubKey ? (Array.isArray(pubKey) ? pubKey : [pubKey]) : undefined;
   return `<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Tamper Signal console</title>
+<title>Tamper Signal room</title>
 <style>body{margin:0;background:#07090d;padding:24px}</style></head>
-<body><div id="console"></div>
+<body><div id="room"></div>
 <script type="module">
-import { mountReceiptConsole } from "${assetsPrefix}/console.js";
-mountReceiptConsole(document.getElementById("console"), ${JSON.stringify(chainUrl)});
+import { mountSignalRoom } from "${assetsPrefix}/room.js";
+mountSignalRoom(document.getElementById("room"), ${JSON.stringify(chainUrl)}, ${JSON.stringify(keys)}, {
+  density: "page",
+  preset: ${JSON.stringify(preset)},
+  strict: ${JSON.stringify(Boolean(strict))},
+  warnDrift: ${JSON.stringify(Boolean(warnDrift))},
+});
 </script></body></html>
 `;
+}
+
+export function consolePage(chainUrl = "/receipts/chain.json", { assetsPrefix = "/tamper-signal" } = {}) {
+  // Deprecated alias: the console route serves the room with its rail open.
+  return roomPage(chainUrl, { assetsPrefix, preset: "console" });
 }
 
 export function tamperSignal(app, {
@@ -97,22 +137,40 @@ export function tamperSignal(app, {
   urlPrefix = "/receipts",
   assetsPrefix = "/tamper-signal",
   selector = "header",
+  room = true,
+  strict = false,
+  pubKey,
+  warnDrift = false,
 } = {}) {
   const chainUrl = `${urlPrefix}/chain.json`;
+  const roomUrl = `${assetsPrefix}/receipts`;
   app.use(urlPrefix, receiptsMiddleware({ receiptsDir }));
-  app.use(assetsPrefix, function tamperSignalConsole(req, res, next) {
-    const name = decodeURIComponent(req.url.split("?")[0].replace(/^\/+/, ""));
-    if ((req.method !== "GET" && req.method !== "HEAD") || name !== "console") return next();
-    res.statusCode = 200;
-    res.setHeader("Content-Type", "text/html");
-    res.end(consolePage(chainUrl, { assetsPrefix }));
-  });
+  if (room) {
+    app.use(assetsPrefix, function tamperSignalRoom(req, res, next) {
+      const name = decodeURIComponent(req.url.split("?")[0].replace(/^\/+/, ""));
+      if ((req.method !== "GET" && req.method !== "HEAD") || (name !== "receipts" && name !== "console")) {
+        return next();
+      }
+      res.statusCode = 200;
+      res.setHeader("Content-Type", "text/html");
+      res.end(roomPage(chainUrl, {
+        assetsPrefix,
+        preset: name === "console" ? "console" : "room",
+        strict,
+        pubKey,
+        warnDrift,
+      }));
+    });
+  }
   app.use(assetsPrefix, assetsMiddleware());
+  const receiptsHref = room ? `${roomUrl}?focus=auto` : undefined;
   return {
     chainUrl,
     assetsPrefix,
+    roomUrl,
     consoleUrl: `${assetsPrefix}/console`,
+    roomSnippet: roomSnippet(chainUrl, { assetsPrefix, strict }),
     consoleSnippet: consoleSnippet(chainUrl, { assetsPrefix }),
-    snippet: signalSnippet(chainUrl, { assetsPrefix, selector }),
+    snippet: signalSnippet(chainUrl, { assetsPrefix, selector, receiptsHref }),
   };
 }

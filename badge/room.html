@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Tamper Signal: the Signal Room</title>
+    <style>
+      body {
+        margin: 0;
+        background: #07090d;
+        font-family: ui-monospace, "SF Mono", Menlo, monospace;
+        color: #8b98a5;
+        padding: 32px 20px 80px;
+      }
+      .note { max-width: 1020px; margin: 0 auto 16px; font-size: 12px; line-height: 1.5; }
+      .note strong { color: #e5e7eb; }
+      .pick { max-width: 1020px; margin: 0 auto 16px; display: flex; flex-wrap: wrap; gap: 10px; }
+      .pick button {
+        font: 11px ui-monospace, Menlo, monospace;
+        border: 1px solid #1f2937; background: #11161d; color: #8b98a5;
+        border-radius: 8px; padding: 8px 14px; cursor: pointer;
+        display: inline-flex; align-items: center; gap: 8px;
+      }
+      .pick button i { width: 8px; height: 8px; border-radius: 50%; display: block; }
+      .pick button[data-c="intact"] i { background: #34d399; }
+      .pick button[data-c="gap"] i { background: #fbbf24; }
+      .pick button[data-c="tampered"] i { background: #f87171; }
+      .pick button[data-c="stale"] i { background: #f87171; border: 2px solid #11161d; box-shadow: 0 0 0 1px #f87171; width: 5px; height: 5px; }
+      .pick button[data-c="withheld"] i { background: #67e8f9; }
+      .pick button[aria-pressed="true"] { border-color: #3d4854; color: #e5e7eb; background: #161d26; }
+      .stage { max-width: 1020px; margin: 0 auto; }
+
+      .ts-demos-nav {
+        display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: center;
+        font: 11px ui-monospace, 'SF Mono', Menlo, monospace;
+        background: #0b0f14; border: 1px solid #1f2937; border-radius: 10px;
+        padding: 10px 14px; max-width: 1020px; margin: 0 auto 18px;
+        color: #3d4854; letter-spacing: 0.6px;
+      }
+      .ts-demos-nav a { color: #8b98a5; text-decoration: none; }
+      .ts-demos-nav a:hover { color: #e5e7eb; }
+      .ts-demos-nav a[aria-current="page"] { color: #67e8f9; }
+      .ts-demos-nav .back { margin-left: auto; color: #34d399; }
+      @media (max-width: 600px) {
+        .ts-demos-nav { font-size: 15px; gap: 2px 20px; padding: 12px 16px; }
+        .ts-demos-nav a { padding: 8px 0; display: inline-block; }
+        .ts-demos-nav .back {
+          flex-basis: 100%; margin-left: 0; margin-top: 6px;
+          padding-top: 10px; border-top: 1px solid #1f2937;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <nav class="ts-demos-nav" aria-label="Tamper Signal demos">
+      <span>DEMOS ·</span>
+      <a href="light.html">status light</a>
+      <a href="room.html" aria-current="page">the room</a>
+      <a href="badge.html">badge</a>
+      <a href="table.html">data table</a>
+      <a href="console.html">console</a>
+      <a class="back" href="../">← back to tampersignal.com</a>
+    </nav>
+
+    <p class="note">
+      <strong>THE SIGNAL ROOM, LIVE.</strong>
+      One light, one room. This is the page behind the status light's
+      "view receipts" link: the attested table as the landing plane, the
+      chain as a provenance rail, the break exhibit in business numbers,
+      and the receipt inspector, event log, and chain of custody one
+      drawer away. Every render is a real Web Crypto verification of a
+      committed chain. Green earns silence; the layout leads with whatever
+      the verdict demands.
+    </p>
+    <div class="pick">
+      <button type="button" data-c="intact" aria-pressed="true"><i></i>INTACT</button>
+      <button type="button" data-c="gap" aria-pressed="false"><i></i>COVERAGE GAP</button>
+      <button type="button" data-c="tampered" aria-pressed="false"><i></i>TAMPERED</button>
+      <button type="button" data-c="stale" aria-pressed="false"><i></i>STALE TABLE</button>
+      <button type="button" data-c="withheld" aria-pressed="false"><i></i>AWAITING REVIEW</button>
+    </div>
+    <div class="stage" id="stage"></div>
+
+    <script type="module">
+      import { mountSignalRoom } from "./room.js";
+
+      // "stale" is the intact chain over a deliberately edited table.json:
+      // the chain verifies, the published table does not match its tail.
+      const CASES = {
+        intact: { chain: "../examples/chains/intact/chain.json" },
+        gap: { chain: "../examples/chains/gap/chain.json" },
+        tampered: { chain: "../examples/chains/tampered/chain.json" },
+        stale: {
+          chain: "../examples/chains/intact/chain.json",
+          tableUrl: "../examples/chains/intact/table-tampered.json",
+        },
+        withheld: { chain: "../examples/chains/weather-withheld/chain.json" },
+      };
+
+      const stage = document.getElementById("stage");
+      const buttons = [...document.querySelectorAll(".pick button")];
+      let handle = null;
+
+      function show(name) {
+        buttons.forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.c === name)));
+        if (handle) handle.destroy();
+        const c = CASES[name];
+        handle = mountSignalRoom(stage, c.chain, { tableUrl: c.tableUrl });
+      }
+      buttons.forEach((b) => b.addEventListener("click", () => show(b.dataset.c)));
+      show(new URLSearchParams(location.search).get("case") in CASES
+        ? new URLSearchParams(location.search).get("case")
+        : "intact");
+    </script>
+  </body>
+</html>

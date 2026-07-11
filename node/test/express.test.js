@@ -61,27 +61,49 @@ test("assetsMiddleware serves only the bundled surfaces", async () => {
   const { res, body } = await run(assetsMiddleware(), "/light.js");
   assert.equal(res.statusCode, 200);
   assert.match(body, /mountTamperSignal/);
+  const room = await run(assetsMiddleware(), "/room.js");
+  assert.equal(room.res.statusCode, 200);
+  assert.match(room.body, /mountSignalRoom/);
   assert.equal((await run(assetsMiddleware(), "/evil.js")).nexted, true);
 });
 
-test("tamperSignal wires an app and returns the snippet", () => {
+test("tamperSignal wires an app and pre-wires the light to the room", () => {
   const uses = [];
   const app = { use: (prefix, fn) => uses.push([prefix, fn.name]) };
   const handle = tamperSignal(app, { receiptsDir: intactDir });
   assert.deepEqual(uses.map(([p]) => p), ["/receipts", "/tamper-signal", "/tamper-signal"]);
   assert.equal(handle.chainUrl, "/receipts/chain.json");
+  assert.equal(handle.roomUrl, "/tamper-signal/receipts");
   assert.match(handle.snippet, /mountTamperSignal/);
-  assert.match(handle.consoleSnippet, /mountReceiptConsole/); // v2 primary surface
+  // The light's onward link is structurally the room, never raw chain.json.
+  assert.match(handle.snippet, /receiptsHref/);
+  assert.ok(handle.snippet.includes("/tamper-signal/receipts?focus=auto"));
+  assert.match(handle.roomSnippet, /mountSignalRoom/); // the one room behind the light
+  assert.match(handle.consoleSnippet, /mountReceiptConsole/); // deprecated alias survives 2.x
   assert.match(signalSnippet(), /light\.js/);
+  assert.doesNotMatch(signalSnippet(), /receiptsHref/); // opt-in via the option only
 });
 
-test("tamperSignal serves the console page", async () => {
+test("tamperSignal serves the room page (and the console alias, room-backed)", async () => {
   const handlers = [];
   const app = { use: (prefix, fn) => handlers.push([prefix, fn]) };
   const handle = tamperSignal(app, { receiptsDir: intactDir });
   assert.equal(handle.consoleUrl, "/tamper-signal/console");
-  const consoleHandler = handlers.find(([p, f]) => p === "/tamper-signal" && f.name === "tamperSignalConsole")[1];
-  const { res, body } = await run(consoleHandler, "/console");
+  const roomHandler = handlers.find(([p, f]) => p === "/tamper-signal" && f.name === "tamperSignalRoom")[1];
+  const { res, body } = await run(roomHandler, "/receipts");
   assert.equal(res.statusCode, 200);
-  assert.match(body, /mountReceiptConsole/);
+  assert.match(body, /mountSignalRoom/);
+  assert.match(body, /"room"/);
+  const consoleAlias = await run(roomHandler, "/console");
+  assert.equal(consoleAlias.res.statusCode, 200);
+  assert.match(consoleAlias.body, /mountSignalRoom/);
+  assert.match(consoleAlias.body, /"console"/);
+});
+
+test("tamperSignal room:false skips the route and the receiptsHref wiring", async () => {
+  const handlers = [];
+  const app = { use: (prefix, fn) => handlers.push([prefix, fn]) };
+  const handle = tamperSignal(app, { receiptsDir: intactDir, room: false });
+  assert.doesNotMatch(handle.snippet, /receiptsHref/);
+  assert.equal(handlers.find(([, f]) => f.name === "tamperSignalRoom"), undefined);
 });

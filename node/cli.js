@@ -95,7 +95,8 @@ commands:
                                              receipts) for offline re-verification
   assets [--out badge/]                      copy the bundled browser assets
                                              (light.js, badge.js, element.js,
-                                             table.js, console.js) into a project
+                                             table.js, console.js, room.js) into
+                                             a project
   annotate [<chain.json>] --reason "..." [--author "..."] [--supersedes <hash>]
            [--target <hash>] [--key keys/signing.key] [--json]
                                              attach a signed reason/author to a
@@ -1221,7 +1222,7 @@ function cmdExport(args) {
 // The browser assets ship in the package's badge/ directory (see package.json
 // "files"). Mirror the Python `receipts assets`: copy them into a project so an
 // integrator never has to dig them out of node_modules by hand.
-const ASSET_NAMES = ["light.js", "badge.js", "element.js", "table.js", "console.js"];
+const ASSET_NAMES = ["light.js", "badge.js", "element.js", "table.js", "console.js", "room.js"];
 
 function cmdAssets(args) {
   const { values } = parseArgs({

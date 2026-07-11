@@ -854,8 +854,8 @@ def cmd_serve(args: argparse.Namespace) -> int:
 def cmd_assets(args: argparse.Namespace) -> int:
     """Copy the bundled browser assets into a project directory.
 
-    The browser files (light.js, badge.js, element.js, table.js, console.js)
-    ship inside the installed package; without this command an integrator has
+    The browser files (light.js, badge.js, element.js, table.js, console.js,
+    room.js) ship inside the installed package; without this command an integrator has
     to discover `site-packages/tamper_signal/static/` and copy by hand. The
     default destination is `badge/`, matching the vendor path used throughout
     the runbook.
@@ -2460,7 +2460,7 @@ def build_parser(prog: str = "tamper-signal") -> argparse.ArgumentParser:
 
     p_assets = sub.add_parser(
         "assets",
-        help="Copy the bundled browser assets (light.js, badge.js, element.js, table.js, console.js) into a project",
+        help="Copy the bundled browser assets (light.js, badge.js, element.js, table.js, console.js, room.js) into a project",
     )
     p_assets.add_argument(
         "--out", default="badge/", help="Directory to copy the assets into (created if missing)"

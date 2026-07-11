@@ -49,7 +49,7 @@ def test_export_flag_only_still_works(tmp_path, monkeypatch):
 # ---------------------------------------------------------------------------
 # receipts assets: vendor the browser bundle into a project
 # ---------------------------------------------------------------------------
-EXPECTED_ASSETS = {"badge.js", "console.js", "element.js", "light.js", "table.js"}
+EXPECTED_ASSETS = {"badge.js", "console.js", "element.js", "light.js", "table.js", "room.js"}
 
 
 def test_assets_copies_browser_bundle(tmp_path, monkeypatch, capsys):

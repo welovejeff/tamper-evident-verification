@@ -63,15 +63,15 @@ test("makeStoredZip is deterministic for identical input", () => {
   assert.deepEqual(makeStoredZip(entries), makeStoredZip(entries));
 });
 
-// The browser Data tab inlines its own copy of this writer (badge/table.js can't
+// The Signal Room inlines its own copy of this writer (badge/room.js can't
 // import from node/), so guard against the two drifting: the inline copy must
 // produce byte-identical archives. This caught a central-directory date-field
 // offset bug the DOM-less unit tests could not reach.
-test("the inline badge/table.js ZIP writer matches node/zip.js byte for byte", async () => {
-  const src = readFileSync(new URL("../../badge/table.js", import.meta.url), "utf8");
+test("the inline badge/room.js ZIP writer matches node/zip.js byte for byte", async () => {
+  const src = readFileSync(new URL("../../badge/room.js", import.meta.url), "utf8");
   const start = src.indexOf("const _CRC_TABLE");
   const end = src.indexOf("function cellText");
-  assert.ok(start !== -1 && end > start, "could not locate the inline ZIP writer in badge/table.js");
+  assert.ok(start !== -1 && end > start, "could not locate the inline ZIP writer in badge/room.js");
   const code = src.slice(start, end) + "\nexport { makeStoredZip };\n";
   const inline = await import("data:text/javascript," + encodeURIComponent(code));
 
