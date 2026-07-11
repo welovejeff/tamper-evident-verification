@@ -6,7 +6,7 @@
 // old directory beside a new badge.js still resolves.
 
 import assert from "node:assert/strict";
-import { copyFileSync, mkdtempSync } from "node:fs";
+import { copyFileSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -18,8 +18,17 @@ installDom();
 
 const badgeDir = new URL("../../badge/", import.meta.url);
 
+// A vendored dir in a real project sits under a package that declares ESM;
+// Node 18 has no module-syntax detection, so a bare .js copy in a tmp dir
+// would parse as CommonJS without this.
+function vendorDir(prefix) {
+  const dir = mkdtempSync(join(tmpdir(), prefix));
+  writeFileSync(join(dir, "package.json"), '{"type":"module"}\n');
+  return dir;
+}
+
 test("table.js shim without room.js renders the loud panel and emits unverifiable", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "tamper-signal-skew-"));
+  const dir = vendorDir("tamper-signal-skew-");
   copyFileSync(new URL("table.js", badgeDir), join(dir, "table.js"));
   // Deliberately NO room.js beside it.
   const { mountReceiptTable } = await import(pathToFileURL(join(dir, "table.js")).href);
@@ -40,7 +49,7 @@ test("table.js shim without room.js renders the loud panel and emits unverifiabl
 });
 
 test("console.js shim without room.js renders the loud panel", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "tamper-signal-skew-c-"));
+  const dir = vendorDir("tamper-signal-skew-c-");
   copyFileSync(new URL("console.js", badgeDir), join(dir, "console.js"));
   const { mountReceiptConsole } = await import(pathToFileURL(join(dir, "console.js")).href);
 
