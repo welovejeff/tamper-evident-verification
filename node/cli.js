@@ -476,6 +476,34 @@ function cmdVerify(args) {
     }
     for (const line of result.lines) console.log(line);
   }
+  // Foot-gun shrink: a published table.json that no longer hashes to the
+  // chain tail makes the room read NOT THE ATTESTED DATA; one stderr line
+  // names the fix. An ABSENT table.json stays silent (CLI-only projects
+  // never publish one, and the room's grey slab covers that case itself),
+  // a red chain already dominates the report, and --json stdout stays
+  // byte-identical because the notice is stderr-only and non-JSON-only.
+  if (!values.json && code !== 1 && receipts.length) {
+    const tablePath = join(chainDir, "table.json");
+    if (existsSync(tablePath)) {
+      let tableHash = null;
+      try {
+        const doc = JSON.parse(readFileSync(tablePath, "utf-8"));
+        if (Array.isArray(doc.headers) && Array.isArray(doc.rows)) {
+          tableHash = createHash("sha256")
+            .update(canonicalJsonBytes({ headers: doc.headers, rows: doc.rows }))
+            .digest("hex");
+        }
+      } catch {
+        tableHash = null; // unreadable counts as stale: the room cannot attest it either
+      }
+      if (tableHash !== outputHashOf(receipts[receipts.length - 1])) {
+        console.error(
+          "⚠ table.json beside this chain does not match the final receipt; the room " +
+            "will show NOT THE ATTESTED DATA. Re-run: tamper-signal export <chain.json> --data <file>"
+        );
+      }
+    }
+  }
   // Archive the run snapshot AFTER the final exit code settled: a red run
   // never poisons history. Notices go to stderr ONLY, so the --json stdout
   // payload stays untouched; archiving can never change verdict or exit code.

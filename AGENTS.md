@@ -769,7 +769,13 @@ Skipping or forgetting this step degrades honestly, never silently:
   reads `NOT THE ATTESTED DATA` with the exact re-run command — a
   build-behind state, deliberately distinct from a broken chain.
 
-So: wire the export into the pipeline run itself, not a manual step.
+So: wire the export into the pipeline run itself, not a manual step. Both
+wrappers do it for you — pass `exportTable: true` to `rebuildChain(...)`
+(Node), or `write_table=True` on your FINAL `@receipt_step` stage (Python) —
+and `table.json` is written as the last pipeline step, always matching the
+chain tail. If a published table does go stale anyway, `tamper-signal verify`
+prints a one-line stderr reminder naming the re-run command (absence stays
+silent: CLI-only projects never publish a table).
 
 Embedding the room inline (instead of the helper-served page): mount
 `mountSignalRoom` / `<tamper-signal-room>` where the old Data tab lived. The
