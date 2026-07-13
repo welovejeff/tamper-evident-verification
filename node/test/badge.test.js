@@ -23,7 +23,9 @@ import {
 // badge.js expects a browser; give it just enough of one before importing.
 globalThis.window = { location: { href: "http://localhost/" }, crypto: globalThis.crypto };
 
-const { verifyReceipts, ed25519Available } = await import("../../badge/badge.js");
+const { verifyReceipts, invalidateVerification, ed25519Available } = await import(
+  "../../badge/badge.js"
+);
 
 const CSV = "date,campaign_name,spend_usd\n2026-05-01,a,10.50\n2026-05-02,b,20.00\n";
 
@@ -52,7 +54,10 @@ function buildChainDir() {
 }
 
 function serve(chainDir) {
-  // Route badge.js's fetch() calls to the files on disk, by basename.
+  // Route badge.js's fetch() calls to the files on disk, by basename. Every
+  // test reuses the URL "chain.json" for a different directory, so bust the
+  // verification memo at the same moment the stub is swapped.
+  invalidateVerification();
   globalThis.fetch = async (url) => {
     const name = decodeURIComponent(String(url).split("/").pop());
     const buf = readFileSync(join(chainDir, name));

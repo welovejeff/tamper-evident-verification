@@ -25,7 +25,7 @@ from test_tamper_signal import sample_records
 
 def _serialize(doc: dict, fmt: str) -> str:
     """Reconstruct a native-format file from a canonical document, the way the
-    browser 'Take your data' export does (badge/table.js serializeDoc)."""
+    browser 'Take your data' export does (badge/room.js serializeDoc)."""
     headers, rows = doc["headers"], doc["rows"]
 
     def cell(v):

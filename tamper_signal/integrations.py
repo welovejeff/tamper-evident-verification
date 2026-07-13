@@ -1,18 +1,22 @@
 """Shared pieces for the framework attach helpers.
 
-The browser surfaces (the signal, the badge, the Data tab) ship inside this
-package under static/, byte-identical to the repo's badge/ directory (a test
-enforces the sync). Framework helpers serve them alongside the receipts
-directory so a host app needs exactly one call plus one snippet.
+The browser surfaces (the signal, the badge, the Data tab, the Signal Room)
+ship inside this package under static/, byte-identical to the repo's badge/
+directory (a test enforces the sync). Framework helpers serve them alongside
+the receipts directory so a host app needs exactly one call plus one snippet —
+and that one call serves the room behind the light, so the light's
+"view receipts" link never dead-ends in raw JSON.
 """
 
 from __future__ import annotations
 
+import json
 from importlib import resources
 
-# The assets the helpers serve. light.js and table.js import ./badge.js, and
-# element.js imports ./light.js, so they must be served side by side.
-ASSET_NAMES = ("badge.js", "light.js", "element.js", "table.js", "console.js")
+# The assets the helpers serve. light.js, table.js, console.js, and room.js
+# import ./badge.js (table/console dynamic-import ./room.js), and element.js
+# imports ./light.js, so they must be served side by side.
+ASSET_NAMES = ("badge.js", "light.js", "element.js", "table.js", "console.js", "room.js")
 
 
 def asset_text(name: str) -> str:
@@ -22,22 +26,78 @@ def asset_text(name: str) -> str:
     return resources.files("tamper_signal").joinpath("static", name).read_text(encoding="utf-8")
 
 
+def _trusted_keys(pub_key: str | list[str] | None) -> list[str] | None:
+    """Normalize the attach-level trusted-key option to a rotation list.
+
+    The verification policy (trusted keys, warn-drift) must reach EVERY mount
+    a helper emits, or the pill and the room could disagree about the same
+    chain (and their verifyReceipts calls would stop coalescing).
+    """
+    if not pub_key:
+        return None
+    return [pub_key] if isinstance(pub_key, str) else pub_key
+
+
 def signal_snippet(
     chain_url: str = "/receipts/chain.json",
     *,
     assets_prefix: str = "/tamper-signal",
     selector: str = "header",
+    receipts_href: str | None = None,
+    pub_key: str | list[str] | None = None,
+    warn_drift: bool = False,
 ) -> str:
     """The one-line HTML snippet that mounts the signal in a host page.
 
     Falls back to document.body when the selector matches nothing, so the
-    light always lands somewhere visible.
+    light always lands somewhere visible. When ``receipts_href`` is set (the
+    attach helpers pass the served room page), the light's "view receipts"
+    link lands there instead of on raw chain.json. ``pub_key``/``warn_drift``
+    carry the attach-level verification policy into the pill so it always
+    agrees with the served room page.
     """
+    keys = _trusted_keys(pub_key)
+    opt_pairs = []
+    if receipts_href:
+        opt_pairs.append(f"receiptsHref: {receipts_href!r}")
+    if warn_drift:
+        opt_pairs.append("warnDrift: true")
+    extra = ""
+    if keys or opt_pairs:
+        extra = f", {json.dumps(keys) if keys else 'undefined'}"
+        if opt_pairs:
+            extra += ", { " + ", ".join(opt_pairs) + " }"
     return (
         '<script type="module">'
         f'import {{ mountTamperSignal }} from "{assets_prefix}/light.js"; '
         f"mountTamperSignal(document.querySelector({selector!r}) ?? document.body, "
-        f"{chain_url!r});"
+        f"{chain_url!r}{extra});"
+        "</script>"
+    )
+
+
+def room_snippet(
+    chain_url: str = "/receipts/chain.json",
+    *,
+    assets_prefix: str = "/tamper-signal",
+    selector: str = "#tamper-signal-room",
+    strict: bool = False,
+    pub_key: str | list[str] | None = None,
+    warn_drift: bool = False,
+) -> str:
+    """One-line snippet mounting an inline embedded-density Signal Room.
+
+    For hosts that render their own Data tab: mount a strict room, listen for
+    the bubbling ``tamper-signal:state`` event, and paint your own dot on your
+    own tab. Falls back to document.body when the selector matches nothing.
+    """
+    keys = _trusted_keys(pub_key)
+    return (
+        '<script type="module">'
+        f'import {{ mountSignalRoom }} from "{assets_prefix}/room.js"; '
+        f"mountSignalRoom(document.querySelector({selector!r}) ?? document.body, "
+        f"{chain_url!r}, {json.dumps(keys) if keys else 'undefined'}, "
+        f"{{ strict: {json.dumps(bool(strict))}, warnDrift: {json.dumps(bool(warn_drift))} }});"
         "</script>"
     )
 
@@ -48,13 +108,10 @@ def console_snippet(
     assets_prefix: str = "/tamper-signal",
     selector: str = "#tamper-signal-console",
 ) -> str:
-    """One-line snippet mounting the chain-of-custody console inline.
+    """Deprecated alias: the console is a preset of the Signal Room since 2.1.
 
-    This is v2's primary surface: imports, changes, and signed reasons/authors,
-    rendered from chain.json plus the timeline.json the console derives beside
-    it. The inline status light (`signal_snippet`) remains available for hosts
-    that only want a header pill. Falls back to document.body when the selector
-    matches nothing, so the console always lands somewhere visible.
+    Prefer ``room_snippet``. Falls back to document.body when the selector
+    matches nothing.
     """
     return (
         '<script type="module">'
@@ -65,20 +122,44 @@ def console_snippet(
     )
 
 
+def room_page(
+    chain_url: str = "/receipts/chain.json",
+    *,
+    assets_prefix: str = "/tamper-signal",
+    preset: str = "room",
+    strict: bool = False,
+    pub_key: str | list[str] | None = None,
+    warn_drift: bool = False,
+) -> str:
+    """A standalone HTML page hosting the Signal Room for a chain.
+
+    Page density: the room honors ``?focus=auto`` and hash deep links itself.
+    The attach-level options (trusted keys, warn-drift) are baked in so the
+    light snippet and this page can never disagree.
+    """
+    keys = [pub_key] if isinstance(pub_key, str) else pub_key
+    return f"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Tamper Signal room</title>
+<style>body{{margin:0;background:#07090d;padding:24px}}</style></head>
+<body><div id="room"></div>
+<script type="module">
+import {{ mountSignalRoom }} from "{assets_prefix}/room.js";
+mountSignalRoom(document.getElementById("room"), {chain_url!r}, {json.dumps(keys)}, {{
+  density: "page",
+  preset: {json.dumps(preset)},
+  strict: {json.dumps(bool(strict))},
+  warnDrift: {json.dumps(bool(warn_drift))},
+}});
+</script></body></html>
+"""
+
+
 def console_page(
     chain_url: str = "/receipts/chain.json",
     *,
     assets_prefix: str = "/tamper-signal",
 ) -> str:
-    """A minimal HTML page hosting the verification console for a chain."""
-    return f"""<!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Tamper Signal console</title>
-<style>body{{margin:0;background:#07090d;padding:24px}}</style></head>
-<body><div id="console"></div>
-<script type="module">
-import {{ mountReceiptConsole }} from "{assets_prefix}/console.js";
-mountReceiptConsole(document.getElementById("console"), {chain_url!r});
-</script></body></html>
-"""
+    """Deprecated alias: serves the room with its rail open (preset console)."""
+    return room_page(chain_url, assets_prefix=assets_prefix, preset="console")

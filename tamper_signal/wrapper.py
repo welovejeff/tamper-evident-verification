@@ -24,6 +24,7 @@ except ImportError:  # pragma: no cover - Windows; the watcher targets POSIX
 
 from .adapters import to_records
 from .canonical import (
+    canonical_document,
     decimal_to_plain_string,
     evidence_hash,
     load_records,
@@ -520,6 +521,7 @@ def receipt_step(
     chain_dir: str = "receipts/",
     key_path: str = "keys/signing.key",
     code_file: str | None = None,
+    write_table: bool = False,
 ):
     """Decorate a transform with signed receipts.
 
@@ -532,6 +534,11 @@ def receipt_step(
         key_path: PKCS8 PEM Ed25519 private key used to sign the receipt.
         code_file: override for the recorded source path (defaults to the
             function's own file, resolved relative to the cwd).
+        write_table: also write ``<chain_dir>/table.json`` (the canonical
+            table document of this stage's output) after the receipt, so the
+            Signal Room's landing plane always matches the chain tail. Pass
+            it on your FINAL stage — it is the ``receipts export`` step,
+            minus the manual step to forget.
     """
 
     def decorator(func: Callable[..., list[dict[str, Any]]]):
@@ -594,6 +601,13 @@ def receipt_step(
             filename = next_receipt_filename(chain_dir, func.__name__)
             write_receipt(chain_dir, filename, receipt)
             write_chain(chain_dir, existing + [filename], public_hex)
+            if write_table:
+                import json as _json
+
+                document = canonical_document(output_records)
+                (Path(chain_dir) / "table.json").write_text(
+                    _json.dumps(document, indent=2) + "\n", encoding="utf-8"
+                )
             return output
 
         return wrapper

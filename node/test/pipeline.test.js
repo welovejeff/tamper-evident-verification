@@ -3,7 +3,7 @@
 // "rebuild on data change"). See issues #20 and #22.
 
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -96,6 +96,25 @@ test("the rebuilt chain's final output hashes to its table document", async () =
   // canonicalDocument shape is what we'd write to table.json.
   const doc = canonicalDocument(final);
   assert.ok(doc.headers.includes("campaign_name"));
+});
+
+test("rebuildChain exportTable:true writes an attested table.json as the last step", async () => {
+  const { keyPath, chainDir, csvPath } = setup();
+  const dropBlankCampaign = (rows) => rows.filter((r) => r.campaign_name !== null && r.campaign_name !== "");
+  const out = await rebuildChain({ file: csvPath, stages: [dropBlankCampaign], chainDir, keyPath, exportTable: true });
+
+  const doc = JSON.parse(readFileSync(join(chainDir, "table.json"), "utf-8"));
+  // The written document hashes to the chain tail: the room's landing plane
+  // can never go stale on a rebuild that opts in.
+  const h = createHash("sha256").update(canonicalJsonBytes(doc)).digest("hex");
+  assert.equal(h, semanticHash(out));
+  const receipts = loadReceipts(chainDir);
+  assert.equal(h, outputHashOf(receipts[receipts.length - 1]));
+
+  // Default stays manual: no table.json without the opt-in.
+  const { chainDir: plainDir, keyPath: plainKey, csvPath: plainCsv } = setup();
+  await rebuildChain({ file: plainCsv, stages: [dropBlankCampaign], chainDir: plainDir, keyPath: plainKey });
+  assert.equal(existsSync(join(plainDir, "table.json")), false);
 });
 
 test("rebuildChain rejects non-function stages", async () => {

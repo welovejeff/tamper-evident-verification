@@ -311,6 +311,80 @@
   #light-slot .lr-pill.lr-attn { animation: pill-attn 1s ease-out 2; }
   @media (prefers-reduced-motion: reduce) { #light-slot .lr-pill.lr-attn { animation: none; } }
 
+  /* ---------- before / after: the footprint slider ---------- */
+  .ba {
+    position: relative;
+    --ba-pos: 50%;
+    border-radius: 12px;
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.5);
+    user-select: none;
+  }
+  .ba-pane { border-radius: 12px; overflow: hidden; background: #f4f5f7; color: #1f2430; font-family: var(--sans); }
+  .ba-pane.ba-before { position: relative; }
+  .ba-pane.ba-after { position: absolute; inset: 0; clip-path: inset(0 0 0 var(--ba-pos)); }
+  /* both panes share the mock-app classes; rows get fixed heights so the two
+     layers stay pixel-aligned even though the after pane adds elements */
+  .ba .host-header { min-height: 55px; flex-wrap: nowrap; } /* a wrap in one pane would misalign the layers */
+  .ba .host-logo { min-width: 0; white-space: nowrap; }
+  .host-tabs {
+    display: flex; align-items: flex-end; gap: 4px;
+    height: 46px; box-sizing: border-box;
+    padding: 8px 22px 0;
+    background: #fff; border-bottom: 1px solid #e6e8ee;
+    overflow: hidden; white-space: nowrap;
+  }
+  .host-tabs .htab { font-size: 13px; color: #6b7280; padding: 8px 14px 9px; border: 1px solid transparent; border-bottom: 0; border-radius: 8px 8px 0 0; }
+  .host-tabs .htab.on { background: #f4f5f7; border-color: #e6e8ee; color: #1f2430; font-weight: 600; }
+  /* the injected Data tab: deliberately foreign inside the host's light tab bar */
+  .ba-datatab {
+    display: inline-flex; align-items: center; gap: 7px;
+    font: 11px var(--mono); color: #e5e7eb;
+    background: #0b0f14; border: 1px solid #1f2937; border-bottom: 0;
+    border-radius: 8px 8px 0 0; padding: 9px 12px 10px;
+    margin-left: auto; /* apart from the host's tabs: both additions live on the right, where the reveal shows them */
+  }
+  .ba-datatab i { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 5px 0 rgba(52, 211, 153, 0.7); flex: none; }
+  .ba-datatab .dt-attr { color: #3d4854; }
+  /* the mock status light: a static portrait of the live pill below */
+  .ba-pill {
+    display: inline-flex; align-items: center; gap: 7px;
+    border: 1px solid #1f2937; background: #0b0f14; color: #e5e7eb;
+    border-radius: 999px; padding: 6px 12px 6px 9px;
+    font: 11px var(--mono); letter-spacing: 0.3px; white-space: nowrap;
+  }
+  .ba-pill i { width: 10px; height: 10px; border-radius: 50%; background: var(--green); box-shadow: 0 0 6px 0 rgba(52, 211, 153, 0.7); flex: none; }
+  .ba-pill b { color: var(--green); font-weight: 700; }
+  .ba-pill .bp-sub { color: #8b98a5; }
+  .ba-pill .bp-caret { color: #3d4854; font-size: 9px; }
+  .ba-tag {
+    position: absolute; bottom: 14px; z-index: 2;
+    font: 10px var(--mono); letter-spacing: 1.5px;
+    padding: 5px 10px; border-radius: 6px;
+    background: rgba(11, 15, 20, 0.85); color: var(--dim);
+    pointer-events: none;
+  }
+  .ba-before .ba-tag { left: 14px; }
+  .ba-after .ba-tag { right: 14px; color: var(--green); border: 1px solid rgba(52, 211, 153, 0.35); }
+  .ba-divider { position: absolute; top: 0; bottom: 0; left: var(--ba-pos); width: 0; border-left: 2px solid var(--cyan); z-index: 3; pointer-events: none; }
+  .ba-grip {
+    position: absolute; top: 50%; left: 0; transform: translate(-50%, -50%);
+    width: 36px; height: 36px; border-radius: 50%;
+    background: #0b0f14; border: 1px solid var(--cyan); color: var(--cyan);
+    display: flex; align-items: center; justify-content: center;
+    font: 12px var(--mono); letter-spacing: -1px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  }
+  .ba-range {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    opacity: 0; margin: 0; cursor: ew-resize; z-index: 4;
+    touch-action: pan-y; /* vertical swipes keep scrolling the page */
+    appearance: none; -webkit-appearance: none;
+  }
+  .ba:has(.ba-range:focus-visible) .ba-grip { outline: 2px solid var(--cyan); outline-offset: 3px; }
+  @media (max-width: 560px) {
+    .host-tabs .t-hide, .ba-datatab .dt-attr, .ba-pill .bp-sub { display: none; }
+  }
+
   /* ---------- the three steps ---------- */
   .steps { display: grid; gap: 16px; max-width: 720px; }
   .step {
@@ -467,7 +541,7 @@
       </svg>
     </div>
     <p class="kicker">SIGNED RECEIPTS FOR VIBE-CODED DATA PIPELINES</p>
-    <a class="v2-badge" href="/blog/data-that-watches-itself.html"><i aria-hidden="true"></i>v2.0.0 — the live-source watcher is here <span class="v2-arrow">→</span></a>
+    <a class="v2-badge" href="/blog/one-light-one-room.html"><i aria-hidden="true"></i>v2.1.0 — one light, one room <span class="v2-arrow">→</span></a>
     <h1>The light is <span class="lit">green</span>, the data is clean.</h1>
     <p class="lede">
       You pulled the export. Your AI built the dashboard. Tamper Signal keeps
@@ -523,6 +597,86 @@
         you exported. And if someone asks? Pull up the receipts.
       </p>
     </div>
+  </div>
+</section>
+
+<section id="footprint">
+  <div class="wrap">
+    <p class="sec-kicker">the footprint</p>
+    <h2>Everything it adds to your dashboard</h2>
+    <p class="sec-lede">
+      Drag the divider. On the left, a dashboard like the one you already have.
+      On the right, the same dashboard with Tamper Signal installed. The whole
+      footprint is a status light in the header and one Data tab holding the
+      receipts — your layout, your theme, your charts, untouched.
+    </p>
+
+    <div class="ba" id="ba">
+      <div class="ba-pane ba-before" aria-hidden="true">
+        <div class="browser-bar">
+          <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span class="url">your-dashboard.vercel.app/overview</span>
+        </div>
+        <span class="ba-tag">WITHOUT</span>
+        <div class="host-header">
+          <span class="host-logo"><span class="mark" aria-hidden="true"></span>Clipboard&nbsp;Analytics</span>
+          <span class="host-spacer"></span>
+        </div>
+        <div class="host-tabs">
+          <span class="htab on">Overview</span>
+          <span class="htab">Campaigns</span>
+          <span class="htab t-hide">Exports</span>
+        </div>
+        <div class="host-main">
+          <h3>Social Performance</h3>
+          <p class="sub">Weekly rollup from your exported analytics · updated 2h ago</p>
+          <div class="metrics">
+            <div class="metric"><h4>Total Spend</h4><div class="value">$2,020,283</div></div>
+            <div class="metric"><h4>Clicks</h4><div class="value">6,359,340</div></div>
+            <div class="metric"><h4>Rows</h4><div class="value">304</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ba-pane ba-after" aria-hidden="true">
+        <div class="browser-bar">
+          <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span class="url">your-dashboard.vercel.app/overview</span>
+        </div>
+        <span class="ba-tag">WITH TAMPER SIGNAL</span>
+        <div class="host-header">
+          <span class="host-logo"><span class="mark" aria-hidden="true"></span>Clipboard&nbsp;Analytics</span>
+          <span class="host-spacer"></span>
+          <span class="ba-pill"><i></i><b>VERIFIED</b><span class="bp-sub">· chain intact</span><span class="bp-caret">▸</span></span>
+        </div>
+        <div class="host-tabs">
+          <span class="htab on">Overview</span>
+          <span class="htab">Campaigns</span>
+          <span class="htab t-hide">Exports</span>
+          <span class="ba-datatab"><i></i>🧾 Data<span class="dt-attr">· tamper signal</span></span>
+        </div>
+        <div class="host-main">
+          <h3>Social Performance</h3>
+          <p class="sub">Weekly rollup from your exported analytics · updated 2h ago</p>
+          <div class="metrics">
+            <div class="metric"><h4>Total Spend</h4><div class="value">$2,020,283</div></div>
+            <div class="metric"><h4>Clicks</h4><div class="value">6,359,340</div></div>
+            <div class="metric"><h4>Rows</h4><div class="value">304</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ba-divider" aria-hidden="true"><span class="ba-grip">◂▸</span></div>
+      <input type="range" class="ba-range" min="0" max="100" step="1" value="50"
+        aria-label="Compare the dashboard without and with Tamper Signal installed" />
+    </div>
+
+    <p class="playground-note">
+      <strong>Deliberately foreign.</strong> The light and the Data tab keep their
+      own dark, mono look inside your app on purpose — a verifier styled by the
+      thing it verifies is less credible. This one is an illustration; the live,
+      actually-verifying light is just below.
+    </p>
   </div>
 </section>
 
@@ -643,10 +797,10 @@
       <a class="card" href="demo.html">
         <p class="card-k">SEE IT LIVE</p>
         <img class="card-thumb" src="docs/media/thumbs/light-pages.jpg" alt="Demo pages showing green, yellow, and red signals on a sample dashboard" loading="lazy" width="720" height="450" />
-        <h3>Every piece, working</h3>
-        <p>The status light, the badge, the verified data table, and the inspector
-           console, all on one page over a real chain. Flip it to tampered and take
-           the data out.</p>
+        <h3>One light, one room, working</h3>
+        <p>The status light and the Signal Room behind it — the verified table,
+           the chain, the break exhibit, the inspector, and the export, one
+           surface over a real chain. Flip it to tampered and take the data out.</p>
         <span class="go">open the full demo →</span>
       </a>
       <a class="card" href="https://github.com/welovejeff/tamper-evident-verification#readme">
@@ -773,6 +927,17 @@
   }
 
   buttons.forEach((b) => b.addEventListener("click", () => setState(b.dataset.set)));
+
+  // Before/after footprint slider: the invisible full-bleed range input is the
+  // whole interaction (drag, click-to-jump, keyboard, touch); it just drives
+  // the clip position CSS variable.
+  const ba = document.getElementById("ba");
+  if (ba) {
+    const range = ba.querySelector(".ba-range");
+    const setPos = () => ba.style.setProperty("--ba-pos", `${range.value}%`);
+    range.addEventListener("input", setPos);
+    setPos();
+  }
 
   // Mobile menu toggle; closes on link tap.
   const menuBtn = document.querySelector(".menu-btn");

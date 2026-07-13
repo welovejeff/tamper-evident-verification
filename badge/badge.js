@@ -21,6 +21,65 @@
 
 export const SHORT = (h) => (h && h.length > 10 ? `${h.slice(0, 4)}...${h.slice(-2)}` : h || "(none)");
 
+// --- The canonical verdict vocabulary, shared by every surface. ---
+// words/verdicts are copied VERBATIM from light.js (WORDS/VERDICTS, which stays
+// byte-untouched); node/test/vocab.test.js asserts the two literal tables never
+// drift. redStale is the room's verdict for a table.json that no longer hashes
+// to the final receipt (the chain itself verifies). Directives are the one
+// plain sentence each verdict earns in the room's strip.
+export const VOCAB = {
+  words: {
+    checking: "CHECKING",
+    green: "VERIFIED",
+    yellow: "CAVEAT",
+    red: "BROKEN",
+    unverifiable: "UNVERIFIED",
+  },
+  verdicts: {
+    checking: "VERIFYING",
+    green: "CHAIN VERIFIED",
+    yellow: "VERIFIABLE WITH CAVEATS",
+    red: "CHAIN BROKEN",
+    unverifiable: "COULD NOT VERIFY",
+  },
+  redStale: "NOT THE ATTESTED DATA",
+  directives: {
+    checking: "Re-verifying in your browser.",
+    green: "The light is green, the data is clean.",
+    yellow: "Verifies, with caveats. A human should look.",
+    red: "Do not present numbers fed by this pipeline.",
+    redStale: "Treat these rows as unattested until the export re-runs.",
+    unverifiable: "This says nothing about the data either way.",
+  },
+  caveatJoiner: " · ",
+};
+
+// --- The dark-instrument palette, declared once. ---
+// Every surface consumes these as CSS custom properties (the room injects them
+// under --ts-*); the hex values match the private --lr-* block in light.js,
+// which stays byte-untouched.
+export const TOKENS =
+  "--ts-bg:#0b0f14;--ts-panel:#11161d;--ts-border:#1f2937;--ts-chrome:#161d26;" +
+  "--ts-text:#e5e7eb;--ts-dim:#8b98a5;--ts-faint:#3d4854;--ts-row:#18202b;" +
+  "--ts-green:#34d399;--ts-red:#f87171;--ts-amber:#fbbf24;--ts-cyan:#67e8f9";
+
+// Host-page columns whose totals moved between two stages' control totals.
+// Row/column count changes have no single column to point at, so only
+// numeric_sums and null_counts participate. Single source for the diff that
+// light.js (changedColumns) and the old table.js (brokenColumns) each carried
+// privately; light.js keeps its untouched copy.
+export function changedColumns(up, down) {
+  const cols = new Set();
+  for (const key of ["numeric_sums", "null_counts"]) {
+    const a = (up || {})[key] || {};
+    const b = (down || {})[key] || {};
+    for (const c of new Set([...Object.keys(a), ...Object.keys(b)])) {
+      if (a[c] !== b[c]) cols.add(c);
+    }
+  }
+  return cols;
+}
+
 // --- Canonical JSON, byte-identical to tamper_signal/canonical.py's JCS output. ---
 // Leaves are strings, integers, booleans, or null (no floats). Object keys are
 // sorted; strings use JSON.stringify, whose escaping matches the Python side.
@@ -257,7 +316,76 @@ export function evaluate(receipts) {
 // the yellow verdict. opts.warnDrift adds a caveat for any control-totals
 // movement across intact links (off by default: filters and aggregations
 // legitimately move totals).
-export async function verifyReceipts(chainUrl, pubKeyHex, opts = {}) {
+//
+// Calls coalesce: concurrent calls with the same (chain URL, trusted keyset,
+// warnDrift) share one in-flight run, and a completed result is reused for
+// 250ms — hard below the 1000ms minimum watch interval — so a light and a room
+// on the same page fetch the chain and run Ed25519 once per refresh cycle, not
+// twice. Different trusted keysets NEVER share a result. The memo lives only in
+// memory; invalidateVerification() busts it synchronously (the room's re-verify
+// button calls it so "re-verify" always means a fresh run).
+const VERIFY_MEMO_TTL_MS = 250;
+const verifyMemo = new Map();
+
+function verifyMemoKey(chainUrl, pubKeyHex, opts) {
+  let resolved;
+  try {
+    resolved = new URL(chainUrl, window.location.href).href;
+  } catch (_e) {
+    resolved = String(chainUrl);
+  }
+  const keys = (Array.isArray(pubKeyHex) ? [...pubKeyHex] : [pubKeyHex]).filter(Boolean).sort();
+  return `${resolved} ${JSON.stringify(keys)} ${Boolean(opts && opts.warnDrift)}`;
+}
+
+export function invalidateVerification(chainUrl) {
+  if (chainUrl == null) {
+    verifyMemo.clear();
+    return;
+  }
+  let resolved;
+  try {
+    resolved = new URL(chainUrl, window.location.href).href;
+  } catch (_e) {
+    resolved = String(chainUrl);
+  }
+  for (const key of [...verifyMemo.keys()]) {
+    if (key.startsWith(resolved + " ")) verifyMemo.delete(key);
+  }
+}
+
+export function verifyReceipts(chainUrl, pubKeyHex, opts = {}) {
+  // Opportunistic pruning keeps the memo bounded on long-lived pages that
+  // verify many distinct chains or keysets; in-flight entries are kept.
+  const now = Date.now();
+  for (const [staleKey, entry] of verifyMemo) {
+    if (entry.settledAt !== null && now - entry.settledAt > VERIFY_MEMO_TTL_MS) {
+      verifyMemo.delete(staleKey);
+    }
+  }
+  const key = verifyMemoKey(chainUrl, pubKeyHex, opts);
+  const hit = verifyMemo.get(key);
+  if (hit && (hit.settledAt === null || now - hit.settledAt <= VERIFY_MEMO_TTL_MS)) {
+    return hit.promise;
+  }
+  const entry = { promise: null, settledAt: null };
+  entry.promise = verifyReceiptsUncached(chainUrl, pubKeyHex, opts).then(
+    (result) => {
+      entry.settledAt = Date.now();
+      return result;
+    },
+    (err) => {
+      // Never memoize a rejection (the pipeline itself resolves "unverifiable"
+      // rather than rejecting; this guards unexpected throws).
+      if (verifyMemo.get(key) === entry) verifyMemo.delete(key);
+      throw err;
+    }
+  );
+  verifyMemo.set(key, entry);
+  return entry.promise;
+}
+
+async function verifyReceiptsUncached(chainUrl, pubKeyHex, opts = {}) {
   const verifiedAt = new Date().toISOString();
   let chain, receipts, receiptMismatches;
   try {
@@ -344,10 +472,13 @@ export async function verifyReceipts(chainUrl, pubKeyHex, opts = {}) {
   return { ...summary, state: summary.caveats.length ? "yellow" : "green" };
 }
 
-function el(tag, props = {}, children = []) {
+// Tiny DOM builder shared by the render layers (null children are skipped, so
+// callers can express conditional nodes inline). Exported for room.js.
+export function el(tag, props = {}, children = []) {
   const node = document.createElement(tag);
   Object.assign(node, props);
   for (const child of [].concat(children)) {
+    if (child == null) continue;
     node.appendChild(typeof child === "string" ? document.createTextNode(child) : child);
   }
   return node;
@@ -365,8 +496,8 @@ function injectStyles() {
   .receipt-badge.lb-green .lb-mark{color:#067647}
   .receipt-badge.lb-red{border-color:#fda29b}
   .receipt-badge.lb-red .lb-mark{color:#b42318}
-  .receipt-badge.lb-amber{border-color:#fedf89}
-  .receipt-badge.lb-amber .lb-mark{color:#b54708}
+  .receipt-badge.lb-grey{border-color:#d0d5dd}
+  .receipt-badge.lb-grey .lb-mark{color:#5c6470}
   .receipt-badge.lb-yellow{border-color:#fedf89}
   .receipt-badge.lb-yellow .lb-mark{color:#b54708}
   .receipt-badge .lb-caveats{margin-top:8px;color:#b54708;font-size:13px}
@@ -401,7 +532,16 @@ function renderDetail(receipts) {
   ]);
 }
 
+let warnedBadgeDeprecated = false;
+
 export async function renderReceiptBadge(containerEl, chainUrl, pubKeyHex) {
+  if (!warnedBadgeDeprecated) {
+    warnedBadgeDeprecated = true;
+    console.warn(
+      "renderReceiptBadge is deprecated and will be removed in 3.0: mount the signal " +
+        "light (tamper-signal/light) with the room behind it (tamper-signal/room) instead."
+    );
+  }
   injectStyles();
   containerEl.innerHTML = "";
   const badge = el("div", { className: "receipt-badge" });
@@ -423,7 +563,9 @@ export async function renderReceiptBadge(containerEl, chainUrl, pubKeyHex) {
   const { receipts, origin, finalRows, transforms, linkResult, caveats } = result;
 
   if (result.state === "unverifiable") {
-    badge.classList.add("lb-amber");
+    // Grey, never amber: the capability fallback says nothing about the chain
+    // and must not wear the yellow verdict's color.
+    badge.classList.add("lb-grey");
     mark.textContent = "!";
     label.textContent = result.reason;
     return;

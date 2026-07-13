@@ -9,10 +9,11 @@
 //   );
 //   const output = await clean(records);
 
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 
 import {
+  canonicalDocument,
   decimalToPlainString,
   evidenceHash,
   normalizeHeader,
@@ -235,6 +236,12 @@ export function ingestFile({
 // point that writes history: verifyChain stays side-effect-free by design,
 // and API users who manage chains by hand call writeRunSnapshot (or
 // archiveRunSnapshot) from "./history.js" explicitly.
+//
+// exportTable: true also writes <chainDir>/table.json (the canonical table
+// document of the final records) as the last step, so the Signal Room's
+// landing plane always matches the chain tail and can never go stale on a
+// rebuild. It is the programmatic `tamper-signal export`, minus the manual
+// step to forget.
 export async function rebuildChain({
   file,
   stages = [],
@@ -244,6 +251,7 @@ export async function rebuildChain({
   band = null,
   settle = null,
   bucketColumn = null,
+  exportTable = false,
 } = {}) {
   const { records } = ingestFile({
     file,
@@ -261,6 +269,10 @@ export async function rebuildChain({
     }
     const step = receiptStep(stage, { chainDir, keyPath });
     current = await step(current);
+  }
+  if (exportTable) {
+    const document = canonicalDocument(toRecords(current, "output"));
+    writeFileSync(join(chainDir, "table.json"), JSON.stringify(document, null, 2) + "\n");
   }
   try {
     const privateKey = loadPrivateKey(keyPath);

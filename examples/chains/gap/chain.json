@@ -9,6 +9,6 @@
   "receipt_hashes": {
     "000_source.json": "be371fba4fea9f4ba21a01bb1e12252585599982160b5f48c4fcab9febb1541e",
     "001_clean.json": "ddb9e090ec90cfe21bcc0dd9321f64af81b0505caabe06c5360152db63a3629b",
-    "002_aggregate.json": "b1ee5f302363632be983f9148749969c267d359070a48bad68ac0c1bcae1d621"
+    "003_aggregate.json": "b1ee5f302363632be983f9148749969c267d359070a48bad68ac0c1bcae1d621"
   }
 }

@@ -47,9 +47,68 @@ def test_export_flag_only_still_works(tmp_path, monkeypatch):
 
 
 # ---------------------------------------------------------------------------
+# The room's export step: write_table on the wrapper, stale reminder on verify
+# ---------------------------------------------------------------------------
+def test_receipt_step_write_table_publishes_attested_table(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    _seed_chain(tmp_path)
+    from tamper_signal.canonical import semantic_hash_table
+    from tamper_signal.receipts import load_receipts, output_hash_of
+    from tamper_signal.wrapper import receipt_step
+
+    from test_tamper_signal import sample_records
+
+    @receipt_step(chain_dir="receipts", key_path="keys/signing.key", write_table=True)
+    def identity(records):
+        return records
+
+    identity(sample_records())
+    document = json.loads((tmp_path / "receipts" / "table.json").read_text())
+    receipts = load_receipts("receipts")
+    # The published table hashes to the chain tail: the room's landing plane
+    # cannot go stale when the final stage opts in.
+    assert semantic_hash_table(document["headers"], document["rows"]) == output_hash_of(receipts[-1])
+
+
+def test_verify_reminds_about_a_stale_table_on_stderr_only(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    _seed_chain(tmp_path)
+    data = _matching_data_file(tmp_path)
+    assert main(["export", "receipts/chain.json", "--data", str(data)]) == 0
+    capsys.readouterr()
+
+    # Attested table: no reminder. Absent table is covered below by contrast.
+    assert main(["verify", "receipts/chain.json"]) == 0
+    quiet = capsys.readouterr()
+    assert "NOT THE ATTESTED DATA" not in quiet.err
+
+    table_path = tmp_path / "receipts" / "table.json"
+    document = json.loads(table_path.read_text())
+    document["rows"][0][0] = "edited-after-signing"
+    table_path.write_text(json.dumps(document, indent=2) + "\n")
+
+    assert main(["verify", "receipts/chain.json"]) == 0  # the CHAIN verdict is untouched
+    loud = capsys.readouterr()
+    assert "NOT THE ATTESTED DATA" in loud.err
+    assert "NOT THE ATTESTED DATA" not in loud.out  # stderr only
+
+    # --json stdout stays byte-parseable with no reminder folded in.
+    assert main(["verify", "receipts/chain.json", "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["verdict"] == "green"
+
+
+def test_verify_stays_silent_when_no_table_is_published(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    _seed_chain(tmp_path)
+    assert main(["verify", "receipts/chain.json"]) == 0
+    assert "NOT THE ATTESTED DATA" not in capsys.readouterr().err
+
+
+# ---------------------------------------------------------------------------
 # receipts assets: vendor the browser bundle into a project
 # ---------------------------------------------------------------------------
-EXPECTED_ASSETS = {"badge.js", "console.js", "element.js", "light.js", "table.js"}
+EXPECTED_ASSETS = {"badge.js", "console.js", "element.js", "light.js", "table.js", "room.js"}
 
 
 def test_assets_copies_browser_bundle(tmp_path, monkeypatch, capsys):

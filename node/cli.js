@@ -95,7 +95,8 @@ commands:
                                              receipts) for offline re-verification
   assets [--out badge/]                      copy the bundled browser assets
                                              (light.js, badge.js, element.js,
-                                             table.js, console.js) into a project
+                                             table.js, console.js, room.js) into
+                                             a project
   annotate [<chain.json>] --reason "..." [--author "..."] [--supersedes <hash>]
            [--target <hash>] [--key keys/signing.key] [--json]
                                              attach a signed reason/author to a
@@ -474,6 +475,34 @@ function cmdVerify(args) {
       console.log(`${color.light(result.verdict)} ${color.colorize(result.verdict.toUpperCase(), result.verdict)}`);
     }
     for (const line of result.lines) console.log(line);
+  }
+  // Foot-gun shrink: a published table.json that no longer hashes to the
+  // chain tail makes the room read NOT THE ATTESTED DATA; one stderr line
+  // names the fix. An ABSENT table.json stays silent (CLI-only projects
+  // never publish one, and the room's grey slab covers that case itself),
+  // a red chain already dominates the report, and --json stdout stays
+  // byte-identical because the notice is stderr-only and non-JSON-only.
+  if (!values.json && code !== 1 && receipts.length) {
+    const tablePath = join(chainDir, "table.json");
+    if (existsSync(tablePath)) {
+      let tableHash = null;
+      try {
+        const doc = JSON.parse(readFileSync(tablePath, "utf-8"));
+        if (Array.isArray(doc.headers) && Array.isArray(doc.rows)) {
+          tableHash = createHash("sha256")
+            .update(canonicalJsonBytes({ headers: doc.headers, rows: doc.rows }))
+            .digest("hex");
+        }
+      } catch {
+        tableHash = null; // unreadable counts as stale: the room cannot attest it either
+      }
+      if (tableHash !== outputHashOf(receipts[receipts.length - 1])) {
+        console.error(
+          "⚠ table.json beside this chain does not match the final receipt; the room " +
+            "will show NOT THE ATTESTED DATA. Re-run: tamper-signal export <chain.json> --data <file>"
+        );
+      }
+    }
   }
   // Archive the run snapshot AFTER the final exit code settled: a red run
   // never poisons history. Notices go to stderr ONLY, so the --json stdout
@@ -1221,7 +1250,7 @@ function cmdExport(args) {
 // The browser assets ship in the package's badge/ directory (see package.json
 // "files"). Mirror the Python `receipts assets`: copy them into a project so an
 // integrator never has to dig them out of node_modules by hand.
-const ASSET_NAMES = ["light.js", "badge.js", "element.js", "table.js", "console.js"];
+const ASSET_NAMES = ["light.js", "badge.js", "element.js", "table.js", "console.js", "room.js"];
 
 function cmdAssets(args) {
   const { values } = parseArgs({

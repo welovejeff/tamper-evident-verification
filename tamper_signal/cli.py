@@ -449,6 +449,37 @@ def _fold_judgment_caveats(result, caveats: list[str]) -> None:
     result.caveats.extend(caveats)
 
 
+def _stale_table_reminder(chain_dir: str, receipts: list) -> None:
+    """One stderr line when a published table.json no longer matches the tail.
+
+    Foot-gun shrink for the Signal Room: a stale table.json makes the room
+    read NOT THE ATTESTED DATA, so verify names the fix. An ABSENT table.json
+    stays silent — CLI-only projects never publish one, and the room's grey
+    slab covers that case itself. Callers gate on non-red and non-JSON.
+    """
+    from .canonical import semantic_hash_table
+    from .receipts import output_hash_of
+
+    table_path = Path(chain_dir) / "table.json"
+    if not receipts or not table_path.exists():
+        return
+    table_hash = None
+    try:
+        import json as _json
+
+        document = _json.loads(table_path.read_text(encoding="utf-8"))
+        if isinstance(document.get("headers"), list) and isinstance(document.get("rows"), list):
+            table_hash = semantic_hash_table(document["headers"], document["rows"])
+    except Exception:
+        table_hash = None  # unreadable counts as stale: the room cannot attest it either
+    if table_hash != output_hash_of(receipts[-1]):
+        print(
+            "⚠ table.json beside this chain does not match the final receipt; the room "
+            "will show NOT THE ATTESTED DATA. Re-run: tamper-signal export <chain.json> --data <file>",
+            file=sys.stderr,
+        )
+
+
 def cmd_verify(args: argparse.Namespace) -> int:
     chain = read_chain(args.chain)
     chain_dir = str(Path(args.chain).parent)
@@ -583,6 +614,10 @@ def cmd_verify(args: argparse.Namespace) -> int:
                 allow_staging=args.anchor_staging,
                 covers_receipts=recorded_hashes is not None,
             )
+    # Stale published table? stderr-only and non-JSON-only, so the --json
+    # stdout payload and the verdict lines stay byte-identical.
+    if not args.json and code != 1:
+        _stale_table_reminder(chain_dir, receipts)
     # Archive the run snapshot AFTER the anchor fold settled the final exit
     # code: a red run (including an anchor mismatch) never poisons history.
     if code != 1:
@@ -854,8 +889,8 @@ def cmd_serve(args: argparse.Namespace) -> int:
 def cmd_assets(args: argparse.Namespace) -> int:
     """Copy the bundled browser assets into a project directory.
 
-    The browser files (light.js, badge.js, element.js, table.js, console.js)
-    ship inside the installed package; without this command an integrator has
+    The browser files (light.js, badge.js, element.js, table.js, console.js,
+    room.js) ship inside the installed package; without this command an integrator has
     to discover `site-packages/tamper_signal/static/` and copy by hand. The
     default destination is `badge/`, matching the vendor path used throughout
     the runbook.
@@ -2460,7 +2495,7 @@ def build_parser(prog: str = "tamper-signal") -> argparse.ArgumentParser:
 
     p_assets = sub.add_parser(
         "assets",
-        help="Copy the bundled browser assets (light.js, badge.js, element.js, table.js, console.js) into a project",
+        help="Copy the bundled browser assets (light.js, badge.js, element.js, table.js, console.js, room.js) into a project",
     )
     p_assets.add_argument(
         "--out", default="badge/", help="Directory to copy the assets into (created if missing)"

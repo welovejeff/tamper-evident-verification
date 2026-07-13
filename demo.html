@@ -110,10 +110,10 @@
     <p class="kicker">live demo · not a mockup</p>
     <h1>The whole instrument, running in your browser</h1>
     <p class="lede">
-      Every surface below is checking a real receipt chain right now, in your browser,
-      with no server. Flip the switch to see what each one does when the data is clean,
-      when it needs a second look, and when a number has been changed. Then take the data
-      out and watch it re-verify across formats.
+      One light, one room — both checking a real receipt chain right now, in your
+      browser, with no server. Flip the switch to see how the room composes itself
+      when the data is clean, when it needs a second look, and when a number has
+      been changed. Then take the data out and watch it re-verify across formats.
     </p>
 
     <div class="controls">
@@ -129,20 +129,20 @@
 
     <div class="grid">
       <div class="card light-card">
-        <h2 style="margin:0">Status light</h2>
+        <h2 style="margin:0">The light</h2>
         <span id="slot-light"></span>
       </div>
       <div class="card">
-        <h2>Badge</h2>
-        <div id="slot-badge"></div>
+        <h2>One light, one room</h2>
+        <p class="muted" style="margin:6px 0 0; font-size:13px; line-height:1.6">
+          The light is the whole footprint on your dashboard. Click it and
+          "view receipts →" lands in the room below — the attested table,
+          the chain, the inspector, the log, and the export, one surface.
+        </p>
       </div>
       <div class="card full">
-        <h2>Verified Data tab</h2>
-        <div id="slot-table"></div>
-      </div>
-      <div class="card full">
-        <h2>Inspector console</h2>
-        <div id="slot-console"></div>
+        <h2>The Signal Room</h2>
+        <div id="slot-room"></div>
       </div>
     </div>
 
@@ -151,7 +151,7 @@
       <p>
         Export the verified rows above and the proof comes with them. The fingerprint is
         taken over the data, not the file format, so the same rows exported as CSV and
-        re-checked as JSON produce the same hash and stay green. Use the Data tab's
+        re-checked as JSON produce the same hash and stay green. Use the room's
         "Take your data" control to download a bundle; the panel below proves the
         round-trip live.
       </p>
@@ -207,9 +207,8 @@ tamper-signal review accept &lt;hash&gt; --reason "confirmed by the weather desk
 
 <script type="module">
   import { mountTamperSignal } from "./badge/light.js";
-  import { renderReceiptBadge, canonicalize } from "./badge/badge.js";
-  import { mountReceiptConsole } from "./badge/console.js";
-  import { mountReceiptTable } from "./badge/table.js";
+  import { canonicalize } from "./badge/badge.js";
+  import { mountSignalRoom } from "./badge/room.js";
 
   // Each state is one pre-baked committed chain; swapping the chain drives every
   // surface at once. Yellow uses the coverage-gap chain (a real "verifies, with
@@ -228,32 +227,27 @@ tamper-signal review accept &lt;hash&gt; --reason "confirmed by the weather desk
 
   const slots = {
     light: document.getElementById("slot-light"),
-    badge: document.getElementById("slot-badge"),
-    table: document.getElementById("slot-table"),
-    console: document.getElementById("slot-console"),
+    room: document.getElementById("slot-room"),
   };
   const buttons = [...document.querySelectorAll(".switcher button[data-set]")];
   const stateNote = document.getElementById("state-note");
   const runBtn = document.getElementById("run-rt");
   const rtResult = document.getElementById("rt-result");
 
-  // mountTamperSignal / mountReceiptConsole / mountReceiptTable return a handle with
-  // destroy(); renderReceiptBadge returns nothing and clears its own container.
-  const handles = { light: null, console: null, table: null };
+  const handles = { light: null, room: null };
   let currentState = "green";
 
   function destroyAll() {
-    for (const key of ["light", "console", "table"]) {
+    for (const key of ["light", "room"]) {
       if (handles[key]) { handles[key].destroy(); handles[key] = null; }
     }
-    slots.badge.innerHTML = "";
   }
 
   function mountAll(chain) {
-    handles.light = mountTamperSignal(slots.light, chain);
-    renderReceiptBadge(slots.badge, chain);
-    handles.console = mountReceiptConsole(slots.console, chain);
-    handles.table = mountReceiptTable(slots.table, chain, { maxRows: 8 });
+    // One light, one room: the room mounts first so it owns #tamper-room, and
+    // the light's "view receipts →" scrolls to it instead of raw chain.json.
+    handles.room = mountSignalRoom(slots.room, chain, { maxRows: 8 });
+    handles.light = mountTamperSignal(slots.light, chain, { receiptsHref: "#tamper-room" });
   }
 
   function clearRoundTrip() {
@@ -298,10 +292,12 @@ tamper-signal review accept &lt;hash&gt; --reason "confirmed by the weather desk
     watchButtons.forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.watch === name)));
     watchNote.textContent = WATCH_NOTES[name];
     if (watchHandle) { watchHandle.destroy(); watchHandle = null; }
-    watchHandle = mountReceiptConsole(watchSlot, WATCH_CHAINS[name]);
+    // The room with its rail open (the old console, one drawer richer): the
+    // custody drawer carries the import, the signed notes, and any withheld
+    // change awaiting review.
+    watchHandle = mountSignalRoom(watchSlot, WATCH_CHAINS[name], { preset: "console" });
   }
   watchButtons.forEach((b) => b.addEventListener("click", () => setWatch(b.dataset.watch)));
-  setWatch("live");
 
   // ----- The live round-trip -------------------------------------------------
   // The attested hash is sha256(canonicalize({headers, rows})). The round-trip
@@ -363,7 +359,10 @@ tamper-signal review accept &lt;hash&gt; --reason "confirmed by the weather desk
   }
   runBtn.addEventListener("click", runRoundTrip);
 
+  // Mount the main room before the watcher's so it owns the #tamper-room
+  // anchor the light links to.
   setState("green");
+  setWatch("live");
 </script>
 
 </body>
