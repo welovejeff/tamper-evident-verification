@@ -2,15 +2,23 @@
 
 # The light is green, the data is clean.
 
-[![PyPI](https://img.shields.io/pypi/v/tamper-signal)](https://pypi.org/project/tamper-signal/) [![npm](https://img.shields.io/npm/v/tamper-signal)](https://www.npmjs.com/package/tamper-signal) [![Socket Badge (npm)](https://badge.socket.dev/npm/package/tamper-signal/2.0.0)](https://socket.dev/npm/package/tamper-signal/overview/2.0.0) [![Socket Badge (PyPI)](https://badge.socket.dev/pypi/package/tamper-signal/2.0.0)](https://socket.dev/pypi/package/tamper-signal/overview/2.0.0) [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![PyPI](https://img.shields.io/pypi/v/tamper-signal)](https://pypi.org/project/tamper-signal/) [![npm](https://img.shields.io/npm/v/tamper-signal)](https://www.npmjs.com/package/tamper-signal) [![test](https://github.com/welovejeff/tamper-evident-verification/actions/workflows/test.yml/badge.svg)](https://github.com/welovejeff/tamper-evident-verification/actions/workflows/test.yml) [![Socket Badge (npm)](https://badge.socket.dev/npm/package/tamper-signal/2.1.0)](https://socket.dev/npm/package/tamper-signal/overview/2.1.0) [![Socket Badge (PyPI)](https://badge.socket.dev/pypi/package/tamper-signal/2.1.0)](https://socket.dev/pypi/package/tamper-signal/overview/2.1.0) [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](https://github.com/welovejeff/tamper-evident-verification/blob/main/LICENSE)
 
-Your social team exports a month of TikTok performance data. Someone vibe-codes a dashboard on top of it with an AI assistant in an afternoon. It looks great. Then a transform silently drops 22 rows, or the model hallucinates an aggregation, and the numbers in front of your boss are wrong. Nothing in that workflow catches it. This is the missing verification layer: every stage of the pipeline signs a receipt for what went in and what came out, and one command (or a badge on the dashboard itself) tells you whether the chain is intact, or exactly where it broke and by how much.
+Tamper Signal is an open-source Python and JavaScript library and CLI that signs a receipt at every stage of a data pipeline and verifies the chain as a green, yellow, or red light: lightweight data provenance for export-to-dashboard pipelines. It can't tell you the data is right, but it can prove nobody changed it.
 
-**Live demo:** [tampersignal.com](https://tampersignal.com/) re-verifies a real committed receipt chain in your browser: swap in a tampered chain or an untrusted key and watch the light catch it.
+![The inline status light cycling green, yellow, and red inside a host dashboard, then flagging the unverified metric](https://raw.githubusercontent.com/welovejeff/tamper-evident-verification/main/docs/media/light.gif)
+
+*The inline status light: a small dark instrument in your dashboard's header. When the chain breaks, it reaches into the page and flags the exact metric that no longer descends from the source.*
+
+**Try it in your browser, no install:** [tampersignal.com/demo.html](https://tampersignal.com/demo.html) runs every surface on a real receipt chain; flip it to tampered and watch the light catch it. Or `pip install tamper-signal` / `npm install tamper-signal`.
+
+If this is useful, a star helps other people with AI-built dashboards find it.
 
 **Pointing a coding agent at this repo?** `AGENTS.md` is the full integration runbook: install, keygen, ingest, wrap transforms, mount the signal, verify. Tell your agent "add tamper signal" and it will find it.
 
 ## The problem
+
+Your social team exports a month of TikTok performance data. Someone vibe-codes a dashboard on top of it with an AI assistant in an afternoon. It looks great. Then a transform silently drops 22 rows, or someone hand-edits a file between steps, and the numbers in front of your boss are wrong. Nothing in that workflow catches it. Tamper Signal is the missing verification layer: every stage of the pipeline signs a receipt for what went in and what came out, so a dropped row shows up in that stage's own totals, and one command (or a light on the dashboard itself) tells you whether the chain is intact, or exactly where it broke and by how much.
 
 Vibe-coded pipelines fail silently. AI-generated transform scripts work most of the time, and when they don't, they don't crash. They drop rows. They double-count. They coerce a column wrong and quietly shift every total. The dashboard still renders. The chart still looks plausible. Nobody re-checks 48,000 rows by hand.
 
@@ -24,15 +32,11 @@ The badge and the verifier reduce the whole chain to one state:
 - 🟡 **Yellow.** Verifiable, but with caveats: gaps in receipt coverage, an unrecognized signing key, or control-total drift that needs a human look.
 - 🔴 **Red.** Chain broken. A hash doesn't match at a specific link. You get the exact stage and the control-totals delta (e.g. `row_count 48212 -> 48190 (-22)`).
 
-![The inline status light cycling green, yellow, and red inside a host dashboard, then flagging the unverified metric](docs/media/light.gif)
-
-*The inline status light: a small dark instrument in your dashboard's header. When the chain breaks, it reaches into the page and flags the exact metric that no longer descends from the source.*
-
 Honest status: all three verdicts are implemented in `tamper-signal verify` and the browser surfaces. Yellow today covers two detectable caveats (a coverage gap in the receipt numbering, and signatures that only verify under the chain's embedded key rather than the key you trust) plus opt-in control-total drift via `--warn-drift`. The animations in this README are renders of the design mockups in `designs/`; the interfaces they depict have since shipped and, as of 2.1, unified. The surfaces also render a separate grey state ("could not load" or "verification unsupported in this browser"); that is a capability fallback that says nothing about the chain, not the yellow verdict.
 
 ## One light, one room
 
-The browser UI is two things, always shipped together. **The light** (`badge/light.js`) is the whole footprint on your dashboard: a small dark pill in the header. **The room** (`badge/room.js`, since 2.1) is the one surface behind it, where the pill's "view receipts →" lands: the attested data table as the landing plane — re-hashed in the viewer's browser against the final receipt — with the chain as a provenance rail, the break exhibit in business numbers when something is wrong, and the receipt inspector, CLI-mirror event log, chain-of-custody timeline, and "Take your data" evidence export one drawer away. Green earns silence; the layout leads with whatever the verdict demands. The attach helpers serve the room automatically and wire the light to it, so the default integration is both halves in one call. (`tamper-signal/table` and `tamper-signal/console` from 2.0 keep working as room presets.)
+The browser UI is two things, always shipped together. **The light** (`badge/light.js`) is the whole footprint on your dashboard: a small dark pill in the header. **The room** (`badge/room.js`, since 2.1) is the one surface behind it, where the pill's "view receipts →" lands: the attested data table as the landing plane (re-hashed in the viewer's browser against the final receipt), with the chain as a provenance rail, the break exhibit in business numbers when something is wrong, and the receipt inspector, CLI-mirror event log, chain-of-custody timeline, and "Take your data" evidence export one drawer away. Green earns silence; the layout leads with whatever the verdict demands. The attach helpers serve the room automatically and wire the light to it, so the default integration is both halves in one call. (`tamper-signal/table` and `tamper-signal/console` from 2.0 keep working as room presets.)
 
 ## 60-second quickstart
 
@@ -40,11 +44,10 @@ Python 3.11+. Open source (MIT).
 
 ```bash
 pip install tamper-signal
-git clone https://github.com/welovejeff/tamper-evident-verification && cd tamper-evident-verification
 tamper-signal demo
 ```
 
-`tamper-signal demo` runs the whole story end to end: generates a deliberately messy sample export, ingests it, runs two AI-written-style transforms, verifies the chain (PASS), then tampers with one spend value and verifies again (FAIL, pinpointing the broken link and the totals delta). It finishes by serving the badge at `http://localhost:8000/badge/badge.html` so you can see green, yellow, and red side by side.
+`tamper-signal demo` runs the whole story end to end: generates a deliberately messy sample export, ingests it, runs two AI-written-style transforms, verifies the chain (PASS), then tampers with one spend value and verifies again (FAIL, pinpointing the totals delta). It works in its own `tamper-signal-demo/` folder, so your own keys and receipts are never touched. Run it from a clone of the repo (`git clone https://github.com/welovejeff/tamper-evident-verification && cd tamper-evident-verification`) and it finishes by serving the badge at `http://localhost:8000/badge/badge.html` so you can see green, yellow, and red side by side.
 
 > **`tamper-signal: command not found`?** pip installed the script into a bin directory that is not on PATH (common on the python.org framework Python, the default macOS download). Either run it through the same interpreter, `python3 -m tamper_signal verify ...` (works as a drop-in for every `tamper-signal ...` command), or link it onto PATH once: `sudo ln -sf "$(python3 -c 'import sysconfig;print(sysconfig.get_path("scripts"))')/tamper-signal" /usr/local/bin/tamper-signal`.
 
@@ -132,7 +135,7 @@ Hashes say "broken." Totals say "how broken."
 
 `badge/badge.js` exports `renderReceiptBadge(containerEl, chainUrl, pubKeyHex)`. Drop it into any web frontend, point it at your `receipts/chain.json`, and it re-verifies the whole chain client-side with Web Crypto Ed25519: every signature, every hash link. No build step, no framework, no server-side trust. The badge re-checks hash links only; it does not re-canonicalize xlsx in the browser.
 
-![Receipt badge: green intact chain and red broken chain](badge/badge-demo.png)
+![Receipt badge: green intact chain and red broken chain](https://raw.githubusercontent.com/welovejeff/tamper-evident-verification/main/badge/badge-demo.png)
 
 Green collapsed state reads like: `✓ Verified · TikTok export, May 2026 · 48,212 rows · 2 transforms · chain intact`. Expanding shows one row per receipt.
 
@@ -161,7 +164,7 @@ We think any dashboard built on verified data should let you see the data. Not a
 
 It ships: `tamper-signal export` writes the canonical table document next to the chain (refusing data that does not match the final receipt), and `mountReceiptTable(el, "/receipts/chain.json")` from `badge/table.js` (npm: `tamper-signal/table`) renders it after re-hashing it in the viewer's browser against the final receipt. VERIFIED means the rows on screen are byte-for-byte the attested data; a stale or edited table.json renders dimmed under a "not the attested data" strip, and a broken chain flags the columns that moved at the break. Live demo: `badge/table.html`.
 
-![The Data tab: the dashboard flips to a dark raw-table view where a broken chain is localized to the views column](docs/media/data-tab.gif)
+![The Data tab: the dashboard flips to a dark raw-table view where a broken chain is localized to the views column](https://raw.githubusercontent.com/welovejeff/tamper-evident-verification/main/docs/media/data-tab.gif)
 
 *Design preview: install the verification layer and your dashboard grows a Data tab. When the chain breaks, the break is localized to the column and total that no longer verify, right in the table.*
 
@@ -175,15 +178,15 @@ To bring an updated file back, `tamper-signal ingest --as replace|period`. `repl
 
 The light answers "is it fine?"; the console answers "where, exactly, and by how much?" `mountReceiptConsole(el, "/receipts/chain.json")` from `badge/console.js` (npm: `tamper-signal/console`) renders the chain as an inspectable pipeline: links carry the hash they proved, a break severs the link with the break card pinned at it, coverage gaps appear as ghost nodes at their position, and the event log mirrors `tamper-signal verify` line for line. Every attach helper also serves it ready-made at `/tamper-signal/console`. Live demo: `badge/console.html`.
 
-![The verification console: a pipeline of signed receipts where a tampered stage severs the chain at the exact link](docs/media/console.gif)
+![The verification console: a pipeline of signed receipts where a tampered stage severs the chain at the exact link](https://raw.githubusercontent.com/welovejeff/tamper-evident-verification/main/docs/media/console.gif)
 
 *The verification console: calm when green, surgical when red.*
 
-Below the pipeline the console renders the **chain of custody**: the imports and changes, each signed reason attached to the receipt it explains (`tamper-signal annotate`), and any changes **awaiting human review**. It is an additive layer over the published `timeline.json` — it never feeds the verdict above.
+Below the pipeline the console renders the **chain of custody**: the imports and changes, each signed reason attached to the receipt it explains (`tamper-signal annotate`), and any changes **awaiting human review**. It is an additive layer over the published `timeline.json`; it never feeds the verdict above.
 
 ## Live-source watcher (optional)
 
-When the source is a live feed rather than a file you re-export by hand, the watcher keeps it on the same signed chain. `tamper-signal watch` (behind `pip install "tamper-signal[watch]"`) polls an HTTP/JSON-API or RSS/Atom endpoint, judges the new data against the declared band/settle, and **auto-appends only a clean change**. A retroactive edit to an already-settled period — or a slow drift that cumulatively breaches the band — is never signed unattended: it is withheld as a signed *pending event* and paused for a human.
+When the source is a live feed rather than a file you re-export by hand, the watcher keeps it on the same signed chain. `tamper-signal watch` (behind `pip install "tamper-signal[watch]"`) polls an HTTP/JSON-API or RSS/Atom endpoint, judges the new data against the declared band/settle, and **auto-appends only a clean change**. A retroactive edit to an already-settled period, or a slow drift that cumulatively breaches the band, is never signed unattended: it is withheld as a signed *pending event* and paused for a human.
 
 ```bash
 pip install "tamper-signal[watch]"
@@ -192,7 +195,7 @@ tamper-signal review                                                          # 
 tamper-signal review accept <hash> --reason "confirmed by finance"            # sign off + commit
 ```
 
-The fetch is SSRF-hardened (public hosts only, redirects off, TLS verified, byte + wall-clock caps; RSS parsed through `defusedxml`), change detection uses a full-content fingerprint rather than a trust-me `ETag`, and the unattended commit is crash-safe. The recommended deployment is the stateless tick under a systemd timer or cron, so the signing key is not resident between runs — see `AGENTS.md` §5c for a hardened unit. `watch`/`review` are Python-only today; the chains they write are read and verified by the JavaScript stack unchanged.
+The fetch is SSRF-hardened (public hosts only, redirects off, TLS verified, byte + wall-clock caps; RSS parsed through `defusedxml`), change detection uses a full-content fingerprint rather than a trust-me `ETag`, and the unattended commit is crash-safe. The recommended deployment is the stateless tick under a systemd timer or cron, so the signing key is not resident between runs (see `AGENTS.md` §5c for a hardened unit). `watch`/`review` are Python-only today; the chains they write are read and verified by the JavaScript stack unchanged.
 
 ## Anchoring (optional)
 
@@ -215,4 +218,4 @@ Those tools model lineage and quality at the warehouse and orchestration layer. 
 
 ## Contributing
 
-Open source under the MIT license (see `LICENSE`), designed to be added to any vibe-coded data project. The Python package is in `tamper_signal/`, tests in `tests/` (run `pytest`), examples in `examples/`, the badge in `badge/`. Issues and PRs welcome. The original Luhn hash demo lives unchanged in `legacy/` and is off the main path.
+Open source under the MIT license (see `LICENSE`), designed to be added to any vibe-coded data project. The Python package is in `tamper_signal/`, tests in `tests/` (run `pytest`), examples in `examples/`, the badge in `badge/`. Issues, PRs, and stars all help. The original Luhn hash demo lives unchanged in `legacy/` and is off the main path.

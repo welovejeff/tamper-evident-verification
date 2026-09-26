@@ -223,7 +223,7 @@ Install either stack (chains are interchangeable across them):
 
 Then, from the folder you unzipped this into:
 
-    receipts verify chain.json
+    tamper-signal verify chain.json
 
 The exit code is the traffic light: 0 green (intact), 2 yellow (verifies, with
 caveats), 1 red (broken, at the exact link, with the totals that moved).
@@ -245,7 +245,7 @@ const EVIDENCE_README = `# Evidence bundle (Tamper Signal)
 This chain DOES NOT VERIFY: the receipts in this zip reproduce the failure.
 Run the verifier to see the broken link and the control totals that moved:
 
-    pip install tamper-signal && receipts verify chain.json
+    pip install tamper-signal && tamper-signal verify chain.json
     # or: npm install -g tamper-signal && tamper-signal verify chain.json
 
 verification-transcript.txt holds the browser verifier's log for this session.
@@ -618,7 +618,7 @@ export function mountSignalRoom(containerEl, chainUrl, pubKeyHex, opts) {
   ]);
   const logEntries = el("div");
   const logDrawer = el("details", { className: "tsr-drawer" }, [
-    el("summary", {}, "Event log · mirrors `receipts verify`"),
+    el("summary", {}, "Event log · mirrors `tamper-signal verify`"),
     el("div", { className: "tsr-drawer-body tsr-log" }, [logEntries]),
   ]);
   const custodyBody = el("div", { className: "tsr-drawer-body" });
@@ -803,7 +803,7 @@ export function mountSignalRoom(containerEl, chainUrl, pubKeyHex, opts) {
           ]),
           el("p", { style: "margin:0" }, [
             "Re-run the export step: ",
-            el("code", {}, "receipts export receipts/chain.json --data <file>"),
+            el("code", {}, "tamper-signal export receipts/chain.json --data <file>"),
             " (pip) / ",
             el("code", {}, "tamper-signal export"),
             " (npm).",
@@ -983,7 +983,7 @@ export function mountSignalRoom(containerEl, chainUrl, pubKeyHex, opts) {
         // (not amber): the chain verdict stands and only this plane is empty.
         tableRegion.appendChild(el("div", { className: "tsr-noshown" }, [
           "NO ATTESTED TABLE PUBLISHED — run: ",
-          el("code", {}, "receipts export receipts/chain.json --data <file>"),
+          el("code", {}, "tamper-signal export receipts/chain.json --data <file>"),
           " (or ", el("code", {}, "tamper-signal export"), ") after the pipeline, ",
           "then this plane fills with the attested rows.",
         ]));

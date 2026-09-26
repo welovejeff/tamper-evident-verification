@@ -24,7 +24,7 @@ function skewPanel(containerEl) {
   );
   panel.textContent =
     "room.js is missing beside console.js — the vendored Tamper Signal assets are " +
-    "out of step. Re-run `tamper-signal assets` (npm) or `receipts assets` (pip) " +
+    "out of step. Re-run `tamper-signal assets` " +
     "to refresh badge/, then reload.";
   containerEl.appendChild(panel);
   return panel;

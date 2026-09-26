@@ -9,6 +9,7 @@ re-checks signatures and hash links, not data).
 
 from __future__ import annotations
 
+import os
 import shutil
 import sys
 from pathlib import Path
@@ -40,14 +41,20 @@ from .receipts import (
 from .totals import control_totals, totals_delta
 from .wrapper import receipt_step
 
-# Demo workspace, all relative to the repo root (the cwd `receipts demo` runs in).
+# Demo workspace paths, relative to the directory the demo runs in: the repo
+# root in a clone, otherwise the demo's own WORKSPACE directory.
 KEYS_DIR = "keys"
 RECEIPTS_DIR = "receipts"
 TAMPERED_DIR = "receipts_tampered"
 DATA_DIR = "demo_data"
-SAMPLE = "examples/sample_export.xlsx"
+SAMPLE = f"{DATA_DIR}/sample_export.xlsx"
 KEY_PATH = f"{KEYS_DIR}/signing.key"
 PUB_PATH = f"{KEYS_DIR}/signing.pub"
+WORKSPACE = "tamper-signal-demo"
+
+DOCS_URL = "https://tampersignal.com/docs/quickstart.html"
+DEMO_URL = "https://tampersignal.com/demo.html"
+REPO_URL = "https://github.com/welovejeff/tamper-evident-verification"
 
 
 def _rule(title: str) -> None:
@@ -56,12 +63,52 @@ def _rule(title: str) -> None:
     print("=" * 68)
 
 
+def _in_repo_clone() -> bool:
+    """True when run from the repo root, where badge/badge.html can be served."""
+    return Path("badge/badge.html").is_file() and Path("tamper_signal/demo.py").is_file()
+
+
 def run_demo(serve: bool = True, port: int = 8000) -> int:
-    # Import the sample generator and transforms from examples/.
-    sys.path.insert(0, str(Path("examples").resolve()))
-    from make_sample_export import make as make_sample  # type: ignore
-    from transform_clean import transform_clean  # type: ignore
-    from transform_aggregate import transform_aggregate  # type: ignore
+    if _in_repo_clone():
+        _run_steps()
+        _print_next_steps()
+        if serve:
+            _serve_badge(port)
+        return 0
+
+    # Outside a clone, never touch the caller's own keys/ or receipts/: the demo
+    # regenerates both, so it runs in a directory it owns.
+    workspace = Path(WORKSPACE).resolve()
+    workspace.mkdir(exist_ok=True)
+    print(f"Demo workspace: {workspace} (your own keys/ and receipts/ are untouched)")
+    previous = Path.cwd()
+    os.chdir(workspace)
+    try:
+        _run_steps()
+    finally:
+        os.chdir(previous)
+    _print_next_steps()
+    if serve:
+        print(
+            "\nThe browser pages ship with the repo, not the pip package. "
+            f"See these verdicts in your browser: {DEMO_URL}"
+        )
+    return 0
+
+
+def _print_next_steps() -> None:
+    print("\nNext, on your own export:")
+    print("  tamper-signal init")
+    print('  tamper-signal ingest your_export.csv --origin "where it came from" --key keys/signing.key --out receipts/')
+    print(f"Docs: {DOCS_URL}")
+    print(f"Source: {REPO_URL}")
+
+
+def _run_steps() -> None:
+    """Steps 1-5 in the current directory: keygen through the tampered FAIL."""
+    from ._demo.make_sample_export import make as make_sample
+    from ._demo.transform_aggregate import transform_aggregate
+    from ._demo.transform_clean import transform_clean
 
     # Fresh workspace each run so the demo is reproducible.
     for path in (RECEIPTS_DIR, TAMPERED_DIR, DATA_DIR):
@@ -94,11 +141,11 @@ def run_demo(serve: bool = True, port: int = 8000) -> int:
 
     _rule("3. run transforms through @receipt_step")
 
-    @receipt_step(chain_dir=RECEIPTS_DIR, key_path=KEY_PATH, code_file="examples/transform_clean.py")
+    @receipt_step(chain_dir=RECEIPTS_DIR, key_path=KEY_PATH, code_file="tamper_signal/_demo/transform_clean.py")
     def clean(records):
         return transform_clean(records)
 
-    @receipt_step(chain_dir=RECEIPTS_DIR, key_path=KEY_PATH, code_file="examples/transform_aggregate.py")
+    @receipt_step(chain_dir=RECEIPTS_DIR, key_path=KEY_PATH, code_file="tamper_signal/_demo/transform_aggregate.py")
     def aggregate(records):
         return transform_aggregate(records)
 
@@ -162,10 +209,6 @@ def run_demo(serve: bool = True, port: int = 8000) -> int:
     _write_tampered_chain(private_key, public_hex)
 
     print(f"\nExit code from the failing verify would be 1.")
-
-    if serve:
-        _serve_badge(port)
-    return 0
 
 
 def _write_tampered_chain_to(src_dir: str, dst_dir: str, private_key, public_hex: str) -> None:

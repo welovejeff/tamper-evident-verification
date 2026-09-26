@@ -66,7 +66,7 @@
     {
       "@type": "Question",
       "name": "Does it work with Python and JavaScript?",
-      "acceptedAnswer": { "@type": "Answer", "text": "Yes. pip install tamper-signal gives a Python CLI (receipts) and library; npm install tamper-signal gives a Node CLI (tamper-signal) and API. The chains are interchangeable across the two stacks, proven byte-for-byte by golden vectors, so a chain signed in Python verifies in Node and the reverse." }
+      "acceptedAnswer": { "@type": "Answer", "text": "Yes. pip install tamper-signal and npm install tamper-signal each give the same tamper-signal CLI, plus a Python library or a Node API. The chains are interchangeable across the two stacks, proven byte-for-byte by golden vectors, so a chain signed in Python verifies in Node and the reverse." }
     },
     {
       "@type": "Question",
@@ -228,7 +228,7 @@
     <h2 id="using">Using it</h2>
 
     <h3>Does it work with Python and JavaScript?</h3>
-    <p>Yes. <code>pip install tamper-signal</code> gives a Python CLI (<code>receipts</code>) and library; <code>npm install tamper-signal</code> gives a Node CLI (<code>tamper-signal</code>) and API. The chains are interchangeable across the two stacks, proven byte-for-byte by golden vectors, so a chain signed in Python verifies in Node and the reverse.</p>
+    <p>Yes. <code>pip install tamper-signal</code> and <code>npm install tamper-signal</code> each give the same <code>tamper-signal</code> CLI, plus a Python library or a Node API. The chains are interchangeable across the two stacks, proven byte-for-byte by golden vectors, so a chain signed in Python verifies in Node and the reverse.</p>
 
     <h3>What file formats can it read?</h3>
     <p><code>ingest</code> and <code>verify</code> accept .xlsx, .csv, .tsv, .json (an array of objects), and .ndjson. The semantic hash is identical across formats, so the format you store in does not move the verdict. Spreadsheets go through the Python CLI; the JavaScript stack reads the text formats.</p>
