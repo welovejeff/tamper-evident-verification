@@ -2,11 +2,11 @@
 
 > Signed receipts for vibe-coded data pipelines. Every pipeline stage signs a receipt; verification reports a traffic light: green (chain intact), yellow (verifies, with caveats), red (broken at an exact link, with the totals delta). This proves continuity, not correctness: it can't tell you the data is right, but it can prove nobody changed it.
 
-Install: `pip install tamper-signal` (Python 3.11+, CLI `receipts`) or `npm install tamper-signal` (Node 18.17+, CLI `tamper-signal`). Chains are interchangeable across the two stacks.
+Current version: 2.1.0. Install: `pip install tamper-signal` (Python 3.11+) or `npm install tamper-signal` (Node 18.17+). Both give the same `tamper-signal` CLI (on Python, `receipts` is a deprecated alias), and chains are interchangeable across the two stacks. `tamper-signal demo` (Python) runs the whole story on sample data in its own folder.
 
-Period-over-period continuity: declare a signed tolerance at ingest (`--band`, `--settle`, `--bucket-column`) and recurring refreshes earn yellow caveats when recent data drifts past the band or settled data moves; `receipts diff` and `receipts log` read the auto-archived run history (weaker evidence than the chain).
+Period-over-period continuity: declare a signed tolerance at ingest (`--band`, `--settle`, `--bucket-column`) and recurring refreshes earn yellow caveats when recent data drifts past the band or settled data moves; `tamper-signal diff` and `tamper-signal log` read the auto-archived run history (weaker evidence than the chain).
 
-Data portability: `receipts export --bundle` writes a verified zip (the data file plus `chain.json` and receipts) a recipient re-verifies offline, and the browser Data tab's "Take your data" exports the attested data client-side (csv/tsv/json/ndjson; xlsx via the CLI). `receipts ingest --as period` continues an existing chain's history under a trusted signer (refusing an untrusted one); `--as replace` (default) re-signs a fresh chain and archives the prior one. The Semantic hash is format-agnostic, so a CSV exported here re-verifies as JSON and the light stays green.
+Data portability: `tamper-signal export --bundle` writes a verified zip (the data file plus `chain.json` and receipts) a recipient re-verifies offline, and the browser Data tab's "Take your data" exports the attested data client-side (csv/tsv/json/ndjson; xlsx via the CLI). `tamper-signal ingest --as period` continues an existing chain's history under a trusted signer (refusing an untrusted one); `--as replace` (default) re-signs a fresh chain and archives the prior one. The Semantic hash is format-agnostic, so a CSV exported here re-verifies as JSON and the light stays green.
 
 ## Docs
 
@@ -15,16 +15,23 @@ Data portability: `receipts export --bundle` writes a verified zip (the data fil
 - [Domain vocabulary](https://raw.githubusercontent.com/welovejeff/tamper-evident-verification/main/CONCEPTS.md): receipt, chain, semantic hash, the light, spec version
 - [Copy rules](https://raw.githubusercontent.com/welovejeff/tamper-evident-verification/main/docs/MESSAGING.md): the verdict lines and banned claims, binding for any UI text you write
 - [FAQ](https://tampersignal.com/docs/faq.html): what it proves and what it does not, the traffic light, blockchain, and how it differs from dbt and friends
+- [How it compares](https://tampersignal.com/docs/compare.html): Tamper Signal next to dbt tests, Great Expectations, Pandera, OpenLineage, and in-toto/Sigstore, with when to use each
+- [Quickstart](https://tampersignal.com/docs/quickstart.html): raw export to a green light, then a deliberate tamper, by hand
 
 ## Writing
 
 - [Blog](https://tampersignal.com/blog/): notes on keeping AI-built data pipelines honest
-- [Data that watches itself](https://tampersignal.com/blog/data-that-watches-itself.html): Tamper Signal 2.0 — the live-source watcher (`tamper-signal watch`) keeps a live API/RSS feed on the same signed chain; new data auto-appends, a change to an already-settled value is withheld for human review (`tamper-signal review`)
+- [One light, one room](https://tampersignal.com/blog/one-light-one-room.html): Tamper Signal 2.1 unifies the browser UI; the status light stays as it was, and the verified table, chain, break exhibit, inspector, log, and export behind it become one surface, the Signal Room
+- [Data that watches itself](https://tampersignal.com/blog/data-that-watches-itself.html): Tamper Signal 2.0: the live-source watcher (`tamper-signal watch`) keeps a live API/RSS feed on the same signed chain; new data auto-appends, a change to an already-settled value is withheld for human review (`tamper-signal review`)
 - [Your vibe-coded dashboard needs receipts](https://tampersignal.com/blog/your-vibe-coded-dashboard-needs-receipts.html): the pitch, longer; why AI-written data code fails silently and how a signed receipt at every step catches it
 - [Your data is supposed to move](https://tampersignal.com/blog/your-data-is-supposed-to-move.html): tolerance bands and run history, so the light stays believable on a pipeline that refreshes every morning
 - [Show your work](https://tampersignal.com/blog/show-your-work.html): why every dashboard built on verified data should ship a Data tab, the raw verified rows next to the charts
+- [Why vibe-coded data pipelines fail silently](https://tampersignal.com/blog/vibe-coded-pipelines-fail-silently.html): dropped rows, fan-out joins, and silent coercions look like success; how a signed receipt at each stage makes them visible
+- [Data you can take with you](https://tampersignal.com/blog/data-you-can-take-with-you.html): a verified bundle carries the data and its receipts together, so an exported CSV re-verifies as JSON on someone else's machine
+- [Guilty until proven clean](https://tampersignal.com/blog/guilty-until-proven-clean.html): a chain-of-custody SOP for social-media data, and how to wire Tamper Signal into an AI-built visualization in Python or Node
 
 ## Source
 
 - [GitHub repository](https://github.com/welovejeff/tamper-evident-verification)
-- [Live demo](https://tampersignal.com/): real in-browser verification of committed receipt chains
+- [Live demo](https://tampersignal.com/demo.html): every surface (status light, Signal Room, data export, live-source console) verifying real committed receipt chains in the browser; flip it to tampered
+- [Homepage](https://tampersignal.com/): the pitch, with an interactive green/yellow/red walkthrough

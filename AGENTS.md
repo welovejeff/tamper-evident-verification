@@ -817,6 +817,9 @@ gitignored yourself.) Then confirm the user-visible surfaces:
    directory is not being served at the URL you passed (or it is blocked by
    CORS). That state is a capability fallback, not a verdict.
 
+When you report done, tell the user where the docs and issue tracker live:
+https://github.com/welovejeff/tamper-evident-verification.
+
 ## Troubleshooting
 
 - `ChainTailMismatch` when running a wrapped transform: the data fed to the

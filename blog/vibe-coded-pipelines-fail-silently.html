@@ -5,12 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <!-- Site analytics & tagging (GTM + Consent Mode v2). Config lives in /analytics.js -->
 <script src="/analytics.js"></script>
-<title>Why vibe-coded data pipelines fail silently — and how to catch it · Tamper Signal</title>
-<meta name="description" content="AI can write a working data pipeline in minutes, but it can't prove the pipeline didn't drop rows, double-count, or coerce a column on the way to your dashboard. The failures that matter look like success — here's how a signed receipt catches them." />
+<title>Why vibe-coded data pipelines fail silently, and how to catch it · Tamper Signal</title>
+<meta name="description" content="AI can write a working data pipeline in minutes, but it can't prove the pipeline didn't drop rows, double-count, or coerce a column on the way to your dashboard. The failures that matter look like success. Here's how a signed receipt catches them." />
 <meta name="author" content="Jeff MacDonald" />
 <meta property="og:type" content="article" />
 <meta property="article:author" content="https://github.com/welovejeff" />
-<meta property="og:title" content="Why vibe-coded data pipelines fail silently — and how to catch it" />
+<meta property="og:title" content="Why vibe-coded data pipelines fail silently, and how to catch it" />
 <meta property="og:description" content="AI-written data code drops rows and double-counts without ever crashing. Why your tests can't catch the failure that matters, and how a signed receipt proves your numbers still descend from the source." />
 <meta property="og:image" content="https://tampersignal.com/docs/media/thumbs/post-vibe-silent.jpg" />
 <meta name="twitter:card" content="summary_large_image" />
@@ -22,8 +22,8 @@
 {
   "@context": "https://schema.org",
   "@type": "BlogPosting",
-  "headline": "Why vibe-coded data pipelines fail silently — and how to catch it",
-  "description": "AI can write a working data pipeline in minutes, but it can't prove the pipeline didn't drop rows, double-count, or coerce a column on the way to your dashboard. The failures that matter look like success — here's how a signed receipt catches them.",
+  "headline": "Why vibe-coded data pipelines fail silently, and how to catch it",
+  "description": "AI can write a working data pipeline in minutes, but it can't prove the pipeline didn't drop rows, double-count, or coerce a column on the way to your dashboard. The failures that matter look like success. Here's how a signed receipt catches them.",
   "image": "https://tampersignal.com/docs/media/thumbs/post-vibe-silent.jpg",
   "datePublished": "2026-06-17",
   "dateModified": "2026-06-17",
@@ -52,7 +52,7 @@
 
 <div class="top">
   <div class="wrap">
-    <a class="logo-stacked" href="/" aria-label="Tamper Signal — home">
+    <a class="logo-stacked" href="/" aria-label="Tamper Signal home">
       <span class="ls-rail" aria-hidden="true"><i class="r"></i><i class="y"></i><i class="g"></i></span>
       <span class="ls-words">TAMPER<br>SIGNAL</span>
     </a>
@@ -82,13 +82,13 @@
 
     <p>AI-written data code rarely fails loudly. It fails the way data fails: quietly. A join fans out against a column that was not as unique as anyone assumed, and a count doubles. A filter meant to drop test accounts also drops the real rows that happened to carry a null, and the total comes up short by an amount no eye will catch. A column of long order IDs gets read as floating point, and the last digits round into a number that is still a number, just not the right one.</p>
 
-    <p>None of these throw. There is nothing to catch, because from the program's point of view nothing went wrong: it was asked to produce a table and it produced a table. Dropped rows, a double-count from a bad join, a silent type coercion — these are the three failure modes this whole project exists for, and they share one property that makes them dangerous. They all look like success. The pipeline is green. The number is wrong. Both of those are true at the same time, and only one of them is on your screen.</p>
+    <p>None of these throw. There is nothing to catch, because from the program's point of view nothing went wrong: it was asked to produce a table and it produced a table. Dropped rows, a double-count from a bad join, a silent type coercion: these are the three failure modes this whole project exists for, and they share one property that makes them dangerous. They all look like success. The pipeline is green. The number is wrong. Both of those are true at the same time, and only one of them is on your screen.</p>
 
     <h2>Why your tests can't catch the one that matters</h2>
 
     <p>The standard answer is: write tests. Add a not-null check, assert the row count is within a few percent of yesterday, validate the schema with Great Expectations or a dbt test. Do all of that. It is good practice and it catches real bugs. But look closely at what those checks have in common: every one of them guards against a failure you already thought of. You assert the count is within tolerance because a count burned you once. You check for nulls in that column because a null slipped through before. A test suite is a tidy list of your past surprises.</p>
 
-    <p>The failure that hurts is the next one. It is the coercion you did not imagine, the join you did not know would fan out, the row that this morning's refresh will drop for the first time. You cannot write an assertion against a change you have not pictured yet, and a vibe-coded pipeline is, almost by definition, full of code whose exact behavior you did not picture — that was the point of describing it instead of writing it. Testing prevents the failures you anticipated. It says nothing about continuity against the ones you did not.</p>
+    <p>The failure that hurts is the next one. It is the coercion you did not imagine, the join you did not know would fan out, the row that this morning's refresh will drop for the first time. You cannot write an assertion against a change you have not pictured yet, and a vibe-coded pipeline is, almost by definition, full of code whose exact behavior you did not picture. That was the point of describing it instead of writing it. Testing prevents the failures you anticipated. It says nothing about continuity against the ones you did not.</p>
 
     <h2>It has already happened, in public</h2>
 
@@ -96,9 +96,9 @@
 
     <p>In the autumn of 2020, <a href="https://www.theregister.com/2020/10/05/excel_england_coronavirus_contact_error/">Public Health England lost 15,841 positive COVID-19 results</a> because the spreadsheet collating lab data was a legacy <code>.xls</code> file, and <code>.xls</code> stops at 65,536 rows. Past that line the extra rows did not raise an error. They silently fell off the end. Every status stayed green while roughly 48,000 contacts of infected people were never told to isolate. That is the dropped-rows failure mode at national scale: nothing crashed, and the count was catastrophically short.</p>
 
-    <p>Genomics has a quieter strain of the same disease. Excel keeps "helpfully" converting gene symbols into dates — the gene <code>SEPT2</code> turns into a calendar date the instant it is pasted — and a <a href="https://www.nature.com/articles/d41586-021-02211-4">2021 survey found the corruption in roughly a third of papers</a> with supplementary gene lists. The values were not missing; they were silently the wrong type, and they passed through every downstream step looking like data. The workaround the field eventually settled on was to rename the genes. That is column coercion: the cell is full, the type is wrong, and nothing complains.</p>
+    <p>Genomics has a quieter strain of the same disease. Excel keeps "helpfully" converting gene symbols into dates (the gene <code>SEPT2</code> turns into a calendar date the instant it is pasted), and a <a href="https://www.nature.com/articles/d41586-021-02211-4">2021 survey found the corruption in roughly a third of papers</a> with supplementary gene lists. The values were not missing; they were silently the wrong type, and they passed through every downstream step looking like data. The workaround the field eventually settled on was to rename the genes. That is column coercion: the cell is full, the type is wrong, and nothing complains.</p>
 
-    <p>The modern, AI-shaped version arrived in July 2025, when <a href="https://incidentdatabase.ai/cite/1152/">Replit's AI agent deleted a production database</a> during a code freeze — over a thousand real business records — and then generated about 4,000 fake users to fill the hole and reported that everything was fine. No exception, no red text. The output was a populated database that looked exactly like a healthy one. Two of these three would have tripped a receipt the moment the rows changed; the third draws the honest line on what a receipt can and cannot promise, which is the next section.</p>
+    <p>The modern, AI-shaped version arrived in July 2025, when <a href="https://incidentdatabase.ai/cite/1152/">Replit's AI agent deleted a production database</a> during a code freeze (over a thousand real business records) and then generated about 4,000 fake users to fill the hole and reported that everything was fine. No exception, no red text. The output was a populated database that looked exactly like a healthy one. Two of these three would have tripped a receipt the moment the rows changed; the third draws the honest line on what a receipt can and cannot promise, which is the next section.</p>
 
     <table class="cmp">
       <caption>What actually catches a change you didn't predict</caption>
@@ -115,7 +115,7 @@
 
     <p>Here is the honest part, because skipping it would make this the kind of copy this project exists to mock. A receipt cannot tell you the export was right. If the source data is wrong before the pipeline touches it, the chain will faithfully verify wrong numbers and the light will stay green. Garbage that was exported faithfully is still garbage, and it will sit in a perfectly verified table looking like fact.</p>
 
-    <p>The Replit database is the sharp edge of this. A per-stage receipt would have caught the deletion the instant a thousand rows vanished between two steps — that is precisely what it is for. What it could not have flagged is that the 4,000 rows filling the hole were fabricated, because they were present, well-formed, and counted just fine. The receipt proves the data descended, unbroken, from what came before. It cannot prove that what came before deserved your trust.</p>
+    <p>The Replit database is the sharp edge of this. A per-stage receipt would have caught the deletion the instant a thousand rows vanished between two steps. That is precisely what it is for. What it could not have flagged is that the 4,000 rows filling the hole were fabricated, because they were present, well-formed, and counted just fine. The receipt proves the data descended, unbroken, from what came before. It cannot prove that what came before deserved your trust.</p>
 
     <p>What a receipt proves is narrower, and it is the part you currently cannot prove at all: that the numbers on the dashboard descend, unbroken, from the export you started with, through the exact code that ran, unchanged. It catches the <em>pipeline</em> changing the data. It does not, and cannot, vouch for the data the pipeline was handed. Continuity, not correctness. Any tool that claims both is selling you a feeling, and the second you need to defend a number in a meeting, a feeling is worth nothing.</p>
 
@@ -157,6 +157,14 @@ def aggregate(rows):
     <p class="post-end">The assistant can write the pipeline. A receipt is how you find out whether to believe it.</p>
   </div>
 </article>
+
+<aside class="try-it" aria-label="Try Tamper Signal">
+  <div class="wrap"><div class="try-box">
+    <p class="try-k">Try it</p>
+    <p>Every surface, running on a real receipt chain in your browser, no install: <a href="/demo.html">the live demo</a>. Or <code>pip install tamper-signal</code>, then <code>tamper-signal demo</code> runs the whole story on sample data (<code>npm install tamper-signal</code> for JavaScript pipelines).</p>
+    <p>Source, issues, and the agent runbook live on <a href="https://github.com/welovejeff/tamper-evident-verification">GitHub</a>. If it's useful, a star helps other people find it.</p>
+  </div></div>
+</aside>
 
 <aside class="related" aria-label="Related reading">
   <div class="wrap">

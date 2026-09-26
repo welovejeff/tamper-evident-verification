@@ -82,6 +82,13 @@
   .rt pre { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; overflow: auto; font-size: 12px; color: var(--text); margin: 14px 0 0; }
   .rt .muted { color: var(--faint); }
 
+  .next-steps { margin-top: 56px; padding-top: 40px; border-top: 1px solid var(--border); }
+  .next-steps .prompt-row { display: flex; gap: 10px; align-items: stretch; margin: 0 0 22px; }
+  .next-steps pre { flex: 1; min-width: 0; margin: 0; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 12px; overflow-x: auto; font-size: 12px; color: var(--text); }
+  .next-steps code { font-size: 0.92em; color: var(--text); }
+  .next-links { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; font: 12px var(--mono); }
+  .next-links .btn.star { color: var(--text); border-color: var(--faint); text-decoration: none; }
+  @media (max-width: 560px) { .next-steps .prompt-row { flex-direction: column; } }
   footer { border-top: 1px solid var(--border); }
   footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 12px; padding: 22px; font-size: 13px; color: var(--dim); align-items: center; }
   footer a { color: var(--dim); }
@@ -91,7 +98,7 @@
 
 <div class="top">
   <div class="wrap">
-    <a class="logo-stacked" href="/" aria-label="Tamper Signal — home">
+    <a class="logo-stacked" href="/" aria-label="Tamper Signal home">
       <span class="ls-rail" aria-hidden="true"><i class="r"></i><i class="y"></i><i class="g"></i></span>
       <span>TAMPER SIGNAL</span>
     </a>
@@ -110,7 +117,7 @@
     <p class="kicker">live demo · not a mockup</p>
     <h1>The whole instrument, running in your browser</h1>
     <p class="lede">
-      One light, one room — both checking a real receipt chain right now, in your
+      One light, one room, both checking a real receipt chain right now, in your
       browser, with no server. Flip the switch to see how the room composes itself
       when the data is clean, when it needs a second look, and when a number has
       been changed. Then take the data out and watch it re-verify across formats.
@@ -136,7 +143,7 @@
         <h2>One light, one room</h2>
         <p class="muted" style="margin:6px 0 0; font-size:13px; line-height:1.6">
           The light is the whole footprint on your dashboard. Click it and
-          "view receipts →" lands in the room below — the attested table,
+          "view receipts →" lands in the room below: the attested table,
           the chain, the inspector, the log, and the export, one surface.
         </p>
       </div>
@@ -165,7 +172,7 @@ tamper-signal ingest report.csv --as period --key keys/signing.key</pre>
       <p class="kicker">new in v2.0 · the live-source watcher</p>
       <h2>Data that watches itself</h2>
       <p class="lede">
-        Point the watcher at a live feed and it keeps that source on the same signed chain —
+        Point the watcher at a live feed and it keeps that source on the same signed chain:
         new readings append on their own. But a retroactive edit to an <em>already-settled</em>
         value is never signed unattended: it's judged against the declared band, withheld, and
         paused for a human. Below is a real chain of hourly temperatures for New York, signed.
@@ -187,10 +194,29 @@ tamper-signal ingest report.csv --as period --key keys/signing.key</pre>
           <div id="slot-watch-console"></div>
         </div>
       </div>
-      <pre># the whole thing is one scheduled command writing signed files — no server:
+      <pre># the whole thing is one scheduled command writing signed files, no server:
 tamper-signal watch --config feed.json --key keys/watch.key --out receipts/
 tamper-signal review accept &lt;hash&gt; --reason "confirmed by the weather desk"</pre>
     </div>
+
+    <section class="next-steps" aria-labelledby="next-h">
+      <p class="kicker">your turn</p>
+      <h2 id="next-h">Put it on your own pipeline</h2>
+      <p class="lede">
+        Hand this to your AI coding assistant. The runbook it points at walks the agent
+        through install, signing your source export, wrapping the transforms, and mounting the light.
+      </p>
+      <div class="prompt-row">
+        <pre id="agent-prompt">Add Tamper Signal to this project. Follow https://raw.githubusercontent.com/welovejeff/tamper-evident-verification/main/AGENTS.md</pre>
+        <button type="button" class="btn" data-copy-target="agent-prompt">copy</button>
+      </div>
+      <p class="lede">Or by hand: <code>pip install tamper-signal</code>, then <code>tamper-signal demo</code> runs the whole story on sample data. JavaScript pipeline? <code>npm install tamper-signal</code> gives the same CLI and chains.</p>
+      <p class="next-links">
+        <a class="btn star" href="https://github.com/welovejeff/tamper-evident-verification">★ star on GitHub</a>
+        <a href="/docs/quickstart.html">quickstart →</a>
+        <a href="/docs/compare.html">how it compares →</a>
+      </p>
+    </section>
   </div>
 </main>
 
@@ -263,7 +289,7 @@ tamper-signal review accept &lt;hash&gt; --reason "confirmed by the weather desk
     // The round-trip only makes sense over attested data, so it is offered in
     // green/yellow and disabled in the tampered state.
     runBtn.disabled = name === "red";
-    runBtn.title = name === "red" ? "The chain is broken — there is no attested data to take." : "";
+    runBtn.title = name === "red" ? "The chain is broken. There is no attested data to take." : "";
     clearRoundTrip();
   }
 
@@ -281,7 +307,7 @@ tamper-signal review accept &lt;hash&gt; --reason "confirmed by the weather desk
   };
   const WATCH_NOTES = {
     live: "A live source under custody: hourly temperatures for New York, signed. New readings append on their own and the light stays green. The chain of custody below records the import and the watcher's signed note.",
-    withheld: "A settled day's temperature was changed after the fact. The watcher judged it against the declared band, refused to sign it unattended, and parked it under “awaiting review”. The light stays green — nothing unverified reached the chain — until a human signs off with a reason.",
+    withheld: "A settled day's temperature was changed after the fact. The watcher judged it against the declared band, refused to sign it unattended, and parked it under “awaiting review”. The light stays green (nothing unverified reached the chain) until a human signs off with a reason.",
   };
   const watchSlot = document.getElementById("slot-watch-console");
   const watchNote = document.getElementById("watch-note");
@@ -349,7 +375,7 @@ tamper-signal review accept &lt;hash&gt; --reason "confirmed by the weather desk
           <div class="rt-row"><span class="k">exported as CSV, re-checked</span><span class="h">${short(csvHash)}</span>${csvHash === attested ? '<span class="ok">✓ same</span>' : '<span style="color:var(--red)">✗ differs</span>'}</div>
           <div class="rt-row"><span class="k">exported as JSON, re-checked</span><span class="h">${short(jsonHash)}</span>${jsonHash === attested ? '<span class="ok">✓ same</span>' : '<span style="color:var(--red)">✗ differs</span>'}</div>
         </div>
-        <span class="rt-verdict">${same ? "<i></i>same data, any format — the light stays green" : "hashes differ"}</span>`;
+        <span class="rt-verdict">${same ? "<i></i>same data, any format: the light stays green" : "hashes differ"}</span>`;
     } catch (_e) {
       rtResult.innerHTML = '<p class="muted">Could not run the round-trip. Reload and try again.</p>';
     } finally {
@@ -363,6 +389,21 @@ tamper-signal review accept &lt;hash&gt; --reason "confirmed by the weather desk
   // anchor the light links to.
   setState("green");
   setWatch("live");
+
+  // Copy buttons in the closing call to action.
+  document.querySelectorAll("[data-copy-target]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const src = document.getElementById(btn.dataset.copyTarget);
+      if (!src) return;
+      try {
+        await navigator.clipboard.writeText(src.textContent.trim());
+        btn.textContent = "copied";
+      } catch {
+        btn.textContent = "select to copy";
+      }
+      setTimeout(() => { btn.textContent = "copy"; }, 1600);
+    });
+  });
 </script>
 
 </body>
