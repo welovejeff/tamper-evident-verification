@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<!-- Site analytics & tagging (GTM + Consent Mode v2). Config lives in /analytics.js -->
+<script src="/analytics.js"></script>
+<title>Tamper Signal vs dbt tests, Great Expectations, Pandera, OpenLineage, in-toto · Tamper Signal docs</title>
+<meta name="description" content="How Tamper Signal compares to dbt tests, Great Expectations, Pandera, OpenLineage, in-toto/SLSA, and Sigstore: what question each answers, what it needs, and when to use which. Rules check what you predicted; receipts prove nothing changed." />
+<meta property="og:title" content="Tamper Signal vs dbt tests, Great Expectations, Pandera, OpenLineage, in-toto" />
+<meta property="og:description" content="Rule checkers catch the failures you predicted. Signed receipts prove the dashboard's data descends unchanged from the export. When to use which." />
+<meta property="og:image" content="https://tampersignal.com/docs/media/og-card.png" />
+<link rel="canonical" href="https://tampersignal.com/docs/compare.html" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='%2334d399'/%3E%3C/svg%3E" />
+<link rel="stylesheet" href="docs.css" />
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "dateModified": "2026-09-26",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "How is Tamper Signal different from Great Expectations, Pandera, or dbt tests?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Great Expectations, Pandera, and dbt tests check data against rules you write, so they catch the failures you predicted. Tamper Signal records a signed receipt at every pipeline stage (a fingerprint of the input, the code, and the output, plus control totals) and proves the dashboard's data descends unchanged from the source export. It catches changes nobody wrote a rule for, but it cannot tell you a rule was broken. The two are complementary." }
+    },
+    {
+      "@type": "Question",
+      "name": "Is Tamper Signal a data lineage tool like OpenLineage?",
+      "acceptedAnswer": { "@type": "Answer", "text": "No. OpenLineage is a standard for recording which jobs read and wrote which datasets, as metadata sent to a lineage backend. Tamper Signal fingerprints and signs the data itself at each stage, as plain files next to your pipeline, so it can show that a value changed and at which link. It needs no server, catalog, or warehouse." }
+    },
+    {
+      "@type": "Question",
+      "name": "Is Tamper Signal in-toto for data?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Close in spirit. in-toto signs metadata for each step of a software supply chain, hashing the files each step consumed and produced. Tamper Signal applies the same idea to tabular data, with a format-agnostic semantic hash (an xlsx ingest verifies against a CSV copy of the same rows) and human-legible control totals, so a broken link reports how much moved, not only that bytes differ. For software artifacts, use in-toto and SLSA." }
+    },
+    {
+      "@type": "Question",
+      "name": "Is it a blockchain?",
+      "acceptedAnswer": { "@type": "Answer", "text": "No. It's a hash chain: signed files on disk, linked because each stage's input fingerprint must match the previous stage's output. No consensus, no network, no tokens." }
+    }
+  ]
+}
+</script>
+</head>
+<body>
+
+<div class="top">
+  <div class="wrap">
+    <a class="logo-stacked" href="/" aria-label="Tamper Signal home">
+      <span class="ls-rail" aria-hidden="true"><i class="r"></i><i class="y"></i><i class="g"></i></span>
+      <span class="ls-words">TAMPER<br>SIGNAL</span>
+    </a>
+    <button class="menu-btn" type="button" aria-expanded="false" aria-controls="site-nav">menu <span class="mb-caret">▾</span></button>
+    <nav id="site-nav">
+      <a href="/#demo">live demo</a>
+      <a href="/#how">how it works</a>
+      <a href="/docs/" aria-current="location">docs</a>
+      <a href="/blog/">blog</a>
+      <a href="https://github.com/welovejeff/tamper-evident-verification">github</a>
+    </nav>
+  </div>
+</div>
+
+<div class="docs-shell">
+  <aside class="docs-side">
+    <button class="side-toggle" type="button" aria-expanded="false">On this site <span class="st-caret" aria-hidden="true">▾</span></button>
+    <div class="side-inner">
+      <div class="side-group">
+        <p class="side-label">Start here</p>
+        <ul>
+          <li><a href="/docs/">Overview</a></li>
+          <li><a href="/docs/concepts.html">Core concepts</a></li>
+          <li><a href="/docs/quickstart.html">Quickstart</a></li>
+        </ul>
+      </div>
+      <div class="side-group">
+        <p class="side-label">Reference</p>
+        <ul>
+          <li><a href="/docs/cli.html">CLI</a></li>
+          <li><a href="/docs/api.html">Python &amp; JS API</a></li>
+          <li><a href="/docs/mounting.html">Mounting the signal</a></li>
+        </ul>
+      </div>
+      <div class="side-group">
+        <p class="side-label">Going deeper</p>
+        <ul>
+          <li><a href="/docs/advanced.html">Power user</a></li>
+          <li><a href="/docs/faq.html">FAQ</a></li>
+          <li><a href="/docs/compare.html" aria-current="page">How it compares</a></li>
+        </ul>
+      </div>
+    </div>
+  </aside>
+
+  <main class="docs-main">
+    <a class="doc-back" href="/docs/">← Docs home</a>
+    <p class="doc-kicker">How it compares</p>
+    <h1>Rules catch what you predicted. Receipts catch what changed.</h1>
+    <p class="lede"><strong>Great Expectations, Pandera, and dbt tests check your data against rules you write. Tamper Signal signs a receipt at every pipeline stage and proves the numbers on your dashboard descend unchanged from the source export.</strong> Most pipelines that last long enough want both: rules for the failures you can picture, receipts for the ones you can't.</p>
+
+    <div class="callout key">
+      <span class="co-label">The one claim we make</span>
+      <p>It can't tell you the data is right, but it can prove nobody changed it.</p>
+    </div>
+
+    <h2 id="table">Side by side</h2>
+    <div class="tbl-scroll">
+      <table class="ref">
+        <thead><tr><th>Tool</th><th>Question it answers</th><th>What it needs</th><th>Misses by design</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Tamper Signal</strong></td><td>Does the data the dashboard reads descend, unchanged, from the source export? If not, at which link, and how much moved?</td><td><code>pip</code> or <code>npm install</code>. Signed receipts are plain files next to your pipeline.</td><td>Whether the source is right, and whether a wrapped step's logic is right. It records what each step did; it doesn't judge it.</td></tr>
+          <tr><td><strong>Great Expectations</strong></td><td>Does this data meet the expectations I declared?</td><td>A Python environment and an expectation suite per dataset; runs against pandas, Spark, or SQL.</td><td>Failures nobody wrote an expectation for, and changes between steps that still pass every expectation.</td></tr>
+          <tr><td><strong>Pandera</strong></td><td>Does this DataFrame match its schema and checks?</td><td>A Python library and a schema per frame.</td><td>The same as any rule checker: a hand edit that keeps the schema valid passes.</td></tr>
+          <tr><td><strong>dbt tests</strong></td><td>Do these models satisfy the tests I wrote (unique, not null, relationships, custom SQL)?</td><td>A dbt project on a SQL database or warehouse.</td><td>Anything outside the warehouse, like the spreadsheet export before it and the dashboard file after it.</td></tr>
+          <tr><td><strong>OpenLineage</strong></td><td>Which jobs read and wrote which datasets?</td><td>Integrations that emit lineage events, and a backend (such as Marquez) to collect them.</td><td>It records metadata about runs, not a signed fingerprint of the rows, so it isn't built to show that a value changed.</td></tr>
+          <tr><td><strong>in-toto / SLSA</strong></td><td>Was this software artifact built by the expected steps, from the expected inputs?</td><td>Signed attestations from each step of a build or supply chain.</td><td>Tabular meaning. File hashes change when the same rows are re-saved in another format, and there are no control totals to say how much moved.</td></tr>
+          <tr><td><strong>Sigstore</strong></td><td>Who signed this, and when did it exist?</td><td>Keyless signing and a public transparency log.</td><td>Nothing to compare: it's infrastructure. Tamper Signal can anchor a chain in Sigstore's log (<code>tamper-signal anchor</code>).</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>The other tools get one-line summaries here; their own docs have the specifics. If something is out of date, <a href="https://github.com/welovejeff/tamper-evident-verification/issues">open an issue</a> and we'll fix it.</p>
+
+    <h2 id="when">When to use which</h2>
+
+    <h3>Use Tamper Signal when</h3>
+    <ul>
+      <li>The pipeline is small and file-based: an export, a few Python or JavaScript transforms, a dashboard. No warehouse, no orchestrator, no catalog.</li>
+      <li>An AI assistant wrote the transforms, so there are behaviors nobody pictured and nobody wrote a rule for.</li>
+      <li>Someone downstream (a client, a boss, an auditor) needs to check that the numbers weren't changed along the way, by running one command or by looking at a light on the dashboard.</li>
+    </ul>
+
+    <h3>Use a rule checker (Great Expectations, Pandera, dbt tests) when</h3>
+    <ul>
+      <li>You know the rules the data must satisfy: no nulls here, unique keys there, values within a range.</li>
+      <li>You want the pipeline to stop on bad data, not just record what happened.</li>
+    </ul>
+
+    <h3>Use OpenLineage when</h3>
+    <ul>
+      <li>You run many jobs on an orchestrator or warehouse and need a map of which job touched which dataset, across teams.</li>
+    </ul>
+
+    <h3>Use in-toto and SLSA when</h3>
+    <ul>
+      <li>The thing you're protecting is software: builds, packages, container images.</li>
+    </ul>
+
+    <h2 id="together">Using them together</h2>
+    <p>They don't overlap much, so they stack. A Pandera schema inside a wrapped step still raises on bad data, and the step's receipt still records what went in and what came out. The receipt chain covers the parts a warehouse tool can't see: the spreadsheet export before the pipeline, and the file the dashboard actually reads after it. <code>tamper-signal verify --data dashboard.csv</code> checks that last file against the final receipt.</p>
+
+    <h2 id="limits">What Tamper Signal can't catch</h2>
+    <ul>
+      <li><strong>A wrong source.</strong> If the export was wrong when it was signed, the chain verifies green. Continuity, not correctness.</li>
+      <li><strong>Wrong logic in a wrapped step.</strong> A step that drops rows is signed like any other. Its receipt records the row counts and totals in and out, so the drop is visible, and <code>--warn-drift</code> turns any totals movement into a yellow caveat. What turns the light red is data that changed <em>between</em> signed steps, or after the last one.</li>
+      <li><strong>Stages you don't wrap.</strong> An unwrapped stage isn't attested. The next wrapped stage refuses input that doesn't descend from the chain tail, and <code>verify --data</code> checks the file the dashboard reads against the final receipt; skip both and nothing links the dashboard to the export.</li>
+      <li><strong>Whoever holds the key.</strong> The key holder can re-sign a fresh chain. Anchoring in the Sigstore transparency log proves a chain existed at a point in time.</li>
+    </ul>
+
+    <h2 id="faq">Questions</h2>
+
+    <h3>How is Tamper Signal different from Great Expectations, Pandera, or dbt tests?</h3>
+    <p>Those check data against rules you write, so they catch the failures you predicted. Tamper Signal records a signed receipt at every stage (a fingerprint of the input, the code, and the output, plus control totals) and proves the dashboard's data descends unchanged from the source export. It catches changes nobody wrote a rule for, but it can't tell you a rule was broken.</p>
+
+    <h3>Is Tamper Signal a data lineage tool like OpenLineage?</h3>
+    <p>No. OpenLineage records which jobs read and wrote which datasets, as metadata sent to a lineage backend. Tamper Signal fingerprints and signs the data itself at each stage, as plain files next to your pipeline, so it can show that a value changed and at which link. It needs no server, catalog, or warehouse.</p>
+
+    <h3>Is Tamper Signal in-toto for data?</h3>
+    <p>Close in spirit. in-toto signs metadata for each step of a software supply chain, hashing the files each step consumed and produced. Tamper Signal applies the idea to tabular data, with a format-agnostic semantic hash (an xlsx ingest verifies against a CSV copy of the same rows) and human-legible control totals, so a broken link reports how much moved, not only that bytes differ.</p>
+
+    <h3>Is it a blockchain?</h3>
+    <p>No. It's a hash chain: signed files on disk, linked because each stage's input fingerprint must match the previous stage's output. No consensus, no network, no tokens. More in the <a href="/docs/faq.html">FAQ</a>.</p>
+
+    <div class="callout note">
+      <span class="co-label">Try it</span>
+      <p>See every surface running on a real receipt chain in your browser, no install: <a href="/demo.html">the live demo</a>. Or <code>pip install tamper-signal</code>, then <code>tamper-signal demo</code>. Next: the <a href="/docs/quickstart.html">quickstart</a>, or the source on <a href="https://github.com/welovejeff/tamper-evident-verification">GitHub</a>.</p>
+    </div>
+
+    <p class="doc-updated">Last updated September 26, 2026.</p>
+  </main>
+</div>
+
+<footer>
+  <div class="wrap">
+    <span>MIT licensed</span>
+    <span>·</span>
+    <a href="/privacy.html">privacy</a>
+    <span>·</span>
+    <a href="https://github.com/welovejeff/tamper-evident-verification">github.com/welovejeff/tamper-evident-verification</a>
+    <span>·</span>
+    <a href="/">tampersignal.com</a>
+  </div>
+</footer>
+
+<script>
+  const menuBtn = document.querySelector(".menu-btn");
+  const siteNav = document.getElementById("site-nav");
+  if (menuBtn && siteNav) {
+    menuBtn.addEventListener("click", () => {
+      const open = siteNav.classList.toggle("open");
+      menuBtn.setAttribute("aria-expanded", String(open));
+    });
+    siteNav.addEventListener("click", (e) => {
+      if (e.target.tagName === "A") { siteNav.classList.remove("open"); menuBtn.setAttribute("aria-expanded", "false"); }
+    });
+  }
+  const sideToggle = document.querySelector(".side-toggle");
+  const docsSide = document.querySelector(".docs-side");
+  if (sideToggle && docsSide) {
+    sideToggle.addEventListener("click", () => {
+      const open = docsSide.classList.toggle("open");
+      sideToggle.setAttribute("aria-expanded", String(open));
+    });
+  }
+</script>
+
+</body>
+</html>

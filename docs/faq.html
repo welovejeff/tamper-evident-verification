@@ -177,6 +177,7 @@
         <ul>
           <li><a href="/docs/advanced.html">Power user</a></li>
           <li><a href="/docs/faq.html" aria-current="page">FAQ</a></li>
+          <li><a href="/docs/compare.html">How it compares</a></li>
         </ul>
       </div>
     </div>
@@ -256,7 +257,7 @@
     <h2 id="scope">Scope and alternatives</h2>
 
     <h3>How is this different from dbt, Great Expectations, or OpenLineage?</h3>
-    <p>Those model lineage and quality at the warehouse and orchestration layer, and assume that infrastructure exists. Tamper Signal is narrower and lighter: a signed, file-based receipt chain you drop in front of an ad-hoc xlsx-to-dashboard pipeline with no database, server, or catalog. It is a complement for the gap before those tools are in place, not a replacement.</p>
+    <p>Those model lineage and quality at the warehouse and orchestration layer, and assume that infrastructure exists. Tamper Signal is narrower and lighter: a signed, file-based receipt chain you drop in front of an ad-hoc xlsx-to-dashboard pipeline with no database, server, or catalog. It is a complement for the gap before those tools are in place, not a replacement. The side-by-side, including Pandera and in-toto, is on <a href="/docs/compare.html">How it compares</a>.</p>
 
     <h3>What are tolerance bands?</h3>
     <p>A signed declaration, made at ingest, of how much a period normally moves day over day, plus a settling window. Recurring refreshes then stay green when recent data drifts within the band and turn yellow when settled data moves or a recent bucket breaches the band. It keeps the light believable on a pipeline that refreshes every morning, which is the <a href="/blog/your-data-is-supposed-to-move.html">whole story behind 1.6.0</a>.</p>

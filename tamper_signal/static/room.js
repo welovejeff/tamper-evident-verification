@@ -541,7 +541,7 @@ function injectRoomStyles() {
   .tsr .tsr-custody-list .c-mark{color:var(--ts-cyan);font-size:10px;min-width:64px}
   .tsr .tsr-custody-list .c-mark.c-pending{color:var(--ts-amber)}
   .tsr .tsr-custody-list .c-stage{font-weight:700}
-  .tsr .tsr-custody-list .c-meta{color:var(--ts-dim);font-size:10.5px}
+  .tsr .tsr-custody-list .c-meta{color:var(--ts-dim);font-size:10.5px;min-width:0;overflow-wrap:anywhere}
   .tsr .tsr-custody-list .c-when{margin-left:auto;color:var(--ts-faint);font-size:10px}
   .tsr .tsr-custody-list .c-ann{padding:3px 0 5px 64px;font-size:11px;color:var(--ts-text)}
   .tsr .tsr-custody-list .c-ann.c-superseded{opacity:0.55;text-decoration:line-through}
