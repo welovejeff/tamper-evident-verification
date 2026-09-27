@@ -29,6 +29,13 @@ evidence: docs/plans/2026-09-26-001-growth-github-stars-evidence.md
 | CONTRIBUTING, starter issues #63 #64 #65 #67 #68 #71 | `CONTRIBUTING.md`, GitHub issues. First contributor (fatihcvs) opened PRs #69 and #70 within hours; both reviewed, small changes requested |
 | Release check script, social preview image | `scripts/check-release.sh`, `docs/media/social-preview.png` |
 
+**HN gate decided (Sun 9/27): Path N.** No established HN account, so no Show HN this week. Odds of +10 by Sat drop to about 20%. Changes to the calendar:
+- Warm waves 1a and 1b widen to 12-15 people each; wave 2 goes out Wed if the repo is under 6 stars (was: under 4 from wave 1).
+- Tue: r/dataengineering (moved up from Thu) and the pandas tutorial on dev.to (moved up from week 2), in the Show HN slot.
+- Thu: r/ClaudeCode plus r/SideProject. Fri: r/coolgithubprojects plus r/opensource (Promotional flair).
+- Mon: optional email to hn@ycombinator.com asking about a later Show HN, and create a Product Hunt account so a week-2 or week-3 launch is possible. Take part in HN comments genuinely in the meantime.
+- The launch kit (private page) carries every step and draft in this order.
+
 **Yours (in order):**
 1. Merge the PR; the site deploys from `main`.
 2. `git tag v2.1.0 && git push origin v2.1.0`, wait for `release.yml`, create the GitHub Release from the CHANGELOG, then `scripts/check-release.sh 2.1.0`. No outreach until it prints "All checks passed."
@@ -424,9 +431,44 @@ If this is useful, a star helps other people with AI-built dashboards find it.
 
 Contributing (line 216): `Issues, ideas and stars all help. Small starter tasks are labeled good first issue.`
 
-### F2. dev.to cross-posts (week 2)
+### H. r/SideProject (Thu) and r/opensource (Fri, Promotional flair)
 
-Publish `docs/blog/where-did-my-pandas-rows-go.md` (Tue 10/6) and `docs/blog/check-your-ai-dashboard-numbers.md` (Thu 10/8) on dev.to. Both carry `canonical_url` pointing at tampersignal.com, so search credit stays with the site. Read each once in your own voice before publishing; dev.to asks authors to disclose AI assistance.
+**r/SideProject title:** I built signed receipts for AI-built dashboards: a light that goes red at the exact step where the numbers changed
+
+> [One or two sentences, in your words: what made you build it.]
+>
+> Tamper Signal gives every step of a data pipeline a signed receipt: a fingerprint of the data in, the code that ran, the data out, plus row counts and column totals. A small status light on the dashboard re-checks the receipts in the browser. If a number changed between signed steps, it goes red at that step and shows how much moved.
+>
+> It can't tell you the data is right, but it can prove nobody changed it.
+>
+> Demo, no install: https://tampersignal.com/demo.html
+> Repo (MIT, Python + JS): https://github.com/welovejeff/tamper-evident-verification
+>
+> What would make you trust (or not trust) a light like this on a dashboard you didn't build?
+
+**r/opensource title:** Tamper Signal (MIT): signed receipts for every stage of a data pipeline, Python and JavaScript
+
+> I'm the author. Tamper Signal has each pipeline stage sign an Ed25519 receipt (hashes of input, code, and output, plus control totals). Receipts are plain JSON files linked in a chain; `tamper-signal verify` exits 0 green, 1 red, 2 yellow, so it drops into CI, and a browser status light re-checks the same chain.
+>
+> Continuity, not correctness: it can't tell you the data is right, but it can prove nobody changed it.
+>
+> Starter issues are labeled good first issue, and a first outside contributor already has two PRs in review.
+>
+> Repo: https://github.com/welovejeff/tamper-evident-verification
+> Demo: https://tampersignal.com/demo.html
+
+### I. Email to the HN moderators (optional, Mon; edit into your own words)
+
+> Subject: Show HN question from a new account
+>
+> Hi, I maintain Tamper Signal (https://github.com/welovejeff/tamper-evident-verification), an open-source library that signs a receipt at each stage of a data pipeline so a dashboard can prove its numbers weren't changed along the way. My HN account is new. Would a Show HN for it be OK, or should I take part in the community for a while first?
+>
+> Thanks,
+> Jeff
+
+### F2. dev.to cross-posts (the pandas one moves up to Tue 9/29)
+
+Publish `docs/blog/where-did-my-pandas-rows-go.md` (Tue 9/29, in the Show HN slot) and `docs/blog/check-your-ai-dashboard-numbers.md` (Thu 10/8) on dev.to. Both carry `canonical_url` pointing at tampersignal.com, so search credit stays with the site. Read each once in your own voice before publishing; dev.to asks authors to disclose AI assistance.
 
 ### G. Warm 1:1 message (personalize each one; never mention HN)
 
