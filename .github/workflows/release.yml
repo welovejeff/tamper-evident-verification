@@ -1,6 +1,13 @@
 # Release on version tags (v1.2.0): run both test suites, then publish the
 # Python package to PyPI and the JavaScript package to npm.
 #
+# Or run it by hand (Actions > release > Run workflow, on main) with the
+# version to ship: it checks that package.json and pyproject.toml carry that
+# version and that no such tag exists yet, runs the same tests and publishes,
+# then creates the vX.Y.Z tag and a GitHub Release from that version's
+# CHANGELOG section. A tag pushed with GITHUB_TOKEN does not start another
+# workflow run, so nothing publishes twice.
+#
 # One-time setup, done in each registry's web UI:
 # - PyPI: add a "trusted publisher" for this repo/workflow on the
 #   tamper-signal project (no token needed; uses the id-token permission).
@@ -12,6 +19,11 @@ name: release
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, without the v (must match package.json and pyproject.toml)"
+        required: true
 
 jobs:
   test:
@@ -24,6 +36,26 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+      - name: Check the requested version (manual runs)
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          npm_version=$(node -p "require('./package.json').version")
+          py_version=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
+          if [ "$VERSION" != "$npm_version" ] || [ "$VERSION" != "$py_version" ]; then
+            echo "::error::requested $VERSION, but package.json has $npm_version and pyproject.toml has $py_version"
+            exit 1
+          fi
+          if git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" >/dev/null; then
+            echo "::error::tag v$VERSION already exists; push tags to release instead"
+            exit 1
+          fi
+          if ! grep -q "^## $VERSION\$" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has no '## $VERSION' section"
+            exit 1
+          fi
       - run: pip install -e ".[dev]"
       - run: pytest
       - run: npm test
@@ -75,3 +107,22 @@ jobs:
           fi
       - if: steps.gate.outputs.go == 'true'
         run: npm publish --provenance --access public
+
+  # Manual runs only: tag the released commit and publish the GitHub Release
+  # with that version's CHANGELOG section as the notes.
+  github-release:
+    needs: [pypi, npm]
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tag and publish the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          awk -v v="$VERSION" '$0 == "## " v {on=1; next} on && /^## / {exit} on' CHANGELOG.md > notes.md
+          gh release create "v$VERSION" --target "$GITHUB_SHA" --title "v$VERSION" --notes-file notes.md
