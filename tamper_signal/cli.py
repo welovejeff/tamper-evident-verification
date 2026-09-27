@@ -20,6 +20,7 @@ Commands:
 from __future__ import annotations
 
 import argparse
+from importlib.metadata import version
 import os
 import sys
 from collections.abc import Callable
@@ -2274,6 +2275,7 @@ def build_parser(prog: str = "tamper-signal") -> argparse.ArgumentParser:
         epilog=f"Docs: {DOCS_URL}\nSource: {REPO_URL}",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
+    parser.add_argument("--version", "-v", action="version", version=f"tamper-signal {version('tamper-signal')}")
     sub = parser.add_subparsers(dest="command", required=True)
 
     p_keygen = sub.add_parser("keygen", help="Generate an Ed25519 signing keypair")

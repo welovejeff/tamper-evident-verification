@@ -5,7 +5,7 @@
 
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
@@ -83,5 +83,13 @@ test("no ANSI leaks into --json even under FORCE_COLOR", () => {
     const out = run(dir, args, { FORCE_COLOR: "1" });
     assert.ok(!out.includes("\x1b"), `ANSI leaked into --json of ${args[0]}`);
     JSON.parse(out);
+  }
+});
+
+
+test("version flags report the package version without a command or working-directory dependency", () => {
+  const version = JSON.parse(readFileSync(join(repoRoot, "package.json"), "utf8")).version;
+  for (const flag of ["--version", "-v"]) {
+    assert.equal(run(tmpdir(), [flag]), `tamper-signal ${version}\n`);
   }
 });

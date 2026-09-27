@@ -165,3 +165,13 @@ def test_python_m_entrypoint_runs():
     )
     assert result.returncode == 0
     assert "usage" in (result.stdout + result.stderr).lower()
+
+
+def test_cli_version_uses_installed_metadata(tmp_path):
+    from importlib.metadata import version
+
+    for flag in ("--version", "-v"):
+        result = subprocess.run([sys.executable, "-m", "tamper_signal", flag], cwd=tmp_path, capture_output=True, text=True)
+        assert result.returncode == 0, result.stderr
+        assert result.stdout == f"tamper-signal {version('tamper-signal')}\n"
+        assert result.stderr == ""
