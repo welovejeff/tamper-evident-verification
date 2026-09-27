@@ -22,10 +22,11 @@ evidence: docs/plans/2026-09-26-001-growth-github-stars-evidence.md
 | `llms.txt`, sitemap, blog index JSON-LD | `llms.txt`, `sitemap.xml`, `blog/index.html` |
 | Comparison page (Brief 2) | `docs/compare.html` |
 | Tutorial post (Brief 1), pulled forward from week 2 | `blog/where-did-my-pandas-rows-go.html`; dev.to copy with canonical URL in `docs/blog/` |
+| Checklist post (Brief 3), pulled forward from week 3 | `blog/check-your-ai-dashboard-numbers.html`; dev.to copy in `docs/blog/` |
 | Em dashes out of site copy | `blog/`, `docs/`, `index.html`, `demo.html` |
 | Demo page fits a 390px phone | `demo.html`, `badge/room.js` |
 | Claude Code plugin + Context7 config (GEO for coding agents) | `.claude-plugin/`, `plugins/tamper-signal/`, `context7.json` |
-| CONTRIBUTING, starter issues #63 #64 #65 #67 #68 | `CONTRIBUTING.md`, GitHub issues |
+| CONTRIBUTING, starter issues #63 #64 #65 #67 #68 #71 | `CONTRIBUTING.md`, GitHub issues. First contributor (fatihcvs) opened PRs #69 and #70 within hours; both reviewed, small changes requested |
 | Release check script, social preview image | `scripts/check-release.sh`, `docs/media/social-preview.png` |
 
 **Yours (in order):**
@@ -336,6 +337,7 @@ Edit every draft into your own voice. HN and awesome-claude-code forbid AI-writt
 > Red points at the exact step and the delta. A step that drops rows shows it in its own receipt.
 >
 > The agent part: the repo has an AGENTS.md runbook. Tell your agent "add tamper signal" and it installs the package, signs the source export, wraps the transforms that fit, and mounts the light.
+> Or in Claude Code: `/plugin marketplace add welovejeff/tamper-evident-verification`, then `/plugin install tamper-signal@welovejeff`.
 >
 > What it doesn't do: it can't tell you the data is right, but it can prove nobody changed it.
 >
@@ -387,6 +389,8 @@ Edit every draft into your own voice. HN and awesome-claude-code forbid AI-writt
 
 **First comment:** Demo, no install: https://tampersignal.com/demo.html?utm_source=linkedin&utm_medium=social&utm_campaign=launch-2026-09 · Source: https://github.com/welovejeff/tamper-evident-verification
 
+**Second comment (if the first gets replies):** The five checks to run when an AI-built dashboard disagrees with its export, no install needed: https://tampersignal.com/blog/check-your-ai-dashboard-numbers.html?utm_source=linkedin&utm_medium=social&utm_campaign=launch-2026-09
+
 ### D. Awesome-list and newsletter blurbs
 
 - **awesome-vibe-coding** (bottom of Command Line Tools): `- [Tamper Signal](https://github.com/welovejeff/tamper-evident-verification) - Signed receipts for AI-built data pipelines, verified as a green/yellow/red light.`
@@ -419,6 +423,10 @@ If this is useful, a star helps other people with AI-built dashboards find it.
 ```
 
 Contributing (line 216): `Issues, ideas and stars all help. Small starter tasks are labeled good first issue.`
+
+### F2. dev.to cross-posts (week 2)
+
+Publish `docs/blog/where-did-my-pandas-rows-go.md` (Tue 10/6) and `docs/blog/check-your-ai-dashboard-numbers.md` (Thu 10/8) on dev.to. Both carry `canonical_url` pointing at tampersignal.com, so search credit stays with the site. Read each once in your own voice before publishing; dev.to asks authors to disclose AI assistance.
 
 ### G. Warm 1:1 message (personalize each one; never mention HN)
 

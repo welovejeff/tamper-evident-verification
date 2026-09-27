@@ -21,6 +21,7 @@ Data portability: `tamper-signal export --bundle` writes a verified zip (the dat
 ## Writing
 
 - [Blog](https://tampersignal.com/blog/): notes on keeping AI-built data pipelines honest
+- [Your AI dashboard doesn't match the export](https://tampersignal.com/blog/check-your-ai-dashboard-numbers.html): a five-step checklist for when an AI-built dashboard disagrees with its source export (row counts, column totals, spot checks, date edges, repeated keys), then signed receipts so every refresh re-checks itself
 - [Where did my pandas rows go?](https://tampersignal.com/blog/where-did-my-pandas-rows-go.html): a tutorial on silent row drops, merge fan-outs, and coercion in pandas; the plain-pandas fixes (shape logs, asserts, merge validate=), then a signed receipt per step, with real command output
 - [One light, one room](https://tampersignal.com/blog/one-light-one-room.html): Tamper Signal 2.1 unifies the browser UI; the status light stays as it was, and the verified table, chain, break exhibit, inspector, log, and export behind it become one surface, the Signal Room
 - [Data that watches itself](https://tampersignal.com/blog/data-that-watches-itself.html): Tamper Signal 2.0: the live-source watcher (`tamper-signal watch`) keeps a live API/RSS feed on the same signed chain; new data auto-appends, a change to an already-settled value is withheld for human review (`tamper-signal review`)
