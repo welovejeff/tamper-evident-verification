@@ -152,6 +152,8 @@ code, pre { font-family: var(--mono); }
 .codeswitch[data-lang="js"] .lang-py { display: none; }
 
 /* Comparison table inside a post (tooltip vs export vs Data tab, etc.). */
+.post .tbl-scroll { overflow-x: auto; margin: 0 0 22px; }
+.post .tbl-scroll table.cmp { margin: 0; min-width: 560px; }
 .post table.cmp {
   width: 100%; border-collapse: collapse; margin: 4px 0 26px;
   font-size: 14px; border: 1px solid var(--border); border-radius: 10px;

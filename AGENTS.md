@@ -735,8 +735,10 @@ so their column never reaches `numeric_sums`, and a `data-receipt-column` on it
 can never flag a change — silently. Grouping isn't auto-stripped on purpose: it
 would diverge from the Python canonicalization and is locale-ambiguous (`"1,234"`
 is 1234 or 1.234?). Fix it upstream with a signed normalize stage that strips
-the separators before the receipt is written. `tamper-signal ingest` prints a
-warning naming any such columns; programmatically, call `groupedNumericColumns(records)`.
+the separators before the receipt is written. On Node, `tamper-signal ingest`
+prints a warning naming any such columns, and `groupedNumericColumns(records)`
+finds them in code; the Python CLI does not warn yet (issue #67), so check
+exports with grouped numbers yourself.
 
 ## 8. Publish table.json so the room's landing plane fills
 

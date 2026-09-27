@@ -21,11 +21,11 @@ evidence: docs/plans/2026-09-26-001-growth-github-stars-evidence.md
 | Star path: hero button, demo closing block, blog try-it box | `index.html`, `demo.html`, `blog/*.html` |
 | `llms.txt`, sitemap, blog index JSON-LD | `llms.txt`, `sitemap.xml`, `blog/index.html` |
 | Comparison page (Brief 2) | `docs/compare.html` |
-| Tutorial post (Brief 1), pulled forward from week 2 | `blog/why-did-my-dataframe-lose-rows.html`, dev.to copy in `docs/blog/` |
+| Tutorial post (Brief 1), pulled forward from week 2 | `blog/where-did-my-pandas-rows-go.html`; dev.to copy with canonical URL in `docs/blog/` |
 | Em dashes out of site copy | `blog/`, `docs/`, `index.html`, `demo.html` |
 | Demo page fits a 390px phone | `demo.html`, `badge/room.js` |
 | Claude Code plugin + Context7 config (GEO for coding agents) | `.claude-plugin/`, `plugins/tamper-signal/`, `context7.json` |
-| CONTRIBUTING, starter issues #63 #64 #65 | `CONTRIBUTING.md`, GitHub issues |
+| CONTRIBUTING, starter issues #63 #64 #65 #67 #68 | `CONTRIBUTING.md`, GitHub issues |
 | Release check script, social preview image | `scripts/check-release.sh`, `docs/media/social-preview.png` |
 
 **Yours (in order):**

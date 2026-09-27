@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<!-- Site analytics & tagging (GTM + Consent Mode v2). Config lives in /analytics.js -->
+<script src="/analytics.js"></script>
+<title>Where did my pandas rows go? Catching silent row drops and merge fan-outs · Tamper Signal</title>
+<meta name="description" content="Pandas drops rows without raising: NaN filters, merge fan-outs on duplicate keys, silent coercion. The plain-pandas fixes, then a signed receipt per step." />
+<meta name="author" content="Jeff MacDonald" />
+<meta property="og:type" content="article" />
+<meta property="article:author" content="https://github.com/welovejeff" />
+<meta property="og:title" content="Where did my pandas rows go?" />
+<meta property="og:description" content="Three silent pandas culprits, the fixes that need no install, and a signed receipt per step that shows exactly where the rows went." />
+<meta property="og:image" content="https://tampersignal.com/docs/media/thumbs/post-vibe-silent.jpg" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:image" content="https://tampersignal.com/docs/media/thumbs/post-vibe-silent.jpg" />
+<link rel="canonical" href="https://tampersignal.com/blog/where-did-my-pandas-rows-go.html" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='%2334d399'/%3E%3C/svg%3E" />
+<link rel="stylesheet" href="blog.css" />
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Where did my pandas rows go? Catching silent row drops and merge fan-outs",
+  "description": "Pandas drops rows without raising: NaN filters, merge fan-outs on duplicate keys, silent coercion. The plain-pandas fixes, then a signed receipt per step.",
+  "image": "https://tampersignal.com/docs/media/thumbs/post-vibe-silent.jpg",
+  "datePublished": "2026-09-27",
+  "dateModified": "2026-09-27",
+  "author": { "@type": "Person", "name": "Jeff MacDonald", "url": "https://github.com/welovejeff" },
+  "publisher": {
+    "@type": "Organization",
+    "name": "Tamper Signal",
+    "logo": { "@type": "ImageObject", "url": "https://tampersignal.com/docs/media/og-card.png" }
+  },
+  "mainEntityOfPage": { "@type": "WebPage", "@id": "https://tampersignal.com/blog/where-did-my-pandas-rows-go.html" }
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://tampersignal.com/" },
+    { "@type": "ListItem", "position": 2, "name": "Blog", "item": "https://tampersignal.com/blog/" },
+    { "@type": "ListItem", "position": 3, "name": "Where did my pandas rows go?" }
+  ]
+}
+</script>
+</head>
+<body>
+
+<div class="top">
+  <div class="wrap">
+    <a class="logo-stacked" href="/" aria-label="Tamper Signal home">
+      <span class="ls-rail" aria-hidden="true"><i class="r"></i><i class="y"></i><i class="g"></i></span>
+      <span class="ls-words">TAMPER<br>SIGNAL</span>
+    </a>
+    <nav>
+      <a href="/#demo">live demo</a>
+      <a href="/#how">how it works</a>
+      <a href="/docs/">docs</a>
+      <a href="/blog/">blog</a>
+      <a href="/#explore">explore</a>
+      <a href="https://github.com/welovejeff/tamper-evident-verification">github</a>
+    </nav>
+  </div>
+</div>
+
+<article class="post">
+  <div class="wrap">
+    <a class="post-back" href="/blog/">← all posts</a>
+    <h1>Where did my pandas rows go?</h1>
+    <p class="post-meta">By <a href="https://github.com/welovejeff" rel="author">Jeff MacDonald</a> · September 2026</p>
+    <img class="post-hero" src="/docs/media/thumbs/post-vibe-silent.jpg" alt="A dark pipe pouring glowing green data blocks onto a surface below" width="1600" height="900" />
+
+    <p>The pipeline ran. No traceback, no warning, a dashboard at the end of it. The revenue tile says 849.69. The export it was built from, summed by hand, comes to 2,010.84. Somewhere between the CSV and the chart, some rows left, a few rows arrived that nobody invited, and pandas mentioned neither.</p>
+
+    <p>That is the normal way a pandas pipeline goes wrong. It rarely crashes on bad data. It does exactly what you asked, and what you asked turns out to be slightly different from what you meant. This post walks one small pipeline through the three usual culprits, the fixes that need nothing but pandas, and then a signed receipt at every step, so the next time a number is off you can point at the step that moved it. Every command and every output below was run for this post, on pandas 3.0.6 and Python 3.11.</p>
+
+    <h2>Three ways pandas loses rows without raising</h2>
+
+    <p><strong>A filter that meets a NaN.</strong> <code>dropna()</code> with no arguments drops a row if <em>any</em> column is missing, not just the one you had in mind. Boolean masks do the same thing more quietly: NaN is never less than, greater than, or equal to anything, so a row with no discount fails <code>discount &lt; 0.5</code> and is gone. Here is <code>nan_filter.py</code>:</p>
+
+    <pre><code>import pandas as pd
+
+df = pd.DataFrame({
+    "order_id": [1, 2, 3, 4],
+    "region":   ["US", None, "EU", None],
+    "discount": [0.1, None, 0.2, None],
+    "amount":   [120.0, 80.5, 45.0, 60.0],
+})
+
+kept = df.dropna()                    # meant: drop rows with no amount
+print(len(df), "-&gt;", len(kept), "rows")
+
+cheap = df[df["discount"] &lt; 0.5]      # meant: drop big discounts
+print(len(df), "-&gt;", len(cheap), "rows")</code></pre>
+
+    <pre><code>$ python nan_filter.py
+4 -&gt; 2 rows
+4 -&gt; 2 rows</code></pre>
+
+    <p>Half the table, twice. Every amount was present. The rows were only incomplete in columns the next step never reads.</p>
+
+    <p><strong>A merge that fans out.</strong> A left join keeps every left row, which sounds like it cannot change your row count. It can grow it. If the right side has a duplicate key, each matching left row is copied once per match. Customer C2 changed segment and the lookup table kept both rows, so C2's order now counts twice. If you are asking why your pandas merge duplicated rows, this is almost always the answer: duplicate keys on the right. <code>fanout.py</code>:</p>
+
+    <pre><code>import pandas as pd
+
+orders = pd.DataFrame({
+    "order_id":    [1, 2, 3],
+    "customer_id": ["C1", "C2", "C3"],
+    "amount":      [120.0, 80.5, 45.0],
+})
+customers = pd.DataFrame({
+    "customer_id": ["C1", "C2", "C2", "C3"],   # C2 changed segment; both rows kept
+    "segment":     ["ent", "smb", "ent", "smb"],
+})
+
+joined = orders.merge(customers, on="customer_id", how="left")
+print(len(orders), "-&gt;", len(joined), "rows")
+print(orders["amount"].sum(), "-&gt;", joined["amount"].sum())</code></pre>
+
+    <pre><code>$ python fanout.py
+3 -&gt; 4 rows
+245.5 -&gt; 326.0</code></pre>
+
+    <p><strong>A dtype coercion.</strong> One value in the export carries a thousands separator, so pandas reads the whole column as text (pandas 3 reports <code>str</code>; pandas 2 says <code>object</code>). The usual fix, <code>pd.to_numeric(errors="coerce")</code>, turns anything it cannot parse into NaN, which is exactly what "coerce" means, and <code>sum()</code> skips NaN. The biggest order in the file becomes nothing. <code>coerce.py</code>:</p>
+
+    <pre><code>import io
+import pandas as pd
+
+csv = io.StringIO('order_id,amount\n1,120.00\n2,"1,200.00"\n3,45.00\n')
+df = pd.read_csv(csv)
+print(df["amount"].dtype)
+
+df["amount"] = pd.to_numeric(df["amount"], errors="coerce")
+print(df["amount"].tolist())
+print(df["amount"].sum())</code></pre>
+
+    <pre><code>$ python coerce.py
+str
+[120.0, nan, 45.0]
+165.0</code></pre>
+
+    <p>None of these is a pandas bug. Each is documented, reasonable behavior, which is exactly why they are hard to catch: from pandas' point of view, nothing went wrong.</p>
+
+    <h2>Catch it with plain pandas first</h2>
+
+    <p>Before any tool, here is what belongs in every pipeline. The running example from here on is a 13-row export with all three problems in it (two blank regions, one blank amount, one <code>"1,200.00"</code>, one customer with no record) and a lookup table where C2 appears twice:</p>
+
+    <pre><code>$ cat orders.csv
+order_id,customer_id,region,amount
+1001,C1,US,120.00
+1002,C2,EU,80.50
+1003,C3,,45.00
+1004,C1,US,"1,200.00"
+1005,C4,APAC,60.00
+1006,C2,EU,
+1007,C5,US,99.99
+1008,C3,,15.25
+1009,C4,APAC,210.00
+1010,C5,US,35.00
+1011,C1,EU,72.40
+1012,C2,US,18.60
+1013,C6,EU,54.10
+$ cat customers.csv
+customer_id,segment
+C1,enterprise
+C2,smb
+C2,enterprise
+C3,smb
+C4,enterprise
+C5,smb</code></pre>
+
+    <p><strong>Log the shape after every step.</strong> The cheapest instrumentation there is, and here it shows both symptoms: rows that left and rows that arrived. <code>shapes.py</code>:</p>
+
+    <pre><code>import pandas as pd
+
+def log(df, step):
+    print(f"{step:&lt;7} {df.shape}")
+    return df
+
+orders = pd.read_csv("orders.csv").pipe(log, "read")
+orders["amount"] = pd.to_numeric(orders["amount"], errors="coerce")
+clean = orders.dropna().pipe(log, "clean")
+customers = pd.read_csv("customers.csv")
+joined = clean.merge(customers, on="customer_id", how="left").pipe(log, "enrich")</code></pre>
+
+    <pre><code>$ python shapes.py
+read    (13, 4)
+clean   (9, 4)
+enrich  (11, 5)</code></pre>
+
+    <p>Thirteen in, nine after cleaning, eleven after a join that should have kept the count flat.</p>
+
+    <p><strong>Assert the invariant you actually mean.</strong> "Drop rows with no amount" is a checkable statement. Count those rows before the filter and assert on the result. <code>assert_fail.py</code>:</p>
+
+    <pre><code>import pandas as pd
+
+orders = pd.read_csv("orders.csv")
+expected = orders["amount"].notna().sum()        # rows that have an amount at all
+
+orders["amount"] = pd.to_numeric(orders["amount"], errors="coerce")
+clean = orders.dropna()
+
+assert len(clean) == expected, f"clean kept {len(clean)} rows, expected {expected}"</code></pre>
+
+    <pre><code>$ python assert_fail.py
+Traceback (most recent call last):
+...
+AssertionError: clean kept 9 rows, expected 12</code></pre>
+
+    <p><strong>Make every merge state its cardinality.</strong> <code>validate="many_to_one"</code> turns the fan-out into an exception instead of a bigger table. <code>validate.py</code>:</p>
+
+    <pre><code>import pandas as pd
+
+orders = pd.read_csv("orders.csv")
+customers = pd.read_csv("customers.csv")
+orders.merge(customers, on="customer_id", how="left", validate="many_to_one")</code></pre>
+
+    <pre><code>$ python validate.py
+Traceback (most recent call last):
+...
+pandas.errors.MergeError: Merge keys are not unique in right dataset; not a many-to-one merge
+
+Duplicates in right:
+ customer_id
+         C2 ...</code></pre>
+
+    <p>Then <code>indicator=True</code> tells you how many left rows found no match at all. <code>indicator.py</code>:</p>
+
+    <pre><code>import pandas as pd
+
+orders = pd.read_csv("orders.csv")
+customers = pd.read_csv("customers.csv").drop_duplicates("customer_id", keep="last")
+joined = orders.merge(customers, on="customer_id", how="left",
+                      validate="many_to_one", indicator=True)
+print(joined["_merge"].value_counts())</code></pre>
+
+    <pre><code>$ python indicator.py
+_merge
+both          12
+left_only      1
+right_only     0
+Name: count, dtype: int64</code></pre>
+
+    <p>The <code>left_only</code> row is customer C6, who has no record. With <code>how="left"</code> the order survives with a blank segment; switch to an inner join and it vanishes without a word. And <code>keep="last"</code> is a business decision (it assumes the file is in date order), so make it on purpose.</p>
+
+    <p><strong>Compare column sums across a step.</strong> Row counts miss a coercion that blanks a value without dropping the row. Sums catch it. Parse the separator at read time, drop only what you meant to drop, and check that the total did not move. <code>invariants.py</code>:</p>
+
+    <pre><code>import pandas as pd
+
+raw = pd.read_csv("orders.csv", thousands=",")    # "1,200.00" parses as 1200.0
+clean = raw.dropna(subset=["amount"])             # drop only rows with no amount
+
+before, after = raw["amount"].sum(), clean["amount"].sum()
+print(f"{len(raw)} -&gt; {len(clean)} rows, amount {before:.2f} -&gt; {after:.2f}")
+assert abs(before - after) &lt; 0.005, "the filter moved the total"</code></pre>
+
+    <pre><code>$ python invariants.py
+13 -&gt; 12 rows, amount 2010.84 -&gt; 2010.84</code></pre>
+
+    <p>That is the right answer: twelve rows, 2,010.84. Do all of this. It is free, it lives next to the code, and it catches real bugs. It has two limits. It only catches what you thought to assert. And it only runs inside the pipeline: once <code>dashboard.csv</code> is on disk, nothing in that script notices when someone opens it in a spreadsheet and fixes a number.</p>
+
+    <h2>Give every step a receipt</h2>
+
+    <p>This is the gap <a href="/">Tamper Signal</a> fills. It is a small MIT-licensed library that makes each pipeline stage sign a receipt: a hash of the data in, a hash of the stage's code, a hash of the data out, and human-legible control totals (row count, numeric sums, null counts). Receipts link into a chain, and one command re-checks the whole chain. After <code>pip install tamper-signal</code>, scaffold a keypair and pin the source export:</p>
+
+    <pre><code>$ tamper-signal init
+  - keys: generated keys/signing.key and keys/signing.pub
+  - .gitignore: added keys/, *.key
+  - receipts: created receipts/
+...
+$ tamper-signal ingest orders.csv --origin "orders export, September 2026" --key keys/signing.key --out receipts/
+Ingested orders.csv
+  evidence_hash 099e753e36301c1ffdcc6aed58a05ff5b3ad9187361e932b3c502c830318601d
+  semantic_hash 55ead377b3981ebbed0b2cb62c7a9499cfe95b19242dcb0e1c3ae569e22934a4
+  rows 13, columns 4
+  source manifest -&gt; receipts/000_source.json</code></pre>
+
+    <p>Then wrap each stage. <code>@receipt_step</code> takes a function that accepts and returns a DataFrame (or a list of dicts). The frame is hashed as records and passed to your function untouched. Before your code runs, the wrapper verifies the chain so far and refuses if its input is not what the previous stage signed. Here is <code>pipeline.py</code>, which is the buggy pipeline from above, bugs intact:</p>
+
+    <pre><code>import sys
+import pandas as pd
+from tamper_signal import receipt_step
+
+CHAIN = dict(chain_dir="receipts/", key_path="keys/signing.key")
+
+@receipt_step(**CHAIN)
+def clean(df):
+    df = df.copy()
+    df["amount"] = pd.to_numeric(df["amount"], errors="coerce")
+    return df.dropna()                    # meant: drop rows with no amount
+
+@receipt_step(**CHAIN)
+def enrich(df):
+    customers = pd.read_csv("customers.csv")
+    return df.merge(customers, on="customer_id", how="left")
+
+if sys.argv[1] == "clean":
+    out = clean(pd.read_csv("orders.csv"))
+    out.to_csv("clean.csv", index=False)
+else:
+    out = enrich(pd.read_csv("clean.csv"))
+    out.to_csv("dashboard.csv", index=False)
+print(f"{sys.argv[1]}: {len(out)} rows, amount {out['amount'].sum():.2f}")</code></pre>
+
+    <pre><code>$ python pipeline.py clean
+clean: 9 rows, amount 750.59
+$ python pipeline.py enrich
+enrich: 11 rows, amount 849.69</code></pre>
+
+    <p>Nothing raised, same as before. But each step left a receipt, and the receipts are plain JSON. One line of control totals per receipt:</p>
+
+    <pre><code>$ jq -c '.control_totals // .output_control_totals | {row_count, numeric_sums, null_counts}' receipts/000_source.json receipts/001_clean.json receipts/002_enrich.json
+{"row_count":13,"numeric_sums":{"order_id":"13091","amount":"810.84"},"null_counts":{"region":2,"amount":1}}
+{"row_count":9,"numeric_sums":{"order_id":"9070","amount":"750.59"},"null_counts":{}}
+{"row_count":11,"numeric_sums":{"order_id":"11084","amount":"849.69"},"null_counts":{"segment":1}}</code></pre>
+
+    <p>Read it top to bottom and the whole story is there. Thirteen rows in, nine after <code>clean</code>, eleven after <code>enrich</code>. <code>clean</code> cleared both blank regions and the blank amount: that accounts for three of the four missing rows, and the fourth is order 1004, the <code>"1,200.00"</code> that coercion turned into NaN. <code>enrich</code> added two rows and a column to an input that had no reason to grow, which is a fan-out, plus one blank segment, which is C6.</p>
+
+    <p>One honest wrinkle: the source's amount sum is 810.84, not 2,010.84. Control totals sum plain decimals only, so <code>"1,200.00"</code> was text to the receipt too, the same way it was text to <code>to_numeric</code>. The receipt shows the row leaving, not the money. If your export has grouped numbers, parse them inside a wrapped stage so the next receipt carries the real total. Inside, not before: hand the first stage <code>pd.read_csv("orders.csv", thousands=",")</code> and it refuses, because that frame is no longer the file you ingested.</p>
+
+    <h2>Green, then yellow when you ask</h2>
+
+    <pre><code>$ tamper-signal verify receipts/chain.json --pub keys/signing.pub
+✓ CHAIN INTACT: 3 receipts, 2 transforms, final row_count 11</code></pre>
+
+    <p>Exit 0. The light is green, the data is clean. That holds in the narrow sense the tool means: every signature checks and every link matches. Filters are supposed to move totals, so plain <code>verify</code> does not flag movement. <code>--warn-drift</code> does, for pipelines expected to preserve totals, and it names every link that moved:</p>
+
+    <pre><code>$ tamper-signal verify receipts/chain.json --pub keys/signing.pub --warn-drift
+⚠ CHAIN VERIFIES, WITH CAVEATS: 3 receipts, 2 transforms, final row_count 11
+  - totals drift at link 0 -&gt; 1 (clean): row_count 13 -&gt; 9 (-4), amount 810.84 -&gt; 750.59 (-60.25), order_id 13091 -&gt; 9070 (-4021), null_counts[amount] 1 -&gt; 0 (-1), null_counts[region] 2 -&gt; 0 (-2)
+  - totals drift at link 1 -&gt; 2 (enrich): row_count 9 -&gt; 11 (+2), column_count 4 -&gt; 5 (+1), amount 750.59 -&gt; 849.69 (99.1), order_id 9070 -&gt; 11084 (2014), null_counts[segment] 0 -&gt; 1 (+1)
+  A human should look.</code></pre>
+
+    <p>Exit 2. The light is yellow, a human should look. Those two lines are the diff you would have written by hand: <code>clean</code> dropped four rows and every null in two columns, <code>enrich</code> added two rows and 99.1 in amount, which is C2's two orders counted twice.</p>
+
+    <h2>Red: someone edits the output</h2>
+
+    <p><code>--data</code> checks the file the dashboard actually reads against the final receipt. On the file the pipeline wrote, it is green:</p>
+
+    <pre><code>$ tamper-signal verify receipts/chain.json --pub keys/signing.pub --data dashboard.csv
+✓ CHAIN INTACT: 3 receipts, 2 transforms, final row_count 11</code></pre>
+
+    <p>Now someone opens <code>dashboard.csv</code> and "fixes" order 1009 from 210.0 to 2100.0:</p>
+
+    <pre><code>$ sed -i 's/^1009,C4,APAC,210.0,/1009,C4,APAC,2100.0,/' dashboard.csv
+$ tamper-signal verify receipts/chain.json --pub keys/signing.pub --data dashboard.csv
+✗ DATA MISMATCH against final receipt (enrich)
+  expected output hash 864d...7b
+  found    data hash   b77b...a5
+  Control totals delta vs receipt: amount 849.69 -&gt; 2739.69 (1890)</code></pre>
+
+    <p>Exit 1, red. The chain itself still verifies. What failed is the claim that this file is what the last stage produced, and the report says by how much: amount is 1,890 higher than what <code>enrich</code> signed.</p>
+
+    <h2>Edits between stages do not get signed</h2>
+
+    <p>The sneakier edit happens in the middle. The pipeline writes <code>clean.csv</code>, and before <code>enrich</code> runs, someone notices the $1,200 order is missing and pastes it back in by hand. It is even a correction. Restart the run from the source (re-ingesting resets the chain) and try it:</p>
+
+    <pre><code>$ tamper-signal ingest orders.csv --origin "orders export, September 2026" --key keys/signing.key --out receipts/
+Ingested orders.csv
+  evidence_hash 099e753e36301c1ffdcc6aed58a05ff5b3ad9187361e932b3c502c830318601d
+  semantic_hash 55ead377b3981ebbed0b2cb62c7a9499cfe95b19242dcb0e1c3ae569e22934a4
+  rows 13, columns 4
+  source manifest -&gt; receipts/000_source.json
+$ python pipeline.py clean
+clean: 9 rows, amount 750.59
+$ echo "1004,C1,US,1200.0" &gt;&gt; clean.csv
+$ python pipeline.py enrich
+Traceback (most recent call last):
+...
+tamper_signal.wrapper.ChainTailMismatch: Input data does not match the chain tail output hash.
+  chain tail output: 7999a2ce55fc800f58457a95a59fe73e91f73af8713a8116d2cb3de017818d7f
+  provided input:    762db39c9decef858d1fe110cc9f9650ffff22c7bbd1a7f1c49ff89c385f843a
+Refusing to append a receipt for data that did not come from the previous stage.</code></pre>
+
+    <p><code>enrich</code> refuses to run. The wrapper hashed its input, compared it to what <code>clean</code> signed, and found a different file. The wrapper cannot tell a fix from a fudge, and it does not try. The right move is the boring one: correct <code>clean</code> (a <code>subset</code> on <code>dropna</code>, the separator parsed) and re-run from ingest, so the correction gets a receipt of its own.</p>
+
+    <h2>How this compares</h2>
+
+    <p>Asserts and <code>validate=</code> are free and precise, and they only know what you told them. <a href="https://pandera.readthedocs.io/">Pandera</a> and <a href="https://greatexpectations.io/">Great Expectations</a> check data against rules you write (types, nullability, ranges, uniqueness, row counts); they are the right tool when you know what correct looks like and want to enforce it. <a href="https://github.com/vimalnakrani08/dframe-trace">dframe-trace</a> goes the other way: you declare no rules; turn on its autopatch (or wrap steps in its decorator) and it records a structural snapshot (row count, columns, dtypes, per-column null counts) for each pandas or polars operation it traces, and afterwards you ask it where rows were lost or nulls appeared. It is the closest tool to this post's question. Its README is upfront that boolean-mask filters like <code>df[df.x &gt; 0]</code> are not auto-traced (the loss still shows up in the next recorded step's row delta), and it records structure, not values, in memory for that run. Receipts sit at a different boundary: one per wrapped stage, values summarized as totals, everything signed, so the record outlives the run.</p>
+
+    <div class="tbl-scroll">
+    <table class="cmp">
+      <caption>Where each approach catches a silent row drop</caption>
+      <thead><tr><th>Approach</th><th>Rules written first</th><th>Spots a drop you didn't predict</th><th>Spots edits after the run</th><th>Judges whether values are right</th></tr></thead>
+      <tbody>
+        <tr><td>Asserts and merge validate</td><td>yes</td><td>only the ones you wrote</td><td>no</td><td>against your asserts</td></tr>
+        <tr><td>Pandera</td><td>yes, a schema</td><td>if a check covers it</td><td>only rule-breaking ones, if re-run</td><td>against your schema</td></tr>
+        <tr><td>Great Expectations</td><td>yes, a suite</td><td>if an expectation covers it</td><td>only rule-breaking ones, if re-run</td><td>against your expectations</td></tr>
+        <tr><td>dframe-trace</td><td>no</td><td>yes, for traced operations</td><td>no</td><td>no</td></tr>
+        <tr><td>Signed receipts</td><td>no, one decorator per stage</td><td>yes, per wrapped stage</td><td>yes, with <code>verify --data</code></td><td>no, continuity only</td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <p>These stack. Asserts inside the stages, a schema where you know the rules, receipts at the stage boundaries.</p>
+
+    <h2>Honest limitations</h2>
+
+    <ul>
+      <li><strong>Continuity, not correctness.</strong> It can't tell you the data is right, but it can prove nobody changed it. If the export is wrong, the chain verifies wrong numbers.</li>
+      <li><strong>A wrapped step with wrong logic still gets signed.</strong> The buggy <code>clean</code> above earned a perfectly valid receipt. What you get is visibility: its totals are in the receipt, and <code>--warn-drift</code> flags the movement. Deciding the movement is a bug is still your job.</li>
+      <li><strong>Only wrapped stages are attested.</strong> Code outside a wrapped function is not covered. A lookup file a stage reads on the side (<code>customers.csv</code> here) is not pinned by its own hash; its effect only shows up in the stage's output totals.</li>
+      <li><strong>The key holder can re-sign.</strong> Anyone with <code>keys/signing.key</code> can produce a fresh, internally consistent chain. When that matters (an audit, a dispute), optional Sigstore anchoring records that this exact chain existed at a logged time.</li>
+    </ul>
+
+    <p>So: log your shapes, assert what you mean, make every merge declare its cardinality. Then, if you want the answer to "why did my DataFrame lose rows?" to still be on disk next week, give each step a receipt and let the totals say where the rows went.</p>
+
+    <p class="post-end">Rows in, rows out, and a receipt for the difference.</p>
+  </div>
+</article>
+
+<aside class="try-it" aria-label="Try Tamper Signal">
+  <div class="wrap"><div class="try-box">
+    <p class="try-k">Try it</p>
+    <p>Every surface, running on a real receipt chain in your browser, no install: <a href="/demo.html">the live demo</a>. Or <code>pip install tamper-signal</code>, then <code>tamper-signal demo</code> runs the whole story on sample data (<code>npm install tamper-signal</code> for JavaScript pipelines).</p>
+    <p>Source, issues, and the agent runbook live on <a href="https://github.com/welovejeff/tamper-evident-verification">GitHub</a>. If it's useful, a star helps other people find it.</p>
+  </div></div>
+</aside>
+
+<aside class="related" aria-label="Related reading">
+  <div class="wrap">
+    <p class="related-k">Related reading</p>
+    <ul class="related-list">
+      <li>
+        <a href="/blog/vibe-coded-pipelines-fail-silently.html">Why vibe-coded pipelines fail silently</a>
+        <p>The same three failure modes at the scale of real incidents, and why a test suite only covers the surprises you already had.</p>
+      </li>
+      <li>
+        <a href="/blog/your-data-is-supposed-to-move.html">Your data is supposed to move</a>
+        <p>Real pipelines refresh every morning. How the light stays believable when the numbers are meant to change.</p>
+      </li>
+    </ul>
+  </div>
+</aside>
+
+<footer>
+  <div class="wrap">
+    <span>MIT licensed</span>
+    <span>·</span>
+    <a href="/blog/">blog</a>
+    <span>·</span>
+    <a href="/docs/faq.html">FAQ</a>
+    <span>·</span>
+    <a href="/privacy.html">privacy</a>
+    <span>·</span>
+    <a href="https://github.com/welovejeff/tamper-evident-verification">github.com/welovejeff/tamper-evident-verification</a>
+    <span>·</span>
+    <a href="/">tampersignal.com</a>
+  </div>
+</footer>
+
+</body>
+</html>
