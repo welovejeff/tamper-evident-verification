@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<!-- Site analytics & tagging (GTM + Consent Mode v2). Config lives in /analytics.js -->
+<script src="/analytics.js"></script>
+<title>AI dashboard numbers don't match the export? A five-step check · Tamper Signal</title>
+<meta name="description" content="An AI assistant built your dashboard from an export and a number looks off. Five checks against the source data, then receipts for every refresh." />
+<meta name="author" content="Jeff MacDonald" />
+<meta property="og:type" content="article" />
+<meta property="article:author" content="https://github.com/welovejeff" />
+<meta property="og:title" content="Your AI dashboard doesn't match the export" />
+<meta property="og:description" content="Row counts, column totals, spot checks, date edges, and repeated keys: five ways to check an AI-built dashboard against the source export." />
+<meta property="og:image" content="https://tampersignal.com/docs/media/thumbs/faq.jpg" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:image" content="https://tampersignal.com/docs/media/thumbs/faq.jpg" />
+<link rel="canonical" href="https://tampersignal.com/blog/check-your-ai-dashboard-numbers.html" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='%2334d399'/%3E%3C/svg%3E" />
+<link rel="stylesheet" href="blog.css" />
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Your AI dashboard doesn't match the export: five checks against the source data",
+  "description": "An AI assistant built your dashboard from an export and a number looks off. Five checks against the source data, then receipts for every refresh.",
+  "image": "https://tampersignal.com/docs/media/thumbs/faq.jpg",
+  "datePublished": "2026-09-27",
+  "dateModified": "2026-09-27",
+  "author": { "@type": "Person", "name": "Jeff MacDonald", "url": "https://github.com/welovejeff" },
+  "publisher": {
+    "@type": "Organization",
+    "name": "Tamper Signal",
+    "logo": { "@type": "ImageObject", "url": "https://tampersignal.com/docs/media/og-card.png" }
+  },
+  "mainEntityOfPage": { "@type": "WebPage", "@id": "https://tampersignal.com/blog/check-your-ai-dashboard-numbers.html" }
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://tampersignal.com/" },
+    { "@type": "ListItem", "position": 2, "name": "Blog", "item": "https://tampersignal.com/blog/" },
+    { "@type": "ListItem", "position": 3, "name": "Your AI dashboard doesn't match the export" }
+  ]
+}
+</script>
+</head>
+<body>
+
+<div class="top">
+  <div class="wrap">
+    <a class="logo-stacked" href="/" aria-label="Tamper Signal home">
+      <span class="ls-rail" aria-hidden="true"><i class="r"></i><i class="y"></i><i class="g"></i></span>
+      <span class="ls-words">TAMPER<br>SIGNAL</span>
+    </a>
+    <nav>
+      <a href="/#demo">live demo</a>
+      <a href="/#how">how it works</a>
+      <a href="/docs/">docs</a>
+      <a href="/blog/">blog</a>
+      <a href="/#explore">explore</a>
+      <a href="https://github.com/welovejeff/tamper-evident-verification">github</a>
+    </nav>
+  </div>
+</div>
+
+<article class="post">
+  <div class="wrap">
+    <a class="post-back" href="/blog/">← all posts</a>
+    <h1>Your AI dashboard doesn't match the export</h1>
+    <p class="post-meta">By <a href="https://github.com/welovejeff" rel="author">Jeff MacDonald</a> · September 2026</p>
+    <img class="post-hero" src="/docs/media/thumbs/faq.jpg" alt="A green question mark on a dark surface, its dot glowing like an indicator light" width="1600" height="900" />
+
+    <p>You gave an AI assistant (Claude Code, Cursor, Lovable, ChatGPT) a CSV export and asked for a dashboard. Minutes later there it was: a revenue tile, a chart by channel, a tidy layout. Then you notice the revenue doesn't match what you remember from the store admin. Not wildly off. Just off.</p>
+
+    <p>The export has 48,000 rows, so "re-check it by hand" is not a plan. Asking the assistant "is this right?" isn't one either: it will reread its own code, and it may well tell you it looks fine.</p>
+
+    <p>What works is a set of five checks that compare the dashboard to the export, each aimed at one way numbers go missing or get counted twice. Each works in a spreadsheet, with a few lines of pandas for files too big to scroll. Every snippet below ran on a small sample for this post (pandas 3.0.6, Python 3.11), and the output is pasted as it came out (a <code>...</code> line marks a trim).</p>
+
+    <h2>The sample</h2>
+
+    <p>A store's orders export, <code>export.csv</code>: 20 orders from May 2026, one row per order. A small lookup table, <code>products.csv</code>, maps each product code to a category. An AI-written script, <code>build.py</code>, combines them into <code>dashboard_data.csv</code>, the file the dashboard reads. You don't need to read the script to run the checks.</p>
+
+    <pre><code>$ head -5 export.csv
+order_id,created_at,channel,sku,total
+1001,2026-05-01 02:14:00,tiktok,TEE-BLK,38.00
+1002,2026-05-01 03:40:00,meta,MUG-WHT,24.50
+1003,2026-05-01 15:05:00,tiktok,HOOD-GRY,72.00
+1004,2026-05-03 11:22:00,email,BUNDLE-XL,"1,250.00"
+$ cat products.csv
+sku,category
+TEE-BLK,apparel
+MUG-WHT,home
+HOOD-GRY,apparel
+CAP-NVY,accessories
+CAP-NVY,hats
+BUNDLE-XL,bundles
+$ python build.py
+wrote dashboard_data.csv: 17 rows, total 1,094.50</code></pre>
+
+    <p>No errors, and the revenue tile says 1,094.50. Is that right?</p>
+
+    <h2>1. Count rows in and rows out</h2>
+
+    <p>Start with the plainest number there is: how many rows went in, and how many does the dashboard summarize? In a spreadsheet, <code>=COUNTA(A:A)</code> minus one for the header, on each file. If the dashboard has an "orders" tile, that is the number to compare. In pandas, <code>rows.py</code> also lists the orders that went missing:</p>
+
+    <pre><code>import pandas as pd
+
+export = pd.read_csv("export.csv", thousands=",")
+dash = pd.read_csv("dashboard_data.csv")
+
+print("export rows:   ", len(export))
+print("dashboard rows:", len(dash))
+
+missing = sorted(set(export["order_id"]) - set(dash["order_id"]))
+print(export[export["order_id"].isin(missing)])</code></pre>
+
+    <pre><code>$ python rows.py
+export rows:    20
+dashboard rows: 17
+    order_id           created_at channel      sku  total
+0       1001  2026-05-01 02:14:00  tiktok  TEE-BLK   38.0
+1       1002  2026-05-01 03:40:00    meta  MUG-WHT   24.5
+11      1012  2026-05-17 16:15:00     NaN  TEE-BLK   38.0
+16      1017  2026-05-27 21:18:00     NaN  MUG-WHT   49.0</code></pre>
+
+    <p>Twenty in, seventeen out. Two of the missing orders have a blank channel: the script used <code>dropna()</code>, which throws out any row with any empty cell, not just the cells you care about. The other two are the first orders of May 1; hold that thought for step 4. And check the arithmetic: four orders missing but only three rows fewer, so something also added a row. That is step 5.</p>
+
+    <p><strong>Catches:</strong> dropped and added rows. <strong>Misses:</strong> a row that is still there with the wrong value, and drops that duplicates happen to cancel out.</p>
+
+    <h2>2. Total every metric on screen</h2>
+
+    <p>For each number the dashboard shows (revenue, spend, clicks, sessions), total that column in both files. In a spreadsheet, <code>=SUM()</code> on each. In pandas, <code>totals.py</code>:</p>
+
+    <pre><code>import pandas as pd
+
+export = pd.read_csv("export.csv", thousands=",")
+dash = pd.read_csv("dashboard_data.csv")
+print(f"export total:    {export['total'].sum():,.2f}")
+print(f"dashboard total: {dash['total'].sum():,.2f}")
+
+raw = pd.read_csv("export.csv")          # same file, no thousands=","
+print("total column read as:", raw["total"].dtype)
+print(f"sum after coercing:  {pd.to_numeric(raw['total'], errors='coerce').sum():,.2f}")</code></pre>
+
+    <pre><code>$ python totals.py
+export total:    2,465.00
+dashboard total: 1,094.50
+total column read as: str
+sum after coercing:  1,215.00</code></pre>
+
+    <p>The gap is 1,370.50, and most of it is one order. The export writes it as <code>"1,250.00"</code>, with a thousands separator. Read without being told about the comma, the whole column arrives as text (<code>str</code>), and the common fix, <code>pd.to_numeric(errors="coerce")</code>, turns anything it can't parse into a blank. The script then filled blanks with zero: the month's biggest order became 0.00, and nothing raised an error.</p>
+
+    <p>Spreadsheets do their own version: <code>SUM</code> silently skips a number stored as text. To test for it, compare <code>=COUNT()</code> (real numbers only) with <code>=COUNTA()</code> (anything non-empty) over the same cells, header excluded. If they differ, some of your "numbers" are text.</p>
+
+    <p><strong>Catches:</strong> values that vanished or changed. <strong>Misses:</strong> which rows did it.</p>
+
+    <h2>3. Follow a few rows end to end</h2>
+
+    <p>Totals say how much is off. Specific rows say why. Pick a handful on purpose: the first row, the last, the biggest, and one from the middle. Find each one in both files (Ctrl+F on the order ID works). <code>spot.py</code>:</p>
+
+    <pre><code>import pandas as pd
+
+export = pd.read_csv("export.csv", thousands=",")
+dash = pd.read_csv("dashboard_data.csv")
+
+for oid in [1001, 1004, 1011, 1020]:     # first, biggest, a middle one, last
+    before = export.loc[export["order_id"] == oid, "total"].tolist()
+    after = dash.loc[dash["order_id"] == oid, "total"].tolist()
+    print(oid, before, "-&gt;", after)</code></pre>
+
+    <pre><code>$ python spot.py
+1001 [38.0] -&gt; []
+1004 [1250.0] -&gt; [0.0]
+1011 [144.0] -&gt; [144.0]
+1020 [24.5] -&gt; [24.5]</code></pre>
+
+    <p>Two of four are fine. The first order of the month is gone, and the biggest one is there with a total of 0.0. Four lookups turned "revenue looks low" into two specific problems. This is also how to talk to your assistant: "order 1004 is 1,250 in the export and 0 in the dashboard" gets a much better fix than "the revenue is wrong."</p>
+
+    <p><strong>Catches:</strong> what the problem actually is, row by row. <strong>Misses:</strong> anything in rows you didn't pick.</p>
+
+    <h2>4. Check the first and last day</h2>
+
+    <p>Date bugs live at the edges. Compare the earliest and latest timestamp in both files; in a spreadsheet, sort by date and look at the top and bottom rows. <code>dates.py</code>:</p>
+
+    <pre><code>import pandas as pd
+
+export = pd.read_csv("export.csv")
+dash = pd.read_csv("dashboard_data.csv")
+print("export:   ", export["created_at"].min(), "to", export["created_at"].max())
+print("dashboard:", dash["created_at"].min(), "to", dash["created_at"].max())</code></pre>
+
+    <pre><code>$ python dates.py
+export:    2026-05-01 02:14:00 to 2026-05-31 22:30:00
+dashboard: 2026-05-01 11:05 to 2026-05-31 18:30</code></pre>
+
+    <p>The last order moved from 22:30 to 18:30: this export stamps times in UTC, and the script converted them to New York time (four hours behind in May), then kept only May. The two orders placed before 04:00 UTC on May 1 became April 30 evening orders and dropped out. Those are the two missing orders from step 1.</p>
+
+    <p>Neither clock is wrong. An ad account or a store may report days in its own timezone while the export uses UTC, so pick one clock for everything you compare, over the same window. If this export was pulled on UTC days, the last four hours of May 31 in New York are stamped June 1 and are not in the file at all; no fix inside the dashboard brings them back.</p>
+
+    <p><strong>Catches:</strong> rows sliding across the start or end of the range, and daily numbers that disagree with the platform's own report.</p>
+
+    <h2>5. Look for repeated keys in lookups</h2>
+
+    <p>When a dashboard combines two files (orders plus a product list, ad spend plus a campaign list), it matches rows on a shared key. If the lookup has the same key twice, every matching row is copied once per match, and counts and sums go up. In a spreadsheet, a helper column with <code>=COUNTIF(A:A, A2)&gt;1</code> in the lookup table flags repeats. <code>dupes.py</code>:</p>
+
+    <pre><code>import pandas as pd
+
+products = pd.read_csv("products.csv")
+dash = pd.read_csv("dashboard_data.csv")
+
+print(products[products["sku"].duplicated(keep=False)])
+print("orders counted more than once:", dash["order_id"].duplicated().sum())</code></pre>
+
+    <pre><code>$ python dupes.py
+       sku     category
+3  CAP-NVY  accessories
+4  CAP-NVY         hats
+orders counted more than once: 1</code></pre>
+
+    <p>Someone recategorized the navy cap and the old row stayed, so order 1009 is in the dashboard twice, once as "accessories" and once as "hats". That is the extra row from step 1.</p>
+
+    <p><strong>Catches:</strong> double counting from joins. <strong>Misses:</strong> a lookup that is wrong but has no repeats.</p>
+
+    <p>Add it up and the whole gap is explained: 1,250.00 zeroed, 62.50 from the two orders that slid into April, 87.00 from the two blank-channel orders, minus 29.00 counted twice. That is 1,370.50, to the cent. Five checks, and none of them required reading the AI's code.</p>
+
+    <h2>The checklist works once. Your dashboard refreshes every week.</h2>
+
+    <p>Next Monday there is a new export. The assistant tweaks the script, someone fixes a cell by hand, and last week's checks prove nothing about this week. You can re-run them every time, or the pipeline can write down what it did, every time, in a form nobody can quietly change.</p>
+
+    <p>That is what <a href="/">Tamper Signal</a> does. Each step signs a receipt: a fingerprint of the data that went in, the code that ran, and the data that came out, plus plain control totals (row count, column sums, blank counts). Receipts link into a chain, and one command re-checks the whole chain against the file your dashboard actually reads. The answer is a status light: green if the chain is intact, yellow if a human should look, red if it broke, with the exact link and how far the totals moved.</p>
+
+    <p>You don't have to wire it up yourself. Paste this into your AI assistant:</p>
+
+    <pre><code>Add Tamper Signal to this project. Follow https://raw.githubusercontent.com/welovejeff/tamper-evident-verification/main/AGENTS.md</code></pre>
+
+    <p>In Claude Code you can install the plugin instead: <code>/plugin marketplace add welovejeff/tamper-evident-verification</code>, then <code>/plugin install tamper-signal@welovejeff</code>. Either way, the assistant does roughly the following (plus a small status light, if your dashboard is a web page). Here it is by hand on the sample, after <code>pip install tamper-signal</code>: a signing key, then a fingerprint of the export.</p>
+
+    <pre><code>$ tamper-signal init
+  - keys: generated keys/signing.key and keys/signing.pub
+  - .gitignore: added keys/, *.key
+  - receipts: created receipts/
+...
+$ tamper-signal ingest export.csv --origin "store orders export, May 2026" --key keys/signing.key --out receipts/
+Ingested export.csv
+  evidence_hash 28651ad5690837d31e2405acc4893bad111ec2a538ca700af1ef61a43fbdc6e4
+  semantic_hash 3d0653bd69c9f67d0273272590d88706d25974ee4b56cd9bdbf6007a59b17f76
+  rows 20, columns 5
+  source manifest -&gt; receipts/000_source.json</code></pre>
+
+    <p>Then the AI's <code>build.py</code> gets two new lines, an import and a decorator. Nothing else changes, bugs included:</p>
+
+    <pre><code>import pandas as pd
+from tamper_signal import receipt_step
+
+@receipt_step(chain_dir="receipts/", key_path="keys/signing.key")
+def build(df):
+    df = df.copy()
+    df["total"] = pd.to_numeric(df["total"], errors="coerce").fillna(0)
+    df = df.dropna()
+    df = df.merge(pd.read_csv("products.csv"), on="sku", how="left")
+    when = pd.to_datetime(df["created_at"]).dt.tz_localize("UTC").dt.tz_convert("America/New_York")
+    df["created_at"] = when.dt.strftime("%Y-%m-%d %H:%M")
+    return df[when.dt.month == 5]
+
+out = build(pd.read_csv("export.csv"))
+out.to_csv("dashboard_data.csv", index=False)
+print(f"wrote dashboard_data.csv: {len(out)} rows, total {out['total'].sum():,.2f}")</code></pre>
+
+    <pre><code>$ python build.py
+wrote dashboard_data.csv: 17 rows, total 1,094.50
+$ tamper-signal verify receipts/chain.json --pub keys/signing.pub --data dashboard_data.csv
+✓ CHAIN INTACT: 2 receipts, 1 transforms, final row_count 17
+$ echo $?
+0</code></pre>
+
+    <p>Exit code 0. The light is green, the data is clean.</p>
+
+    <h2>Red: the well-meaning hand edit</h2>
+
+    <p>Now say you ran the checklist, found order 1004 at 0.0, and fixed it in <code>dashboard_data.csv</code> by hand (GNU <code>sed</code> here; any text editor does the same):</p>
+
+    <pre><code>$ sed -i 's/^1004,\(.*\),0\.0,bundles$/1004,\1,1250.0,bundles/' dashboard_data.csv
+$ grep ^1004 dashboard_data.csv
+1004,2026-05-03 07:22,email,BUNDLE-XL,1250.0,bundles
+$ tamper-signal verify receipts/chain.json --pub keys/signing.pub --data dashboard_data.csv
+✗ DATA MISMATCH against final receipt (build)
+  expected output hash c28d...ff
+  found    data hash   8407...41
+  Control totals delta vs receipt: total 1094.5 -&gt; 2344.5 (1250)
+$ echo $?
+1</code></pre>
+
+    <p>The light is red, the chain is broken. The file no longer matches what the signed build produced, and the report says by how much: <code>total</code> is 1,250 higher than the receipt. Your edit was a correction, and it turns the light red anyway, on purpose: the tool can't tell a fix from a fudge. The fix that keeps the light green is the boring one. Correct the script (parse the separator, stop dropping blank-channel rows, dedupe the lookup, pick one clock) and re-run from ingest, so the correction gets its own receipt.</p>
+
+    <h2>What this does not do</h2>
+
+    <p>It can't tell you the data is right, but it can prove nobody changed it. Tamper Signal proves continuity, not correctness. Green means the file behind the dashboard descends from the export through the signed steps, with nothing changed in between. It says nothing about whether the AI's aggregation logic is right: the build above has four problems and a perfectly valid receipt.</p>
+
+    <p>What a receipt does give you is something to look at. Each one carries its totals, and <code>--warn-drift</code> prints how they moved at every step:</p>
+
+    <pre><code>$ tamper-signal verify receipts/chain.json --pub keys/signing.pub --warn-drift
+⚠ CHAIN VERIFIES, WITH CAVEATS: 2 receipts, 1 transforms, final row_count 17
+  - totals drift at link 0 -&gt; 1 (build): row_count 20 -&gt; 17 (-3), column_count 5 -&gt; 6 (+1), order_id 20210 -&gt; 17187 (-3023), total 1215 -&gt; 1094.5 (-120.5), null_counts[channel] 2 -&gt; 0 (-2)
+  A human should look.
+$ echo $?
+2</code></pre>
+
+    <p>The light is yellow, a human should look. Twenty rows in, seventeen out, blank channels from 2 to 0: the same questions the checklist asks, printed on every run that passes the flag. One wrinkle: the source total reads 1215, not 2,465. Control totals only sum plain decimals, so <code>"1,250.00"</code> is text to the receipt too. If your exports use thousands separators, have the assistant strip them inside a signed step so the next receipt carries the real total.</p>
+
+    <p>Two more limits. Only wrapped steps are covered: if part of the build runs outside a wrapped function, or happens by hand, nothing attests that part. A receipt covers the data handed to the function, the function's code, and its output; a file the step opens on its own (<code>products.csv</code> here) gets no fingerprint of its own. And if the export itself is wrong, the chain faithfully verifies wrong numbers.</p>
+
+    <p>So: count the rows, total the columns, follow a few rows, check the edges, look for repeated keys. Do it by hand once, today. If the dashboard is going to refresh every week, give it receipts. You can see every surface running on a real chain in the <a href="https://tampersignal.com/demo.html">live demo</a>, and <a href="/docs/compare.html">the comparison page</a> covers where receipts fit next to rule-based checks like Great Expectations and Pandera.</p>
+
+    <p class="post-end">Check it once by hand. Let the receipts check every refresh.</p>
+  </div>
+</article>
+
+<aside class="try-it" aria-label="Try Tamper Signal">
+  <div class="wrap"><div class="try-box">
+    <p class="try-k">Try it</p>
+    <p>Every surface, running on a real receipt chain in your browser, no install: <a href="/demo.html">the live demo</a>. Or <code>pip install tamper-signal</code>, then <code>tamper-signal demo</code> runs the whole story on sample data (<code>npm install tamper-signal</code> for JavaScript pipelines).</p>
+    <p>Source, issues, and the agent runbook live on <a href="https://github.com/welovejeff/tamper-evident-verification">GitHub</a>. If it's useful, a star helps other people find it.</p>
+  </div></div>
+</aside>
+
+<aside class="related" aria-label="Related reading">
+  <div class="wrap">
+    <p class="related-k">Related reading</p>
+    <ul class="related-list">
+      <li>
+        <a href="/blog/where-did-my-pandas-rows-go.html">Where did my pandas rows go?</a>
+        <p>The same silent drops, coercions, and merge fan-outs from the pandas side, with a signed receipt at every step.</p>
+      </li>
+      <li>
+        <a href="/docs/compare.html">Rules catch what you predicted. Receipts catch what changed.</a>
+        <p>How Tamper Signal compares to dbt tests, Great Expectations, Pandera, in-toto, and Sigstore: what question each answers, and when to use which.</p>
+      </li>
+    </ul>
+  </div>
+</aside>
+
+<footer>
+  <div class="wrap">
+    <span>MIT licensed</span>
+    <span>·</span>
+    <a href="/blog/">blog</a>
+    <span>·</span>
+    <a href="/docs/faq.html">FAQ</a>
+    <span>·</span>
+    <a href="/privacy.html">privacy</a>
+    <span>·</span>
+    <a href="https://github.com/welovejeff/tamper-evident-verification">github.com/welovejeff/tamper-evident-verification</a>
+    <span>·</span>
+    <a href="/">tampersignal.com</a>
+  </div>
+</footer>
+
+</body>
+</html>
