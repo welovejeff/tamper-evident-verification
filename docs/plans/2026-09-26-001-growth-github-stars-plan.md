@@ -9,7 +9,7 @@ evidence: docs/plans/2026-09-26-001-growth-github-stars-evidence.md
 
 # Tamper Signal: +10 GitHub stars by Saturday 2026-10-03
 
-## Status (updated Sun 2026-09-27)
+## Status (updated Sun 2026-09-27, evening)
 
 **Done on branch `claude/github-stars-growth-strategy-us37ov` (merge to ship):**
 
@@ -36,14 +36,17 @@ evidence: docs/plans/2026-09-26-001-growth-github-stars-evidence.md
 - Mon: optional email to hn@ycombinator.com asking about a later Show HN, and create a Product Hunt account so a week-2 or week-3 launch is possible. Take part in HN comments genuinely in the meantime.
 - The launch kit (private page) carries every step and draft in this order.
 
-**Yours (in order):**
-1. Merge the PR; the site deploys from `main`.
-2. `git tag v2.1.0 && git push origin v2.1.0`, wait for `release.yml`, create the GitHub Release from the CHANGELOG, then `scripts/check-release.sh 2.1.0`. No outreach until it prints "All checks passed."
-3. Settings: upload `docs/media/social-preview.png` as the social preview, enable Discussions, add topics `hacktoberfest` `data-provenance` `audit-trail` `pandas`, pin the repo on your profile.
-4. Submit the repo at context7.com/add-library.
-5. The HN gate decision, the warm list, and every post in the appendix (your voice).
-6. Close #59 (v2.0 shipped) and decide on PR #60.
+**Kickoff moved to Mon 9/28 (decided Sun 9/27).** The seven-day window is now Mon Sep 28 to Sun Oct 4. Sunday's items (release, settings, PyCoder's, warm wave 1a) move to Monday, and the r/Python Sunday Daily Thread reply moves to Sun Oct 4, which is also count day. The launch kit carries this order. The day-by-day calendar in section 5 keeps its original dates for the record; read "Sun" items as Monday.
 
+**Release state:** PyPI 2.1.0 is live and passes `scripts/check-release.sh` (fresh venv, `tamper-signal demo`). npm is still on 2.0.0: the first run failed on an expired token, and `release.yml` now uses npm trusted publishing (#75), which needs the Trusted Publisher set on npmjs.com once. No v2.1.0 tag or GitHub Release yet; the manual run creates both.
+
+**Yours (in order, Mon 9/28 at a desktop):**
+1. npmjs.com, package `tamper-signal`, Settings, Trusted Publisher: GitHub Actions, `welovejeff` / `tamper-evident-verification` / `release.yml`.
+2. Actions, `release.yml`, Run workflow on `main` with version `2.1.0`. It skips PyPI, publishes npm, tags, and writes the GitHub Release. Then `scripts/check-release.sh 2.1.0`.
+3. Settings: upload `docs/media/social-preview.png` as the social preview, enable Discussions, add topics `hacktoberfest` `data-provenance` `audit-trail` `pandas`, pin the repo on your profile, approve the fork workflow runs on #69 and #70.
+4. Submit the repo at context7.com/add-library (Fri in the kit).
+5. The warm list and every post in the appendix (your voice).
+6. Close #59 (v2.0 shipped) and decide on PR #60.
 
 ## 1. Bottom line
 
@@ -225,7 +228,7 @@ Coding agents are the only AI surface you can reach this week. Answer engines ne
 
 ## 8. Channel rules and blockers
 
-Check every live sidebar before posting. The Reddit rules below come from mirrors because reddit.com blocked the research fetches.
+Check every live sidebar before posting. Reddit rows were re-verified Sun 9/27 from 2026 mod-team removal comments and AutoModerator posts (via the Arctic Shift archive, since reddit.com blocks fetches); the live rules pages for r/ClaudeCode, r/SideProject and r/coolgithubprojects could not be read. Two subs now remove text that reads as AI-written, so every Reddit post is typed in your own words.
 
 | Channel | Status | Rule |
 |---|---|---|
@@ -236,10 +239,19 @@ Check every live sidebar before posting. The Reddit rules below come from mirror
 | awesome-claude-code | Eligible, slow | 14+ days old plus later commits (met). Web-UI form only, human-written. Maintainer warns not to treat the list as promotion |
 | awesome-python, awesome-data-engineering | Not yet | Weighs PyPI downloads / needs 30 days and outside users |
 | r/programming | Blocked | Bans LLM-related and "I made this" posts |
-| r/Python | Thread only | Standalone showcases removed |
-| r/dataengineering | Once a month | Disclose authorship; Open Source flair |
-| r/ClaudeAI, r/cursor, r/analytics | Gated | Ask mods first; r/analytics needs 5 comment karma |
-| Console.dev, Data Engineering Weekly | Ineligible | Pre-1.0 only / no tool promotion |
+| r/Python | Thread only | Standalone project posts are auto-removed. Use the monthly Showcase Thread (new one Sun Oct 4, about 12:05 ET) or the Sunday Daily Thread. AI-looking text is removed |
+| r/dataengineering | Once a month | Disclose authorship; Open Source flair. Banned: "looking for feedback" posts and discussions started only to raise awareness of your own product. AI-looking text is a permanent ban with no appeal. Lower-risk option: the monthly "what are you working on" thread (Thu Oct 1, 12:00 ET) |
+| r/ClaudeCode | Allowed | "Built with Claude" flair. State what it does, pricing, and your relationship in the first lines; no referral or tracking links |
+| r/opensource | Allowed | Promotional flair; needs an OSI license file (MIT passes); no repost soon after |
+| r/SideProject, r/coolgithubprojects | Allowed, unverified | Title formats `[Project name] - [Short description]` and `[Desc] - [Suggested title]`; r/coolgithubprojects wants a link post straight to GitHub |
+| r/datascience | Skip | Removes promotional posts and personal blog links |
+| r/ClaudeAI, r/cursor, r/analytics | Gated | Ask mods first; r/analytics removes tool posts and posts from new members |
+| Console.dev | Ineligible | Pre-1.0 only |
+| Data Engineering Weekly | Article PR only | Takes technical articles by PR under `weekly/` (YAML entry), no vendor promotion; not bare project links |
+| Changelog News | Allowed | Sign in and submit at changelog.com/news/submit with a news angle; no tutorials |
+| Cooperpress (Node/JS Weekly) | Allowed | Submit form at cooperpress.com/submit/ (or reply to an issue email); ship npm 2.1.0 first |
+| OpenAlternative | Not yet | Star floor, reportedly 10 |
+| Python Weekly, TLDR Data | No verified path | Skip this week |
 | GitHub Trending | Unreachable | Lowest daily Python entry already had 1,167+ stars |
 
 ### Never do: stars
@@ -310,6 +322,8 @@ Edit every draft into your own voice. HN and awesome-claude-code forbid AI-writt
 
 ### B1. r/dataengineering (Open Source flair)
 
+Rewrite this in your own words before posting: the sub permanently bans text that reads as AI-written, and bans "looking for feedback" posts, so it states what the tool does and stops.
+
 **Title:** Open source: signed receipts for each pipeline stage, so verify can name the step where the numbers changed
 
 > Disclosure: I'm the author. MIT licensed, no paid tier.
@@ -318,7 +332,7 @@ Edit every draft into your own voice. HN and awesome-claude-code forbid AI-writt
 >
 > Tamper Signal has every stage sign an Ed25519 receipt: a hash of its input, its code and its output, plus control totals (row count, per-column sums, null counts). Receipts are plain JSON files linked in chain.json. `tamper-signal verify` re-checks every signature and link and exits 0 (green), 1 (red) or 2 (yellow), so it drops into CI. If data changed between signed steps, it names the exact link and the delta, e.g. `row_count 48212 -> 48190 (-22)`. A step that drops rows records the drop in its own receipt, and `--warn-drift` flags it yellow for pipelines that should preserve totals.
 >
-> Design choices I'd like critique on:
+> Design choices:
 > - The semantic hash is format-agnostic, so an xlsx ingest verifies against a CSV or JSON copy of the same data.
 > - Control totals only sum plain decimals. "1,234" is skipped on purpose (locale ambiguity).
 > - The key holder can re-sign a fresh chain. Optional Sigstore anchoring records that a chain existed at a time.
@@ -326,14 +340,12 @@ Edit every draft into your own voice. HN and awesome-claude-code forbid AI-writt
 > Where it sits: dbt tests, Great Expectations and Pandera check rules you write. OpenLineage records warehouse lineage metadata. This proves continuity, not correctness: it can't tell you the data is right, but it can prove nobody changed it. Comparison: tampersignal.com/docs/compare.html
 >
 > `pip install tamper-signal` or `npm install tamper-signal` (same chains). Repo: github.com/welovejeff/tamper-evident-verification
->
-> What would stop you from using this in a real pipeline?
 
 ### B2. r/ClaudeCode ("Built with Claude" flair)
 
 **Title:** Built with Claude Code: signed receipts that show which step changed your dashboard's numbers
 
-> I built Tamper Signal with Claude Code; most commits carry a Claude co-author line. [One or two sentences, in your words, on why.]
+> I'm the author; it's free and MIT licensed. I built Tamper Signal with Claude Code, and most commits carry a Claude co-author line. [One or two sentences, in your words, on why.]
 >
 > Every pipeline stage signs a receipt: a fingerprint of the data in, the code that ran, and the data out, plus row counts and column totals. A status light on the dashboard re-checks the receipts in the browser:
 >
@@ -352,9 +364,11 @@ Edit every draft into your own voice. HN and awesome-claude-code forbid AI-writt
 > Demo (no install): tampersignal.com/demo.html
 > Repo: github.com/welovejeff/tamper-evident-verification
 >
-> My project, MIT. Where does the agent flow break for you?
+> Where does the agent flow break for you?
 
-### B3. r/Python Sunday Daily Thread reply
+### B3. r/Python Showcase Thread comment (Sun Oct 4, about 12:05 ET)
+
+The monthly Showcase Thread goes up on the 4th at about 16:05 UTC; comment soon after. The Sunday Daily Thread (up at 00:00 UTC) takes the same text. Type it yourself: r/Python removes text that reads as AI-written.
 
 > **Tamper Signal** (I'm the author, MIT)
 >
@@ -400,11 +414,14 @@ Edit every draft into your own voice. HN and awesome-claude-code forbid AI-writt
 
 ### D. Awesome-list and newsletter blurbs
 
-- **awesome-vibe-coding** (bottom of Command Line Tools): `- [Tamper Signal](https://github.com/welovejeff/tamper-evident-verification) - Signed receipts for AI-built data pipelines, verified as a green/yellow/red light.`
-- **bureado/awesome-software-supply-chain-security** (Identity, signing and provenance): `- [Tamper Signal](https://github.com/welovejeff/tamper-evident-verification) - Ed25519-signed receipts for each data-pipeline stage, linked into a verifiable chain, with optional Sigstore anchoring.`
+- **awesome-vibe-coding** (bottom of Command Line Tools; one PR, commit message `Add Tamper Signal`, title `Add Tamper Signal to Command Line Tools`): `- [Tamper Signal](https://github.com/welovejeff/tamper-evident-verification) - Python and Node CLI that signs a receipt at each data-pipeline stage and verifies the chain as a green, yellow, or red light.`
+- **bureado/awesome-software-supply-chain-security** (Identity, signing and provenance; PR title `Add tamper-evident-verification to Identity, signing and provenance`): `* [welovejeff/tamper-evident-verification: Ed25519-signed, hash-chained receipts for each stage of a data pipeline, with optional Sigstore transparency-log anchoring](https://github.com/welovejeff/tamper-evident-verification)`
 - **PyCoder's Weekly:** "tamper-signal: signed receipts and a green/yellow/red verdict for Python data pipelines" + repo URL.
-- **editor@cooperpress.com** ("tamper-signal for JavaScript Weekly / Node Weekly"): "Hi, tamper-signal (MIT) signs a receipt at every stage of a JS or Python data pipeline and verifies the chain as a green, yellow or red light. On npm, `receiptStep()` wraps a records-to-records function, and a `<tamper-signal>` web component and React light re-verify the chain in the browser with Web Crypto. It proves continuity, not correctness. npm: npmjs.com/package/tamper-signal · Repo: github.com/welovejeff/tamper-evident-verification. Thanks, Jeff"
-- **awesome-claude-code:** type your own words into the web form.
+- **Cooperpress** (form at cooperpress.com/submit/, Node Weekly first; editor@cooperpress.com also works) ("tamper-signal for JavaScript Weekly / Node Weekly"): "Hi, tamper-signal (MIT) signs a receipt at every stage of a JS or Python data pipeline and verifies the chain as a green, yellow or red light. On npm, `receiptStep()` wraps a records-to-records function, and a `<tamper-signal>` web component and React light re-verify the chain in the browser with Web Crypto. It proves continuity, not correctness. npm: npmjs.com/package/tamper-signal · Repo: github.com/welovejeff/tamper-evident-verification. Thanks, Jeff"
+- **awesome-claude-code:** type your own words into the web form (github.com/hesreallyhim/awesome-claude-code/issues/new?template=recommend-resource.yml), category Skills, one line, no pitch, no emojis. Leave the "do not check" box unchecked.
+- **Changelog News** (changelog.com/news/submit): news angle, for example "a status light that re-verifies signed pipeline receipts in the browser"; not a tutorial.
+- **Data Engineering Weekly:** a PR adding a YAML entry under `weekly/` that links the pandas tutorial.
+- **Data Elixir:** one short note through dataelixir.com/contact with the pandas tutorial link.
 
 ### E. X / Bluesky thread (Wed 08:15 ET)
 

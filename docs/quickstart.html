@@ -75,6 +75,11 @@
       <p>In a hurry? <code>pip install tamper-signal</code> then <code>tamper-signal demo</code> runs this entire story end to end on sample data: ingest, two transforms, verify (pass), tamper, verify (fail). It works in its own <code>tamper-signal-demo/</code> folder, so your own keys and receipts are never touched. Run it from a clone of the repo and it also serves a badge so you can see green, yellow, and red side by side. The walkthrough below is the same thing, by hand, so you understand each step.</p>
     </div>
 
+    <div class="callout note">
+      <span class="co-label">Prefer a notebook?</span>
+      <p><a href="https://colab.research.google.com/github/welovejeff/tamper-evident-verification/blob/main/examples/quickstart.ipynb">Open the quickstart notebook in Colab</a>: a two-stage pandas pipeline with a receipt per stage, then green, yellow, and red on real output. Nothing to install on your machine. The source is <a href="https://github.com/welovejeff/tamper-evident-verification/blob/main/examples/quickstart.ipynb">examples/quickstart.ipynb</a>.</p>
+    </div>
+
     <h2 id="install">1. Install</h2>
     <p>Tamper Signal ships for both stacks, and the chains are interchangeable. Pick whichever your pipeline already speaks.</p>
     <pre><code><span class="c"># Python 3.11+ : gives you the `tamper-signal` CLI and the tamper_signal package</span>

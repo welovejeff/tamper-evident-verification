@@ -81,9 +81,9 @@ def light(verdict: str, stream: TextIO | None = None) -> str:
 # init/demo command. Shown only on a color-capable terminal, so piped/non-TTY
 # output is unchanged.
 _BANNER = (
-    "┌─ Tamper Signal ──────────────┐\n"
+    "┌─ Tamper Signal ───────────────┐\n"
     "│ signed receipts · green light │\n"
-    "└──────────────────────────────┘"
+    "└───────────────────────────────┘"
 )
 
 

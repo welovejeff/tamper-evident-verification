@@ -17,10 +17,12 @@ Data portability: `tamper-signal export --bundle` writes a verified zip (the dat
 - [FAQ](https://tampersignal.com/docs/faq.html): what it proves and what it does not, the traffic light, blockchain, and how it differs from dbt and friends
 - [How it compares](https://tampersignal.com/docs/compare.html): Tamper Signal next to dbt tests, Great Expectations, Pandera, OpenLineage, and in-toto/Sigstore, with when to use each
 - [Quickstart](https://tampersignal.com/docs/quickstart.html): raw export to a green light, then a deliberate tamper, by hand
+- [Quickstart notebook (Colab)](https://colab.research.google.com/github/welovejeff/tamper-evident-verification/blob/main/examples/quickstart.ipynb): the same story in a runnable Jupyter notebook: a two-stage pandas pipeline with receipts, then green, yellow (`--warn-drift`), and red (a hand-edited value) on real output
 
 ## Writing
 
 - [Blog](https://tampersignal.com/blog/): notes on keeping AI-built data pipelines honest
+- [A tamper-evident data pipeline in 60 lines of Python](https://tampersignal.com/blog/tamper-evident-pipeline-60-lines.html): build a hash chain with signed receipts from scratch (sha256 per stage, Ed25519 per receipt, a verify() that names the broken link), then the five places the toy breaks (re-saves, magnitude, key trust, unwrapped stages, verifying elsewhere) and how Tamper Signal handles each, with real command output
 - [Your AI dashboard doesn't match the export](https://tampersignal.com/blog/check-your-ai-dashboard-numbers.html): a five-step checklist for when an AI-built dashboard disagrees with its source export (row counts, column totals, spot checks, date edges, repeated keys), then signed receipts so every refresh re-checks itself
 - [Where did my pandas rows go?](https://tampersignal.com/blog/where-did-my-pandas-rows-go.html): a tutorial on silent row drops, merge fan-outs, and coercion in pandas; the plain-pandas fixes (shape logs, asserts, merge validate=), then a signed receipt per step, with real command output
 - [One light, one room](https://tampersignal.com/blog/one-light-one-room.html): Tamper Signal 2.1 unifies the browser UI; the status light stays as it was, and the verified table, chain, break exhibit, inspector, log, and export behind it become one surface, the Signal Room

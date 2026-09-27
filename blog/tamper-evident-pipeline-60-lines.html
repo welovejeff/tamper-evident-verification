@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<!-- Site analytics & tagging (GTM + Consent Mode v2). Config lives in /analytics.js -->
+<script src="/analytics.js"></script>
+<title>A tamper-evident data pipeline in 60 lines of Python: hash chains and signed receipts · Tamper Signal</title>
+<meta name="description" content="A hash chain for data integrity in Python: sha256 per stage, an Ed25519 signature per receipt, a verify() that finds the broken link. Then where the toy breaks." />
+<meta name="author" content="Jeff MacDonald" />
+<meta property="og:type" content="article" />
+<meta property="article:author" content="https://github.com/welovejeff" />
+<meta property="og:title" content="A tamper-evident data pipeline in 60 lines of Python" />
+<meta property="og:description" content="Sixty lines of Python that sign every pipeline stage and catch an edited file at the exact link, then the five places the toy breaks and what fixes each." />
+<meta property="og:image" content="https://tampersignal.com/docs/media/thumbs/post-60-lines.jpg" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:image" content="https://tampersignal.com/docs/media/thumbs/post-60-lines.jpg" />
+<link rel="canonical" href="https://tampersignal.com/blog/tamper-evident-pipeline-60-lines.html" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='%2334d399'/%3E%3C/svg%3E" />
+<link rel="stylesheet" href="blog.css" />
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "A tamper-evident data pipeline in 60 lines of Python: hash chains and signed receipts",
+  "description": "A hash chain for data integrity in Python: sha256 per stage, an Ed25519 signature per receipt, a verify() that finds the broken link. Then where the toy breaks.",
+  "image": "https://tampersignal.com/docs/media/thumbs/post-60-lines.jpg",
+  "datePublished": "2026-09-28",
+  "dateModified": "2026-09-28",
+  "author": { "@type": "Person", "name": "Jeff MacDonald", "url": "https://github.com/welovejeff" },
+  "publisher": {
+    "@type": "Organization",
+    "name": "Tamper Signal",
+    "logo": { "@type": "ImageObject", "url": "https://tampersignal.com/docs/media/og-card.png" }
+  },
+  "mainEntityOfPage": { "@type": "WebPage", "@id": "https://tampersignal.com/blog/tamper-evident-pipeline-60-lines.html" }
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://tampersignal.com/" },
+    { "@type": "ListItem", "position": 2, "name": "Blog", "item": "https://tampersignal.com/blog/" },
+    { "@type": "ListItem", "position": 3, "name": "A tamper-evident data pipeline in 60 lines of Python" }
+  ]
+}
+</script>
+</head>
+<body>
+
+<div class="top">
+  <div class="wrap">
+    <a class="logo-stacked" href="/" aria-label="Tamper Signal home">
+      <span class="ls-rail" aria-hidden="true"><i class="r"></i><i class="y"></i><i class="g"></i></span>
+      <span class="ls-words">TAMPER<br>SIGNAL</span>
+    </a>
+    <nav>
+      <a href="/#demo">live demo</a>
+      <a href="/#how">how it works</a>
+      <a href="/docs/">docs</a>
+      <a href="/blog/">blog</a>
+      <a href="/#explore">explore</a>
+      <a href="https://github.com/welovejeff/tamper-evident-verification">github</a>
+    </nav>
+  </div>
+</div>
+
+<article class="post">
+  <div class="wrap">
+    <a class="post-back" href="/blog/">← all posts</a>
+    <h1>A tamper-evident data pipeline in 60 lines of Python</h1>
+    <p class="post-meta">By <a href="https://github.com/welovejeff" rel="author">Jeff MacDonald</a> · September 2026</p>
+    <img class="post-hero" src="/docs/media/thumbs/post-60-lines.jpg" alt="Two terminals. Left, the 60-line toy verifies OK after the final totals file was edited. Right, tamper-signal verify with --data reports a data mismatch, amount 615.74 to 1747.49" width="1100" height="619" />
+
+    <p>Here is a small idea that does a lot of work. Every stage of a data pipeline hashes the file it read and the file it wrote, signs those two hashes, and appends the result to a list. Each stage's input hash has to equal the previous stage's output hash, so the list is a hash chain: change a file between two stages and the chain breaks at exactly that link. Give someone the list and a public key and they can check the whole run without taking your word for it.</p>
+
+    <p>This post builds it in 60 lines of Python, runs it, and then breaks it five ways, because the toy is the fastest way to see which parts of signing data pipeline outputs are actually hard. The last part shows how <a href="/">Tamper Signal</a>, a small MIT-licensed library, handles each one. Every command and output below was run for this post (Python 3.11, cryptography 50.0.1, pandas 3.0.6, tamper-signal 2.1.0).</p>
+
+    <h2>Sixty lines</h2>
+
+    <p>Three rules. A receipt records a stage's name and the sha256 of its input and output files. An Ed25519 signature means nobody can change those hashes without the key. And receipt N's input must equal receipt N-1's output, so a file swapped between stages breaks a link. Here is <code>chain.py</code>, with a two-stage pipeline included (drop orders with no amount, then sum revenue per region):</p>
+
+    <pre><code># chain.py: a tamper-evident pipeline, from scratch
+import csv, hashlib, json, sys
+from pathlib import Path
+from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives.asymmetric import ed25519
+
+def sha256(path):
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+def signing_key():
+    if not Path("signing.key").exists():            # first run: make a keypair
+        key = ed25519.Ed25519PrivateKey.generate()
+        Path("signing.key").write_bytes(key.private_bytes_raw())
+        Path("signing.pub").write_bytes(key.public_key().public_bytes_raw())
+    return ed25519.Ed25519PrivateKey.from_private_bytes(Path("signing.key").read_bytes())
+
+def body(r):                                        # the exact bytes we sign
+    return json.dumps([r["stage"], r["input"], r["output"]]).encode()
+
+def run_stage(name, fn, src, dst, log="receipts.json"):
+    with open(src, newline="") as f:
+        rows = fn(list(csv.DictReader(f)))
+    with open(dst, "w", newline="") as f:
+        csv.writer(f).writerows([rows[0].keys(), *(r.values() for r in rows)])
+    receipt = {"stage": name, "input": sha256(src), "output": sha256(dst)}
+    receipt["sig"] = signing_key().sign(body(receipt)).hex()
+    chain = json.loads(Path(log).read_text()) if Path(log).exists() else []
+    Path(log).write_text(json.dumps(chain + [receipt], indent=2) + "\n")
+    return f"{name}: signed {dst}"
+
+def verify(log="receipts.json"):
+    pub = ed25519.Ed25519PublicKey.from_public_bytes(Path("signing.pub").read_bytes())
+    chain = json.loads(Path(log).read_text())
+    for i, r in enumerate(chain):
+        try:
+            pub.verify(bytes.fromhex(r["sig"]), body(r))
+        except InvalidSignature:
+            return f"BROKEN: bad signature on receipt {i} ({r['stage']})"
+        if i &gt; 0 and r["input"] != chain[i - 1]["output"]:
+            return (f"BROKEN at link {i - 1} -&gt; {i} ({r['stage']}): input "
+                    f"{r['input'][:12]} != previous output {chain[i - 1]['output'][:12]}")
+    return f"OK: {len(chain)} receipts, every signature valid, every link matches"
+
+def clean(rows):                                    # drop orders with no amount
+    return [r for r in rows if r["amount"].strip()]
+
+def totals(rows):                                   # revenue per region
+    sums = {}
+    for r in rows:
+        sums[r["region"]] = sums.get(r["region"], 0) + float(r["amount"])
+    return [{"region": k, "amount": round(v, 2)} for k, v in sorted(sums.items())]
+
+STAGES = {"clean": (clean, "orders.csv", "clean.csv"),
+          "totals": (totals, "clean.csv", "totals.csv")}
+
+if __name__ == "__main__":
+    cmd = sys.argv[1]
+    if cmd == "clean":
+        Path("receipts.json").unlink(missing_ok=True)   # first stage: fresh chain
+    print(verify(*sys.argv[2:]) if cmd == "verify" else run_stage(cmd, *STAGES[cmd]))</code></pre>
+
+    <p><code>body()</code> signs exactly three fields, so there is no ambiguity about which bytes the signature covers. The first receipt's input hash is the raw export's fingerprint, which pins the source. And <code>verify()</code> checks each signature before its link, because a link only counts if the receipt holding it is genuine.</p>
+
+    <h2>Run it</h2>
+
+    <p>Eight orders, two with no amount:</p>
+
+    <pre><code>$ wc -l chain.py
+60 chain.py
+$ cat orders.csv
+order_id,region,amount
+1001,US,120.00
+1002,EU,80.50
+1003,US,
+1004,APAC,210.00
+1005,EU,45.25
+1006,US,99.99
+1007,APAC,60.00
+1008,EU,
+$ python chain.py clean
+clean: signed clean.csv
+$ python chain.py totals
+totals: signed totals.csv
+$ cat receipts.json
+[
+  {
+    "stage": "clean",
+    "input": "a092ffa15fd2981e7f34d9ce7fbff18e2d3eb5a1c8becfa171a3977cc52cdeac",
+    "output": "b6015924d065d9ad63e0a2fff8b5c34cac7ac673d7e90748b0651d1f73f85fd3",
+    "sig": "bfa410207d6c8dd436c0c7b0fa05021175d75d116f927dedf8284969a4fca37463e11cb9c7b11cc4153bcc683b3d1e764ab18b6dbdbe7cc0a713acfa567d300a"
+  },
+  {
+    "stage": "totals",
+    "input": "b6015924d065d9ad63e0a2fff8b5c34cac7ac673d7e90748b0651d1f73f85fd3",
+    "output": "4c80e21b1f7d564c6eaf522d9579d56b5fea6a0c4acdcd303d1f61c1a990e26e",
+    "sig": "d1d8c63d239df4812d845bf913f03ade70f49f81504b5e4c8ee937e5ae56aa9447497a1fb2d39a65753a873254ac3dd53f55faa9f5c5632037a1b5e159d4e704"
+  }
+]
+$ python chain.py verify
+OK: 2 receipts, every signature valid, every link matches
+$ cat totals.csv
+region,amount
+APAC,270.0
+EU,125.75
+US,219.99</code></pre>
+
+    <p>You can see the chain by eye: <code>totals</code>'s input is <code>clean</code>'s output, <code>b6015924</code>. Now the edit this exists to catch. Someone opens <code>clean.csv</code> between the stages and turns order 1004's 210.00 into 2100.00. A typo, or not. <code>totals</code> runs without complaint, because nothing in it asks where its input came from:</p>
+
+    <pre><code>$ python chain.py clean
+clean: signed clean.csv
+$ sed -i 's/^1004,APAC,210.00/1004,APAC,2100.00/' clean.csv
+$ python chain.py totals
+totals: signed totals.csv
+$ python chain.py verify
+BROKEN at link 0 -&gt; 1 (totals): input 0555a68d86ea != previous output b6015924d065</code></pre>
+
+    <p>The file <code>totals</code> read is not the file <code>clean</code> wrote, and <code>verify()</code> names the exact link. Sixty lines, and the core idea works. Now the ways it doesn't.</p>
+
+    <h2>Where the toy breaks</h2>
+
+    <p><strong>Same rows, different bytes.</strong> The hashes cover file bytes, and bytes are not data. Here someone loads <code>clean.csv</code> into a notebook to look at it and saves it back. pandas rewrites 120.00 as 120.0 and switches the line endings from <code>\r\n</code> to <code>\n</code>. No value changes:</p>
+
+    <pre><code>$ python chain.py clean
+clean: signed clean.csv
+$ python -c "print(open('clean.csv', 'rb').readlines()[:3])"
+[b'order_id,region,amount\r\n', b'1001,US,120.00\r\n', b'1002,EU,80.50\r\n']
+$ python -c "import pandas as pd; pd.read_csv('clean.csv').to_csv('clean.csv', index=False)"
+$ python -c "print(open('clean.csv', 'rb').readlines()[:3])"
+[b'order_id,region,amount\n', b'1001,US,120.0\n', b'1002,EU,80.5\n']
+$ python chain.py totals
+totals: signed totals.csv
+$ cat totals.csv
+region,amount
+APAC,270.0
+EU,125.75
+US,219.99
+$ python chain.py verify
+BROKEN at link 0 -&gt; 1 (totals): input d3036425e43f != previous output b6015924d065</code></pre>
+
+    <p>Identical totals, and the same BROKEN the real edit got. Reordered columns, different quoting, a spreadsheet re-save, or the same rows as JSON instead of CSV all change the bytes too. A check that goes red on harmless re-saves teaches people to ignore it, and then it misses the edit that mattered.</p>
+
+    <p><strong>A mismatch, not a measurement.</strong> Look at what the tampered run printed: two 12-character hex prefixes. One cent or a million dollars? One row or all of them? A hash can only say "different." The toy also exits 0 either way, so a CI job would wave it through.</p>
+
+    <p><strong>Which key, and for how long?</strong> The toy believes whatever <code>signing.pub</code> sits in the folder. Rotate the key (it leaked, someone left, it is January) and every older chain goes red:</p>
+
+    <pre><code>$ python chain.py clean &amp;&amp; python chain.py totals
+clean: signed clean.csv
+totals: signed totals.csv
+$ cp receipts.json last-week.json
+$ rm signing.key signing.pub
+$ python chain.py clean &amp;&amp; python chain.py totals
+clean: signed clean.csv
+totals: signed totals.csv
+$ python chain.py verify
+OK: 2 receipts, every signature valid, every link matches
+$ python chain.py verify last-week.json
+BROKEN: bad signature on receipt 0 (clean)</code></pre>
+
+    <p>Look at the first <code>verify</code> too. The new chain is OK for the only reason the toy ever says OK: the key in the folder signed it. Anyone who can write to that folder can generate a key, rerun the pipeline on numbers they prefer, and get the same OK.</p>
+
+    <p><strong>The stage you forgot to wrap.</strong> Only work that goes through <code>run_stage</code> gets a receipt. Whatever happens after <code>totals</code> (the copy into the dashboard, or someone "fixing" a number in <code>totals.csv</code>) never does:</p>
+
+    <pre><code>$ sed -i 's/^EU,125.75/EU,1257.5/' totals.csv
+$ cat totals.csv
+region,amount
+APAC,270.0
+EU,1257.5
+US,219.99
+$ python chain.py verify
+OK: 2 receipts, every signature valid, every link matches</code></pre>
+
+    <p>Still OK, because <code>verify()</code> never looks at the file the dashboard reads. The middle is soft too: in the tampered run, <code>totals</code> signed a receipt for input nobody had vouched for, and nothing objected until someone ran <code>verify()</code>.</p>
+
+    <p><strong>Verifying somewhere else.</strong> Checking a chain takes <code>chain.py</code>, Python, the <code>cryptography</code> package, and a copy of <code>signing.pub</code> you have a reason to believe. The analyst looking at the dashboard has a browser. The client you send the numbers to has neither your repo nor your virtualenv.</p>
+
+    <h2>The same pipeline, with Tamper Signal</h2>
+
+    <p>Tamper Signal keeps the mechanism (sha256, Ed25519, each input hash matching the previous output hash) and works on the edges. After <code>pip install tamper-signal</code>, scaffold a keypair and pin the export:</p>
+
+    <pre><code>$ tamper-signal init
+  - keys: generated keys/signing.key and keys/signing.pub
+  - .gitignore: added keys/, *.key
+  - receipts: created receipts/
+...
+$ tamper-signal ingest orders.csv --origin "orders export, September 2026" --key keys/signing.key --out receipts/
+Ingested orders.csv
+  evidence_hash a092ffa15fd2981e7f34d9ce7fbff18e2d3eb5a1c8becfa171a3977cc52cdeac
+  semantic_hash f683569a81bef0b442df526f35884a3e4154294d227a297c676331710aa269f0
+  rows 8, columns 3
+  source manifest -&gt; receipts/000_source.json</code></pre>
+
+    <p>The <code>evidence_hash</code>, <code>a092ffa1</code>, is the value the toy recorded as <code>clean</code>'s input: same bytes, same sha256. It stays on the source receipt as the original file's fingerprint. The <code>semantic_hash</code> beside it is what links compare, and it fixes the first problem. Next, the same two stages, wrapped. <code>@receipt_step</code> verifies the chain so far, checks that its input descends from the chain tail, runs your function (a list of dicts or a DataFrame in and out), and signs a receipt. Here is <code>pipeline.py</code>:</p>
+
+    <pre><code># pipeline.py: the same two stages, wrapped
+import csv, sys
+from tamper_signal import receipt_step
+
+CHAIN = dict(chain_dir="receipts/", key_path="keys/signing.key")
+
+def read(path):                      # a blank cell is null, as it was at ingest
+    with open(path, newline="") as f:
+        return [{k: v or None for k, v in r.items()} for r in csv.DictReader(f)]
+
+def write(path, rows):
+    with open(path, "w", newline="") as f:
+        csv.writer(f).writerows([rows[0].keys(), *(r.values() for r in rows)])
+
+@receipt_step(**CHAIN)
+def clean(rows):                     # drop orders with no amount
+    return [r for r in rows if r["amount"]]
+
+@receipt_step(**CHAIN)
+def totals(rows):                    # revenue per region
+    sums = {}
+    for r in rows:
+        sums[r["region"]] = sums.get(r["region"], 0) + float(r["amount"])
+    return [{"region": k, "amount": round(v, 2)} for k, v in sorted(sums.items())]
+
+if sys.argv[1] == "clean":
+    write("clean.csv", clean(read("orders.csv")))
+    print("clean: signed clean.csv")
+else:
+    write("totals.csv", totals(read("clean.csv")))
+    print("totals: signed totals.csv")</code></pre>
+
+    <p>Then the run, including the same pandas re-save that broke the toy. <code>--data</code> checks the file the dashboard actually reads against the final receipt:</p>
+
+    <pre><code>$ python pipeline.py clean
+clean: signed clean.csv
+$ python -c "import pandas as pd; pd.read_csv('clean.csv').to_csv('clean.csv', index=False)"
+$ python pipeline.py totals
+totals: signed totals.csv
+$ tamper-signal verify receipts/chain.json --pub keys/signing.pub --data totals.csv
+✓ CHAIN INTACT: 3 receipts, 2 transforms, final row_count 3</code></pre>
+
+    <p>Exit 0. The light is green, the data is clean. Here is the receipt <code>totals</code> signed:</p>
+
+    <pre><code>$ cat receipts/002_totals.json
+{
+  "kind": "transform_receipt",
+  "spec_version": "1.2",
+  "created_at": "2026-09-27T18:52:02Z",
+  "transform": {
+    "name": "totals",
+    "code_hash": "06f26e56c51ed87116145aa3305090266588f5953f62fcb3d7d1213a71d9ba71",
+    "code_file": "pipeline.py"
+  },
+  "input_semantic_hash": "a808b65d500156dedbdc322ae8250f014d8afd351196e02deebbfdc15c437a94",
+  "output_semantic_hash": "03100d98218365f596bb09bfb7c2cb698775f990038cd383dd1f0e15501bfe77",
+  "output_control_totals": {
+    "row_count": 3,
+    "column_count": 2,
+    "numeric_sums": {
+      "amount": "615.74"
+    },
+    "date_ranges": {},
+    "null_counts": {}
+  },
+  "signature": {
+    "alg": "ed25519",
+    "key_fingerprint": "47942061f61409fa",
+    "value": "993055e77e5f3d54a7dd5d174e0f3d864cedda385a22802f47d6f86020d180db68da76704244e2ae27e65c066cc9a9c8b99d11cfe3cad93bea59fff04513e400"
+  }
+}</code></pre>
+
+    <p>Beside the two hashes: a hash of the stage's source code, and control totals (row count, column count, numeric sums, date ranges, null counts), all under the signature. Now the last-mile edit the toy called OK:</p>
+
+    <pre><code>$ sed -i 's/^EU,125.75/EU,1257.5/' totals.csv
+$ tamper-signal verify receipts/chain.json --pub keys/signing.pub --data totals.csv
+✗ DATA MISMATCH against final receipt (totals)
+  expected output hash 0310...77
+  found    data hash   62b4...55
+  Control totals delta vs receipt: amount 615.74 -&gt; 1747.49 (1131.75)</code></pre>
+
+    <p>Exit 1. The light is red, the chain is broken. The receipts themselves still verify; the link that failed is the last one, from <code>totals</code> to the file the dashboard reads, and the report says by how much: 1,131.75 in <code>amount</code>.</p>
+
+    <h2>The five problems, one at a time</h2>
+
+    <p><strong>Same rows, different bytes: a semantic hash.</strong> Links compare a hash of the canonicalized content instead of the file. Headers are normalized and sorted, rows are sorted (row order is not part of integrity), numbers become plain decimals so 120.00, 120.0 and 120 are one value, and reading a file turns an empty cell into null. That is why the re-save passed. It crosses formats, too:</p>
+
+    <pre><code>$ python -c "import pandas as pd; pd.read_csv('orders.csv').to_json('orders.json', orient='records')"
+$ tamper-signal ingest orders.json --origin "the same rows, as JSON" --key keys/signing.key --out json-receipts/
+Ingested orders.json
+  evidence_hash 4d491eec503ae75c125cabbb05901ab38ab4335d487f788a46e27d45b87450f9
+  semantic_hash f683569a81bef0b442df526f35884a3e4154294d227a297c676331710aa269f0
+  rows 8, columns 3
+  source manifest -&gt; json-receipts/000_source.json</code></pre>
+
+    <p>Different bytes, different evidence hash, the same semantic hash as the CSV. Two costs: numeric-looking text canonicalizes to its number (<code>"030"</code> equals <code>30</code>), and an empty string is not a null, which is why <code>read()</code> in <code>pipeline.py</code> maps blank cells to <code>None</code>, as ingest does.</p>
+
+    <p><strong>How much moved: control totals.</strong> Hashes say "broken." Totals say "how broken." Because every receipt carries signed totals, a failure prints the delta instead of two hex prefixes, as in the red run above. For pipelines that are supposed to preserve totals, <code>--warn-drift</code> flags any control-totals movement between links as a yellow caveat. And the exit code is the light: 0 green, 1 red, 2 yellow.</p>
+
+    <p><strong>Which key: name the one you trust, and <code>--pub</code> repeats.</strong> <code>chain.json</code> carries the public key it was signed with, and with no <code>--pub</code>, <code>verify</code> trusts that embedded key, which is the toy's folder problem again. Pass <code>--pub</code> and trust is explicit: verify against only a new key and the chain is yellow, not green. List both, and a chain signed before the rotation stays green:</p>
+
+    <pre><code>$ tamper-signal keygen --out newkeys/
+Public key written to newkeys/signing.pub
+Private key written to newkeys/signing.key. Do not commit it.
+$ tamper-signal verify receipts/chain.json --pub newkeys/signing.pub
+⚠ CHAIN VERIFIES, WITH CAVEATS: 3 receipts, 2 transforms, final row_count 3
+  - unrecognized signing key: 3 receipt(s) (source, clean, totals) verify under the chain's embedded key 47942061f61409fa, not any of the 1 trusted key(s) (ba41def2dd903b8a)
+  A human should look.
+$ tamper-signal verify receipts/chain.json --pub newkeys/signing.pub --pub keys/signing.pub
+✓ CHAIN INTACT: 3 receipts, 2 transforms, final row_count 3</code></pre>
+
+    <p>Exit 2, then 0. The light is yellow, a human should look. That yellow is the answer to the toy's folder problem: a chain someone re-signed with a key of their own is internally consistent, and it still does not verify under the key you name.</p>
+
+    <p><strong>Unwrapped stages: the wrapper refuses, and <code>--data</code> covers the last mile.</strong> Here is the between-stages edit that the toy happily signed:</p>
+
+    <pre><code>$ tamper-signal ingest orders.csv --origin "orders export, September 2026" --key keys/signing.key --out receipts/
+Ingested orders.csv
+  evidence_hash a092ffa15fd2981e7f34d9ce7fbff18e2d3eb5a1c8becfa171a3977cc52cdeac
+  semantic_hash f683569a81bef0b442df526f35884a3e4154294d227a297c676331710aa269f0
+  rows 8, columns 3
+  source manifest -&gt; receipts/000_source.json
+$ python pipeline.py clean
+clean: signed clean.csv
+$ sed -i 's/^1004,APAC,210.00/1004,APAC,2100.00/' clean.csv
+$ python pipeline.py totals
+Traceback (most recent call last):
+...
+tamper_signal.wrapper.ChainTailMismatch: Input data does not match the chain tail output hash.
+  chain tail output: a808b65d500156dedbdc322ae8250f014d8afd351196e02deebbfdc15c437a94
+  provided input:    71b4391514e71f4bc7cf75f4162155bae3565180ad5a3ff6afe2c01b872b9af7
+Refusing to append a receipt for data that did not come from the previous stage.</code></pre>
+
+    <p><code>totals</code> never ran. The wrapper hashed its input, compared it with what <code>clean</code> signed, and refused, so the edit cannot earn a receipt. The fix is the boring one: change <code>clean</code> and re-run from ingest (which resets the chain to the source, as above). The last mile is <code>verify --data</code>, which you saw go red. Code outside a wrapped function is still not attested; the wrapper can only refuse at the boundaries it sits on.</p>
+
+    <p><strong>Somewhere else: in a browser, or offline.</strong> Receipts are plain JSON and <code>chain.json</code> embeds its public key, so checking a chain does not need your pipeline. In a web page, the status light re-checks every signature and hash link in the viewer's browser with Web Crypto's Ed25519, and, once <code>tamper-signal export</code> publishes the table, the room behind it re-hashes it against the final receipt, so the rows on screen are the attested rows (served over HTTP, not from <code>file://</code>). For someone offline, <code>tamper-signal export --bundle</code> writes a zip of the data file, <code>chain.json</code>, and its receipts, and <code>tamper-signal verify</code>, with <code>--pub</code> for the key they already trust, gives them the same light on their machine.</p>
+
+    <p><strong>And the key holder: anchoring.</strong> One gap survives all of this: whoever holds the private key can sign a fresh, internally consistent chain. When that matters (an audit, a dispute), <code>pip install "tamper-signal[anchor]"</code> and <code>tamper-signal anchor</code> record <code>chain.json</code> in the public Sigstore transparency log. Since <code>chain.json</code> lists the sha256 of every receipt file, <code>verify --anchor</code> then proves this exact chain, receipts included, existed at the logged time under the recorded identity. It is optional, and it proves nothing more than that.</p>
+
+    <div class="tbl-scroll">
+    <table class="cmp">
+      <caption>The toy and the library, point by point</caption>
+      <thead><tr><th>Problem</th><th>The 60-line toy</th><th>Tamper Signal</th></tr></thead>
+      <tbody>
+        <tr><td>Same rows, re-saved</td><td>red, same as a real edit</td><td>semantic hash links; evidence hash keeps the raw bytes</td></tr>
+        <tr><td>How much moved</td><td>two hex prefixes, exit 0</td><td>signed control totals and the delta; exit 0, 1, or 2</td></tr>
+        <tr><td>Key rotation and trust</td><td>old chains go red; any key in the folder says OK</td><td><code>--pub</code> repeats; an untrusted signer is yellow</td></tr>
+        <tr><td>Unwrapped stages</td><td>signs tampered input; final file unchecked</td><td>refuses input that does not descend from the tail; <code>--data</code> checks the final file</td></tr>
+        <tr><td>Verifying elsewhere</td><td>needs your code and your venv</td><td>in-browser verifier; offline bundle</td></tr>
+        <tr><td>Key holder re-signs</td><td>undetectable</td><td>optional Sigstore anchoring</td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <h2>Honest limits</h2>
+
+    <ul>
+      <li><strong>Continuity, not correctness.</strong> It can't tell you the data is right, but it can prove nobody changed it. If the export is wrong, the chain verifies wrong numbers, and a wrapped stage with a bug in it earns a perfectly valid receipt. The totals make the bug visible; deciding it is a bug is still your job.</li>
+      <li><strong>The key holder can re-sign.</strong> Day to day, the local keypair is the root of trust. Anchoring covers the runs you anchor, not the ones you didn't.</li>
+      <li><strong>Only wrapped stages are attested.</strong> A stage that cannot fit the records-in, records-out contract stays unwrapped, and the honest move is to say so rather than pretend it has a receipt.</li>
+    </ul>
+
+    <p>Write the toy once. It teaches you that hashing and signing are the easy 60 lines, and the work is in the edges: what counts as the same data, how far a number moved, which key you meant, and who can check without your laptop.</p>
+
+    <p class="post-end">Hash the data, sign the hashes, link the receipts. Then handle the edges.</p>
+  </div>
+</article>
+
+<aside class="try-it" aria-label="Try Tamper Signal">
+  <div class="wrap"><div class="try-box">
+    <p class="try-k">Try it</p>
+    <p>Every surface, running on a real receipt chain in your browser, no install: <a href="/demo.html">the live demo</a>. Or <code>pip install tamper-signal</code>, then <code>tamper-signal demo</code> runs the whole story on sample data (<code>npm install tamper-signal</code> for JavaScript pipelines).</p>
+    <p>Source, issues, and the agent runbook live on <a href="https://github.com/welovejeff/tamper-evident-verification">GitHub</a>. If it's useful, a star helps other people find it.</p>
+  </div></div>
+</aside>
+
+<aside class="related" aria-label="Related reading">
+  <div class="wrap">
+    <p class="related-k">Related reading</p>
+    <ul class="related-list">
+      <li>
+        <a href="/docs/compare.html">How Tamper Signal compares</a>
+        <p>Rules catch what you predicted; receipts catch what changed. Where signed receipts sit next to dbt tests, Great Expectations, Pandera, and in-toto.</p>
+      </li>
+      <li>
+        <a href="/blog/where-did-my-pandas-rows-go.html">Where did my pandas rows go?</a>
+        <p>Silent row drops and merge fan-outs in pandas, the plain-pandas fixes, and a signed receipt per step that shows where the rows went.</p>
+      </li>
+    </ul>
+  </div>
+</aside>
+
+<footer>
+  <div class="wrap">
+    <span>MIT licensed</span>
+    <span>·</span>
+    <a href="/blog/">blog</a>
+    <span>·</span>
+    <a href="/docs/faq.html">FAQ</a>
+    <span>·</span>
+    <a href="/privacy.html">privacy</a>
+    <span>·</span>
+    <a href="https://github.com/welovejeff/tamper-evident-verification">github.com/welovejeff/tamper-evident-verification</a>
+    <span>·</span>
+    <a href="/">tampersignal.com</a>
+  </div>
+</footer>
+
+</body>
+</html>
