@@ -12,9 +12,9 @@
 <meta property="article:author" content="https://github.com/welovejeff" />
 <meta property="og:title" content="A tamper-evident data pipeline in 60 lines of Python" />
 <meta property="og:description" content="Sixty lines of Python that sign every pipeline stage and catch an edited file at the exact link, then the five places the toy breaks and what fixes each." />
-<meta property="og:image" content="https://tampersignal.com/docs/media/thumbs/designs.jpg" />
+<meta property="og:image" content="https://tampersignal.com/docs/media/thumbs/post-60-lines.jpg" />
 <meta name="twitter:card" content="summary_large_image" />
-<meta name="twitter:image" content="https://tampersignal.com/docs/media/thumbs/designs.jpg" />
+<meta name="twitter:image" content="https://tampersignal.com/docs/media/thumbs/post-60-lines.jpg" />
 <link rel="canonical" href="https://tampersignal.com/blog/tamper-evident-pipeline-60-lines.html" />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='%2334d399'/%3E%3C/svg%3E" />
 <link rel="stylesheet" href="blog.css" />
@@ -24,7 +24,7 @@
   "@type": "BlogPosting",
   "headline": "A tamper-evident data pipeline in 60 lines of Python: hash chains and signed receipts",
   "description": "A hash chain for data integrity in Python: sha256 per stage, an Ed25519 signature per receipt, a verify() that finds the broken link. Then where the toy breaks.",
-  "image": "https://tampersignal.com/docs/media/thumbs/designs.jpg",
+  "image": "https://tampersignal.com/docs/media/thumbs/post-60-lines.jpg",
   "datePublished": "2026-09-28",
   "dateModified": "2026-09-28",
   "author": { "@type": "Person", "name": "Jeff MacDonald", "url": "https://github.com/welovejeff" },
@@ -72,7 +72,7 @@
     <a class="post-back" href="/blog/">← all posts</a>
     <h1>A tamper-evident data pipeline in 60 lines of Python</h1>
     <p class="post-meta">By <a href="https://github.com/welovejeff" rel="author">Jeff MacDonald</a> · September 2026</p>
-    <img class="post-hero" src="/docs/media/thumbs/designs.jpg" alt="A sample analytics dashboard whose dark header status pill reads BROKEN, hash mismatch at weekly_rollup, with the affected metric outlined" width="720" height="450" />
+    <img class="post-hero" src="/docs/media/thumbs/post-60-lines.jpg" alt="Two terminals. Left, the 60-line toy verifies OK after the final totals file was edited. Right, tamper-signal verify with --data reports a data mismatch, amount 615.74 to 1747.49" width="1100" height="619" />
 
     <p>Here is a small idea that does a lot of work. Every stage of a data pipeline hashes the file it read and the file it wrote, signs those two hashes, and appends the result to a list. Each stage's input hash has to equal the previous stage's output hash, so the list is a hash chain: change a file between two stages and the chain breaks at exactly that link. Give someone the list and a public key and they can check the whole run without taking your word for it.</p>
 
@@ -109,7 +109,7 @@ def run_stage(name, fn, src, dst, log="receipts.json"):
     receipt = {"stage": name, "input": sha256(src), "output": sha256(dst)}
     receipt["sig"] = signing_key().sign(body(receipt)).hex()
     chain = json.loads(Path(log).read_text()) if Path(log).exists() else []
-    Path(log).write_text(json.dumps(chain + [receipt], indent=2))
+    Path(log).write_text(json.dumps(chain + [receipt], indent=2) + "\n")
     return f"{name}: signed {dst}"
 
 def verify(log="receipts.json"):
@@ -171,13 +171,13 @@ $ cat receipts.json
     "stage": "clean",
     "input": "a092ffa15fd2981e7f34d9ce7fbff18e2d3eb5a1c8becfa171a3977cc52cdeac",
     "output": "b6015924d065d9ad63e0a2fff8b5c34cac7ac673d7e90748b0651d1f73f85fd3",
-    "sig": "c39e0f2263a49a072d776df04c5c4e7367d692d317946318823e6983bbdca6c3e8ee3cbc57f60fdd823af9df195c361b50dafddd5a9883cd07214b850c58e607"
+    "sig": "bfa410207d6c8dd436c0c7b0fa05021175d75d116f927dedf8284969a4fca37463e11cb9c7b11cc4153bcc683b3d1e764ab18b6dbdbe7cc0a713acfa567d300a"
   },
   {
     "stage": "totals",
     "input": "b6015924d065d9ad63e0a2fff8b5c34cac7ac673d7e90748b0651d1f73f85fd3",
     "output": "4c80e21b1f7d564c6eaf522d9579d56b5fea6a0c4acdcd303d1f61c1a990e26e",
-    "sig": "26f366043bf6d30352539bad1271bcfc15f558d00fcacb45d48d607e563958827c8b7b7aeb25eabf4eefbdcd20d7bfb5b1a623ef30ad37064eddb617a6f5d809"
+    "sig": "d1d8c63d239df4812d845bf913f03ade70f49f81504b5e4c8ee937e5ae56aa9447497a1fb2d39a65753a873254ac3dd53f55faa9f5c5632037a1b5e159d4e704"
   }
 ]
 $ python chain.py verify
@@ -356,11 +356,11 @@ $ tamper-signal verify receipts/chain.json --pub keys/signing.pub --data totals.
   found    data hash   62b4...55
   Control totals delta vs receipt: amount 615.74 -&gt; 1747.49 (1131.75)</code></pre>
 
-    <p>Exit 1. The light is red, the chain is broken. More exactly: every receipt still verifies, and the file the dashboard reads is not what <code>totals</code> signed, by 1,131.75 in <code>amount</code>.</p>
+    <p>Exit 1. The light is red, the chain is broken. The receipts themselves still verify; the link that failed is the last one, from <code>totals</code> to the file the dashboard reads, and the report says by how much: 1,131.75 in <code>amount</code>.</p>
 
     <h2>The five problems, one at a time</h2>
 
-    <p><strong>Same rows, different bytes: a semantic hash.</strong> Links compare a hash of the canonicalized content instead of the file. Headers are normalized and sorted, rows are sorted (row order is not part of integrity), numbers become plain decimals so 120.00, 120.0 and 120 are one value, and an empty cell is null. That is why the re-save passed. It crosses formats, too:</p>
+    <p><strong>Same rows, different bytes: a semantic hash.</strong> Links compare a hash of the canonicalized content instead of the file. Headers are normalized and sorted, rows are sorted (row order is not part of integrity), numbers become plain decimals so 120.00, 120.0 and 120 are one value, and reading a file turns an empty cell into null. That is why the re-save passed. It crosses formats, too:</p>
 
     <pre><code>$ python -c "import pandas as pd; pd.read_csv('orders.csv').to_json('orders.json', orient='records')"
 $ tamper-signal ingest orders.json --origin "the same rows, as JSON" --key keys/signing.key --out json-receipts/
@@ -372,9 +372,9 @@ Ingested orders.json
 
     <p>Different bytes, different evidence hash, the same semantic hash as the CSV. Two costs: numeric-looking text canonicalizes to its number (<code>"030"</code> equals <code>30</code>), and an empty string is not a null, which is why <code>read()</code> in <code>pipeline.py</code> maps blank cells to <code>None</code>, as ingest does.</p>
 
-    <p><strong>How much moved: control totals.</strong> Hashes say "broken." Totals say "how broken." Because every receipt carries signed totals, a failure prints the delta instead of two hex prefixes, as in the red run above. For pipelines that are supposed to preserve totals, <code>--warn-drift</code> flags any movement between links as a yellow caveat. And the exit code is the light: 0 green, 1 red, 2 yellow.</p>
+    <p><strong>How much moved: control totals.</strong> Hashes say "broken." Totals say "how broken." Because every receipt carries signed totals, a failure prints the delta instead of two hex prefixes, as in the red run above. For pipelines that are supposed to preserve totals, <code>--warn-drift</code> flags any control-totals movement between links as a yellow caveat. And the exit code is the light: 0 green, 1 red, 2 yellow.</p>
 
-    <p><strong>Which key: trust is explicit, and <code>--pub</code> repeats.</strong> <code>chain.json</code> carries the public key it was signed with, but carrying a key is not the same as being trusted. Verify against only a new key and the chain is yellow, not green. List both and last week's chain verifies after a rotation:</p>
+    <p><strong>Which key: name the one you trust, and <code>--pub</code> repeats.</strong> <code>chain.json</code> carries the public key it was signed with, and with no <code>--pub</code>, <code>verify</code> trusts that embedded key, which is the toy's folder problem again. Pass <code>--pub</code> and trust is explicit: verify against only a new key and the chain is yellow, not green. List both, and a chain signed before the rotation stays green:</p>
 
     <pre><code>$ tamper-signal keygen --out newkeys/
 Public key written to newkeys/signing.pub
@@ -386,7 +386,7 @@ $ tamper-signal verify receipts/chain.json --pub newkeys/signing.pub
 $ tamper-signal verify receipts/chain.json --pub newkeys/signing.pub --pub keys/signing.pub
 ✓ CHAIN INTACT: 3 receipts, 2 transforms, final row_count 3</code></pre>
 
-    <p>Exit 2, then 0. The light is yellow, a human should look. That yellow is the answer to the toy's folder problem: a chain someone re-signed with a key of their own is internally consistent, and it still does not verify under the key you trust.</p>
+    <p>Exit 2, then 0. The light is yellow, a human should look. That yellow is the answer to the toy's folder problem: a chain someone re-signed with a key of their own is internally consistent, and it still does not verify under the key you name.</p>
 
     <p><strong>Unwrapped stages: the wrapper refuses, and <code>--data</code> covers the last mile.</strong> Here is the between-stages edit that the toy happily signed:</p>
 
@@ -409,7 +409,7 @@ Refusing to append a receipt for data that did not come from the previous stage.
 
     <p><code>totals</code> never ran. The wrapper hashed its input, compared it with what <code>clean</code> signed, and refused, so the edit cannot earn a receipt. The fix is the boring one: change <code>clean</code> and re-run from ingest (which resets the chain to the source, as above). The last mile is <code>verify --data</code>, which you saw go red. Code outside a wrapped function is still not attested; the wrapper can only refuse at the boundaries it sits on.</p>
 
-    <p><strong>Somewhere else: in a browser, or offline.</strong> Receipts are plain JSON and <code>chain.json</code> embeds its public key, so checking a chain does not need your pipeline. In a web page, the status light re-checks every signature and hash link in the viewer's browser with Web Crypto's Ed25519, and the room behind it re-hashes the published table against the final receipt, so the rows on screen are the attested rows (served over HTTP, not from <code>file://</code>). For someone offline, <code>tamper-signal export --bundle</code> writes a zip of the data file, <code>chain.json</code>, and its receipts, and <code>tamper-signal verify</code> gives them the same light on their machine.</p>
+    <p><strong>Somewhere else: in a browser, or offline.</strong> Receipts are plain JSON and <code>chain.json</code> embeds its public key, so checking a chain does not need your pipeline. In a web page, the status light re-checks every signature and hash link in the viewer's browser with Web Crypto's Ed25519, and, once <code>tamper-signal export</code> publishes the table, the room behind it re-hashes it against the final receipt, so the rows on screen are the attested rows (served over HTTP, not from <code>file://</code>). For someone offline, <code>tamper-signal export --bundle</code> writes a zip of the data file, <code>chain.json</code>, and its receipts, and <code>tamper-signal verify</code>, with <code>--pub</code> for the key they already trust, gives them the same light on their machine.</p>
 
     <p><strong>And the key holder: anchoring.</strong> One gap survives all of this: whoever holds the private key can sign a fresh, internally consistent chain. When that matters (an audit, a dispute), <code>pip install "tamper-signal[anchor]"</code> and <code>tamper-signal anchor</code> record <code>chain.json</code> in the public Sigstore transparency log. Since <code>chain.json</code> lists the sha256 of every receipt file, <code>verify --anchor</code> then proves this exact chain, receipts included, existed at the logged time under the recorded identity. It is optional, and it proves nothing more than that.</p>
 
@@ -432,7 +432,7 @@ Refusing to append a receipt for data that did not come from the previous stage.
 
     <ul>
       <li><strong>Continuity, not correctness.</strong> It can't tell you the data is right, but it can prove nobody changed it. If the export is wrong, the chain verifies wrong numbers, and a wrapped stage with a bug in it earns a perfectly valid receipt. The totals make the bug visible; deciding it is a bug is still your job.</li>
-      <li><strong>The key holder can re-sign.</strong> Day to day, the local keypair is the root of trust. Anchoring narrows that gap for the moments that need it; it does not close it for every run you never anchored.</li>
+      <li><strong>The key holder can re-sign.</strong> Day to day, the local keypair is the root of trust. Anchoring covers the runs you anchor, not the ones you didn't.</li>
       <li><strong>Only wrapped stages are attested.</strong> A stage that cannot fit the records-in, records-out contract stays unwrapped, and the honest move is to say so rather than pretend it has a receipt.</li>
     </ul>
 

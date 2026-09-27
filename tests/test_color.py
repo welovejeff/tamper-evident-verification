@@ -117,6 +117,11 @@ def test_banner_only_renders_when_color_on(monkeypatch):
     assert "\x1b" in rendered
 
 
+def test_banner_box_lines_are_equal_width():
+    widths = {len(line) for line in color._BANNER.split("\n")}
+    assert len(widths) == 1
+
+
 def test_dim_and_bold_wrap_only_when_on(monkeypatch):
     assert color.dim("abc", PIPE) == "abc"
     assert color.bold("abc", PIPE) == "abc"

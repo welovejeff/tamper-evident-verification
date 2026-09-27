@@ -2,6 +2,12 @@
 
 All notable changes to Tamper Signal are recorded here. The Python (`tamper-signal` on PyPI) and JavaScript (`tamper-signal` on npm) packages are versioned in lockstep and produce interchangeable chains.
 
+## Unreleased
+
+### Fixed
+
+- The first-run banner that `tamper-signal init` prints on a color terminal now has a closed right border (the top and bottom lines were one character short).
+
 ## 2.1.0
 
 One light, one room. The outcome of a full design review of the browser UI: the chain viewer, the data table, and the inspector console were three separately mounted surfaces; 2.1 unifies everything behind the untouched status light into ONE robust, data-table-first surface — **the Signal Room** — and makes shipping it the structural default. Backward compatible: every 2.0 subpath, mount signature, element, and emitted event keeps working; the shims are scheduled for removal only at 3.0, where `./table` and `./console` keep resolving to the room presets permanently.

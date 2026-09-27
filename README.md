@@ -12,6 +12,8 @@ Tamper Signal is an open-source Python and JavaScript library and CLI that signs
 
 **Try it in your browser, no install:** [tampersignal.com/demo.html](https://tampersignal.com/demo.html) runs every surface on a real receipt chain; flip it to tampered and watch the light catch it. Or `pip install tamper-signal` / `npm install tamper-signal`.
 
+**Or run it yourself in a notebook:** [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/welovejeff/tamper-evident-verification/blob/main/examples/quickstart.ipynb) builds a two-stage pandas pipeline with receipts, then shows green, yellow, and red on real output ([`examples/quickstart.ipynb`](examples/quickstart.ipynb)).
+
 If this is useful, a star helps other people with AI-built dashboards find it.
 
 **Pointing a coding agent at this repo?** `AGENTS.md` is the full integration runbook: install, keygen, ingest, wrap transforms, mount the signal, verify. Tell your agent "add tamper signal" and it will find it. In Claude Code, `/plugin marketplace add welovejeff/tamper-evident-verification` then `/plugin install tamper-signal@welovejeff` adds an `add-tamper-signal` skill that does the same.
