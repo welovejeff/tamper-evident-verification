@@ -1,0 +1,13 @@
+{
+  "name": "tamper-signal",
+  "version": "2.1.0",
+  "description": "Add Tamper Signal to a data pipeline: sign the source export, wrap each transform with a receipt, mount the status light, and verify the chain green, yellow, or red.",
+  "author": {
+    "name": "Jeff MacDonald",
+    "url": "https://github.com/welovejeff"
+  },
+  "homepage": "https://tampersignal.com/",
+  "repository": "https://github.com/welovejeff/tamper-evident-verification",
+  "license": "MIT",
+  "keywords": ["data-integrity", "data-provenance", "signed-receipts", "tamper-evident", "pandas", "dashboards"]
+}

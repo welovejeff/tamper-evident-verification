@@ -14,7 +14,7 @@ Tamper Signal is an open-source Python and JavaScript library and CLI that signs
 
 If this is useful, a star helps other people with AI-built dashboards find it.
 
-**Pointing a coding agent at this repo?** `AGENTS.md` is the full integration runbook: install, keygen, ingest, wrap transforms, mount the signal, verify. Tell your agent "add tamper signal" and it will find it.
+**Pointing a coding agent at this repo?** `AGENTS.md` is the full integration runbook: install, keygen, ingest, wrap transforms, mount the signal, verify. Tell your agent "add tamper signal" and it will find it. In Claude Code, `/plugin marketplace add welovejeff/tamper-evident-verification` then `/plugin install tamper-signal@welovejeff` adds an `add-tamper-signal` skill that does the same.
 
 ## The problem
 
@@ -218,4 +218,4 @@ Those tools model lineage and quality at the warehouse and orchestration layer. 
 
 ## Contributing
 
-Open source under the MIT license (see `LICENSE`), designed to be added to any vibe-coded data project. The Python package is in `tamper_signal/`, tests in `tests/` (run `pytest`), examples in `examples/`, the badge in `badge/`. Issues, PRs, and stars all help. The original Luhn hash demo lives unchanged in `legacy/` and is off the main path.
+Open source under the MIT license (see `LICENSE`), designed to be added to any vibe-coded data project. The Python package is in `tamper_signal/`, tests in `tests/` (run `pytest`), examples in `examples/`, the badge in `badge/`. Issues, PRs, and stars all help; [CONTRIBUTING.md](https://github.com/welovejeff/tamper-evident-verification/blob/main/CONTRIBUTING.md) covers setup and the few rules that keep both stacks in step. The original Luhn hash demo lives unchanged in `legacy/` and is off the main path.

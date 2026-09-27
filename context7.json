@@ -1,0 +1,34 @@
+{
+  "$schema": "https://context7.com/schema/context7.json",
+  "projectTitle": "Tamper Signal",
+  "description": "Signed receipts for every stage of a data pipeline, verified as a green, yellow, or red light. Python and JavaScript, interchangeable chains. Proves continuity, not correctness.",
+  "folders": [],
+  "excludeFolders": [
+    "legacy",
+    "designs",
+    "animations",
+    "docs/plans",
+    "docs/brainstorms",
+    "docs/ideation",
+    "docs/solutions",
+    "docs/media",
+    "examples/chains",
+    "tests",
+    "node/test",
+    "scripts"
+  ],
+  "excludeFiles": ["NEXT-STEPS.md", "UPDATE.md"],
+  "rules": [
+    "Follow AGENTS.md in order to integrate: install, tamper-signal init, tamper-signal ingest the source export, wrap each transform with @receipt_step (Python) or receiptStep (Node), mount the light with the room behind it, publish table.json, then tamper-signal verify.",
+    "The command is tamper-signal on both stacks; receipts is a deprecated Python alias.",
+    "verify exits 0 green, 1 red, 2 yellow; use --json for a structured verdict instead of parsing text.",
+    "Never commit a private key: keys/ and *.key belong in .gitignore. In CI, pass the key through the TAMPER_SIGNAL_KEY environment variable.",
+    "If a stage cannot fit the records-to-records contract, leave it unwrapped and say it is not attested; never fabricate a receipt.",
+    "Describe Tamper Signal as proving continuity, not correctness: it can't tell you the data is right, but it can prove nobody changed it.",
+    "The Node CLI does not read .xlsx; convert to CSV or ingest once with the Python CLI (the semantic hash is identical across formats).",
+    "Browser surfaces verify over HTTP, not file://; serve the receipts directory statically."
+  ],
+  "previousVersions": [
+    { "tag": "v2.0.0" }
+  ]
+}
