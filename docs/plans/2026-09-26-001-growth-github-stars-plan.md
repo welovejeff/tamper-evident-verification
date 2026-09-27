@@ -9,6 +9,34 @@ evidence: docs/plans/2026-09-26-001-growth-github-stars-evidence.md
 
 # Tamper Signal: +10 GitHub stars by Saturday 2026-10-03
 
+## Status (updated Sun 2026-09-27)
+
+**Done on branch `claude/github-stars-growth-strategy-us37ov` (merge to ship):**
+
+| Plan item | Where |
+|---|---|
+| Demo runs after a plain pip install, in its own folder | `tamper_signal/_demo/`, `tamper_signal/demo.py`, `tests/test_demo.py` |
+| `receipts` hints now say `tamper-signal`; docs + source links in CLI output | `tamper_signal/cli.py`, `node/cli.js`, `badge/room.js` |
+| README hero, absolute images for PyPI, badges, PyPI metadata | `README.md`, `pyproject.toml` |
+| Star path: hero button, demo closing block, blog try-it box | `index.html`, `demo.html`, `blog/*.html` |
+| `llms.txt`, sitemap, blog index JSON-LD | `llms.txt`, `sitemap.xml`, `blog/index.html` |
+| Comparison page (Brief 2) | `docs/compare.html` |
+| Tutorial post (Brief 1), pulled forward from week 2 | `blog/why-did-my-dataframe-lose-rows.html`, dev.to copy in `docs/blog/` |
+| Em dashes out of site copy | `blog/`, `docs/`, `index.html`, `demo.html` |
+| Demo page fits a 390px phone | `demo.html`, `badge/room.js` |
+| Claude Code plugin + Context7 config (GEO for coding agents) | `.claude-plugin/`, `plugins/tamper-signal/`, `context7.json` |
+| CONTRIBUTING, starter issues #63 #64 #65 | `CONTRIBUTING.md`, GitHub issues |
+| Release check script, social preview image | `scripts/check-release.sh`, `docs/media/social-preview.png` |
+
+**Yours (in order):**
+1. Merge the PR; the site deploys from `main`.
+2. `git tag v2.1.0 && git push origin v2.1.0`, wait for `release.yml`, create the GitHub Release from the CHANGELOG, then `scripts/check-release.sh 2.1.0`. No outreach until it prints "All checks passed."
+3. Settings: upload `docs/media/social-preview.png` as the social preview, enable Discussions, add topics `hacktoberfest` `data-provenance` `audit-trail` `pandas`, pin the repo on your profile.
+4. Submit the repo at context7.com/add-library.
+5. The HN gate decision, the warm list, and every post in the appendix (your voice).
+6. Close #59 (v2.0 shipped) and decide on PR #60.
+
+
 ## 1. Bottom line
 
 **Getting +10 stars (2 to 12+) by Sat Oct 3 is less likely than not, about 35%. It depends on two things: 16-24 personal one-to-one asks sent Sun-Mon, and one hand-written Show HN on Tue Sep 29. The Show HN only happens if you already have an established HN account.** This week, content SEO/GEO helps visitors convert and gives you pages to link in replies. It starts paying off in stars in weeks 3-12.
