@@ -9,6 +9,33 @@ description = "Tamper Signal: signed receipts at every pipeline stage, with veri
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.11"
+keywords = [
+    "tamper-evident",
+    "data-integrity",
+    "data-provenance",
+    "provenance",
+    "ed25519",
+    "signed-receipts",
+    "data-pipelines",
+    "hash-chain",
+    "verification",
+    "pandas",
+    "vibe-coding",
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security :: Cryptography",
+    "Topic :: Database",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+]
 dependencies = [
     "openpyxl>=3.1",
     "cryptography>=42.0",
@@ -27,7 +54,10 @@ images = ["fal-client>=0.4", "pillow>=10"]
 
 [project.urls]
 Homepage = "https://tampersignal.com/"
+Documentation = "https://tampersignal.com/docs/"
 Repository = "https://github.com/welovejeff/tamper-evident-verification"
+Issues = "https://github.com/welovejeff/tamper-evident-verification/issues"
+Changelog = "https://github.com/welovejeff/tamper-evident-verification/blob/main/CHANGELOG.md"
 
 [project.scripts]
 # `tamper-signal` is the primary command on both stacks as of 2.0. `receipts`
@@ -36,8 +66,10 @@ Repository = "https://github.com/welovejeff/tamper-evident-verification"
 tamper-signal = "tamper_signal.cli:main"
 receipts = "tamper_signal.cli:main"
 
-[tool.setuptools]
-packages = ["tamper_signal"]
+# find (not a fixed list) so subpackages such as tamper_signal._demo ship in
+# the wheel; `tamper-signal demo` imports its sample data from there.
+[tool.setuptools.packages.find]
+include = ["tamper_signal*"]
 
 [tool.setuptools.package-data]
 tamper_signal = ["static/*.js"]

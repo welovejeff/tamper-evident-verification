@@ -91,6 +91,8 @@
     "signed-receipts",
     "data-pipelines",
     "verification",
-    "hash-chain"
+    "hash-chain",
+    "data-provenance",
+    "vibe-coding"
   ]
 }

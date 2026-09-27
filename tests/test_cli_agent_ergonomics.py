@@ -127,7 +127,7 @@ def test_doctor_fails_without_key(tmp_path, monkeypatch, capsys):
     code = main(["doctor"])
     out = capsys.readouterr().out
     assert code == 1
-    assert "receipts init" in out  # the fix is named
+    assert "tamper-signal init" in out  # the fix is named
 
 
 def test_doctor_fails_on_broken_chain(tmp_path, monkeypatch, capsys):
@@ -206,7 +206,7 @@ def test_export_bundle_unzips_and_verifies_green(tmp_path, monkeypatch):
         names = set(zf.namelist())
         readme = zf.read("README.md").decode("utf-8")
     assert {"README.md", "current.json", "chain.json", SOURCE_RECEIPT_NAME} <= names
-    assert "receipts verify chain.json" in readme  # tells the recipient how to verify
+    assert "tamper-signal verify chain.json" in readme  # tells the recipient how to verify
 
     # Unzip into a fresh dir with no keys/receipts of its own, then verify offline.
     out = tmp_path / "recipient"

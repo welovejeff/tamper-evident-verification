@@ -95,3 +95,17 @@ export SSL_CERT_FILE=/tmp/cacert.pem
 > `upload_to_collection` — the single place to adjust if fal's contract changes.
 > `fal_assets.list_collections()` / `create_collection()` help you find or make a
 > collection id.
+
+## Release check
+
+`check-release.sh X.Y.Z` runs after a version tag's `release.yml` finishes. It
+confirms PyPI and npm both serve the version, every browser surface is in the
+npm `exports` map, a GitHub Release exists, and a fresh `pip install` runs
+`tamper-signal demo --no-serve` outside a clone. Exit 0 means the release is
+safe to point people at.
+
+## Social preview
+
+`render_social_preview.py` renders `docs/media/social-preview.png` (1280x640)
+from `docs/media/og-card.html`. Upload it under the repo's Settings, General,
+Social preview.

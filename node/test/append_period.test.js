@@ -119,7 +119,7 @@ test("the export --bundle CLI ships a README with verify instructions", () => {
   // uncompressed, so the README text appears verbatim in the archive bytes.
   const zip = readFileSync(join(chainDir, "data-verified.zip")).toString("latin1");
   assert.ok(zip.includes("README.md"), "bundle lists README.md");
-  assert.ok(zip.includes("receipts verify chain.json"), "README carries verify instructions");
+  assert.ok(zip.includes("tamper-signal verify chain.json"), "README carries verify instructions");
 });
 
 test("appendPeriod refuses when no chain exists", () => {

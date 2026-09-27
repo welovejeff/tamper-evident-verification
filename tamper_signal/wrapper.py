@@ -149,7 +149,7 @@ def ingest_file(
     """Ingest a source file: build a signed source manifest and (re)write
     chain.json so it lists only that source.
 
-    The programmatic equivalent of `receipts ingest`. It RESETS the chain to
+    The programmatic equivalent of `tamper-signal ingest`. It RESETS the chain to
     its source, which is the idempotent foundation for "rebuild on data
     change": call it again and the chain starts fresh from the source.
 
@@ -537,7 +537,7 @@ def receipt_step(
         write_table: also write ``<chain_dir>/table.json`` (the canonical
             table document of this stage's output) after the receipt, so the
             Signal Room's landing plane always matches the chain tail. Pass
-            it on your FINAL stage — it is the ``receipts export`` step,
+            it on your FINAL stage — it is the ``tamper-signal export`` step,
             minus the manual step to forget.
     """
 
@@ -547,7 +547,7 @@ def receipt_step(
             existing = read_chain_files(chain_dir)
             if not existing:
                 raise ChainTailMismatch(
-                    f"No chain found in {chain_dir!r}; run `receipts ingest` first."
+                    f"No chain found in {chain_dir!r}; run `tamper-signal ingest` first."
                 )
 
             # Load the key up front so we can verify the existing chain with the

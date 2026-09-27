@@ -18,7 +18,7 @@
 
 <div class="top">
   <div class="wrap">
-    <a class="logo-stacked" href="/" aria-label="Tamper Signal — home">
+    <a class="logo-stacked" href="/" aria-label="Tamper Signal home">
       <span class="ls-rail" aria-hidden="true"><i class="r"></i><i class="y"></i><i class="g"></i></span>
       <span class="ls-words">TAMPER<br>SIGNAL</span>
     </a>
@@ -58,6 +58,7 @@
         <ul>
           <li><a href="/docs/advanced.html">Power user</a></li>
           <li><a href="/docs/faq.html">FAQ</a></li>
+          <li><a href="/docs/compare.html">How it compares</a></li>
         </ul>
       </div>
     </div>
@@ -99,7 +100,7 @@
           <tr><td><code>tamper-signal anchor</code></td><td>Record the chain in a Sigstore transparency log under your identity. Optional, see <a href="/docs/advanced.html#anchoring">Power user</a>.</td></tr>
           <tr><td><code>tamper-signal annotate</code></td><td>Attach a signed reason (and optional self-declared author) to a receipt by its content hash, so the note is tamper-evident and cannot be silently retargeted. A correction supersedes a prior note by hash; nothing is overwritten.</td></tr>
           <tr><td><code>tamper-signal timeline</code></td><td>Write the narrow, published <code>timeline.json</code> (imports, changes, their top-level totals, signed annotations, and any pending changes) that the console renders as the chain of custody. Chain-tail-bound, and signed when a key is available.</td></tr>
-          <tr><td><code>tamper-signal custody</code></td><td>Show the CLI-local custody view — run cadence and archived prior chains, each re-verified — without publishing that history. Read-only.</td></tr>
+          <tr><td><code>tamper-signal custody</code></td><td>Show the CLI-local custody view (run cadence and archived prior chains, each re-verified) without publishing that history. Read-only.</td></tr>
           <tr><td><code>tamper-signal watch</code></td><td>Poll a live HTTP/JSON-API or RSS/Atom feed and keep it on the same signed chain: new data auto-appends, a change to an already-settled period is withheld for review. Needs <code>pip install "tamper-signal[watch]"</code>. <code>--daemon</code>/<code>--interval</code> loop; default is one stateless tick. See <a href="/docs/advanced.html#watcher">Power user</a>.</td></tr>
           <tr><td><code>tamper-signal review</code></td><td>List, accept, or reject withheld watch changes. Each <code>accept &lt;hash&gt; --reason</code> signs its own human reason and commits the exact reviewed candidate; <code>reject</code> discards it without touching the chain.</td></tr>
           <tr><td><code>tamper-signal demo</code></td><td>Run the whole story end to end on sample data, then serve a badge showing green, yellow, and red.</td></tr>

@@ -1,0 +1,20 @@
+{
+  "name": "welovejeff",
+  "owner": {
+    "name": "Jeff MacDonald",
+    "url": "https://github.com/welovejeff"
+  },
+  "metadata": {
+    "description": "Tamper Signal: signed receipts for every stage of a data pipeline."
+  },
+  "plugins": [
+    {
+      "name": "tamper-signal",
+      "source": "./plugins/tamper-signal",
+      "description": "Add Tamper Signal to a data pipeline: sign the source export, wrap each transform with a receipt, mount the status light, and verify the chain green, yellow, or red.",
+      "version": "2.1.0",
+      "category": "data",
+      "homepage": "https://tampersignal.com/"
+    }
+  ]
+}

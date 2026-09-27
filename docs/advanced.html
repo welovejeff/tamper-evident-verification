@@ -18,7 +18,7 @@
 
 <div class="top">
   <div class="wrap">
-    <a class="logo-stacked" href="/" aria-label="Tamper Signal — home">
+    <a class="logo-stacked" href="/" aria-label="Tamper Signal home">
       <span class="ls-rail" aria-hidden="true"><i class="r"></i><i class="y"></i><i class="g"></i></span>
       <span class="ls-words">TAMPER<br>SIGNAL</span>
     </a>
@@ -58,6 +58,7 @@
         <ul>
           <li><a href="/docs/advanced.html" aria-current="page">Power user</a></li>
           <li><a href="/docs/faq.html">FAQ</a></li>
+          <li><a href="/docs/compare.html">How it compares</a></li>
         </ul>
       </div>
     </div>
@@ -153,14 +154,14 @@
     <p>With <code>--warn-drift</code>, control-total movement becomes a yellow caveat rather than passing silently. The same switch exists as the <code>warnDrift</code> option on the browser surfaces.</p>
 
     <h2 id="watcher">Live-source watcher</h2>
-    <p>When the source is a live feed rather than a file you re-export by hand, the watcher keeps it on the same signed chain. It polls, judges the new data against the band and settling window you declared (see <a href="#period">Period-over-period</a>), and <strong>auto-appends only a clean change</strong>. A retroactive edit to an already-settled period — or a slow drift that cumulatively breaches the band — is never signed unattended: it is withheld as a signed pending event and paused for a human.</p>
+    <p>When the source is a live feed rather than a file you re-export by hand, the watcher keeps it on the same signed chain. It polls, judges the new data against the band and settling window you declared (see <a href="#period">Period-over-period</a>), and <strong>auto-appends only a clean change</strong>. A retroactive edit to an already-settled period (or a slow drift that cumulatively breaches the band) is never signed unattended: it is withheld as a signed pending event and paused for a human.</p>
     <pre><code>pip install "tamper-signal[watch]"
 <span class="k">tamper-signal</span> watch --config feed.json --key keys/watch.key --out receipts/</code></pre>
     <p>The config is a small JSON file: <code>url</code>, <code>format</code> (<code>json</code> or <code>rss</code>), a stable <code>source_id</code>, an optional <code>field_map</code> or <code>columnar</code> mapping for nested/columnar feeds, and the <code>band</code>/<code>settle</code>/<code>bucket_column</code> tolerance. Change detection is a full-content fingerprint, never a replayable <code>ETag</code>/<code>304</code>. The fetch is SSRF-hardened (public hosts only, redirects off, TLS verified, byte + wall-clock caps; RSS parsed through <code>defusedxml</code>).</p>
-    <p>Withheld changes are reviewed explicitly — each acceptance signs its own reason and commits the exact reviewed candidate:</p>
+    <p>Withheld changes are reviewed explicitly. Each acceptance signs its own reason and commits the exact reviewed candidate:</p>
     <pre><code><span class="k">tamper-signal</span> review                       <span class="c"># list what is waiting</span>
 <span class="k">tamper-signal</span> review accept &lt;hash&gt; --reason <span class="s">"confirmed by the data desk"</span></code></pre>
-    <p>The recommended deployment is the stateless tick under a systemd timer or cron, so the signing key is not resident between runs — it is a local file-writer, not a server. See <a href="https://github.com/welovejeff/tamper-evident-verification/blob/main/AGENTS.md">AGENTS.md</a> §5c for a hardened systemd unit (dedicated user, <code>NoNewPrivileges</code>, <code>ProtectSystem=strict</code>, the key delivered via <code>LoadCredential=</code>). The <code>watch</code> and <code>review</code> commands are Python-only; the chains they write are read and verified by the Node stack unchanged. See the live weather <a href="/demo.html">demo</a>.</p>
+    <p>The recommended deployment is the stateless tick under a systemd timer or cron, so the signing key is not resident between runs. It is a local file-writer, not a server. See <a href="https://github.com/welovejeff/tamper-evident-verification/blob/main/AGENTS.md">AGENTS.md</a> §5c for a hardened systemd unit (dedicated user, <code>NoNewPrivileges</code>, <code>ProtectSystem=strict</code>, the key delivered via <code>LoadCredential=</code>). The <code>watch</code> and <code>review</code> commands are Python-only; the chains they write are read and verified by the Node stack unchanged. See the live weather <a href="/demo.html">demo</a>.</p>
 
     <h2 id="formats">Format-agnostic hashing</h2>
     <p>The semantic hash is taken over the meaning of the data, not its packaging, so the same rows hash the same whether they arrive as xlsx, CSV, TSV, JSON, or NDJSON. Two consequences worth leaning on:</p>

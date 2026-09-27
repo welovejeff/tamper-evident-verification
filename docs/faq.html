@@ -66,7 +66,7 @@
     {
       "@type": "Question",
       "name": "Does it work with Python and JavaScript?",
-      "acceptedAnswer": { "@type": "Answer", "text": "Yes. pip install tamper-signal gives a Python CLI (receipts) and library; npm install tamper-signal gives a Node CLI (tamper-signal) and API. The chains are interchangeable across the two stacks, proven byte-for-byte by golden vectors, so a chain signed in Python verifies in Node and the reverse." }
+      "acceptedAnswer": { "@type": "Answer", "text": "Yes. pip install tamper-signal and npm install tamper-signal each give the same tamper-signal CLI, plus a Python library or a Node API. The chains are interchangeable across the two stacks, proven byte-for-byte by golden vectors, so a chain signed in Python verifies in Node and the reverse." }
     },
     {
       "@type": "Question",
@@ -137,7 +137,7 @@
 
 <div class="top">
   <div class="wrap">
-    <a class="logo-stacked" href="/" aria-label="Tamper Signal — home">
+    <a class="logo-stacked" href="/" aria-label="Tamper Signal home">
       <span class="ls-rail" aria-hidden="true"><i class="r"></i><i class="y"></i><i class="g"></i></span>
       <span class="ls-words">TAMPER<br>SIGNAL</span>
     </a>
@@ -177,6 +177,7 @@
         <ul>
           <li><a href="/docs/advanced.html">Power user</a></li>
           <li><a href="/docs/faq.html" aria-current="page">FAQ</a></li>
+          <li><a href="/docs/compare.html">How it compares</a></li>
         </ul>
       </div>
     </div>
@@ -228,7 +229,7 @@
     <h2 id="using">Using it</h2>
 
     <h3>Does it work with Python and JavaScript?</h3>
-    <p>Yes. <code>pip install tamper-signal</code> gives a Python CLI (<code>receipts</code>) and library; <code>npm install tamper-signal</code> gives a Node CLI (<code>tamper-signal</code>) and API. The chains are interchangeable across the two stacks, proven byte-for-byte by golden vectors, so a chain signed in Python verifies in Node and the reverse.</p>
+    <p>Yes. <code>pip install tamper-signal</code> and <code>npm install tamper-signal</code> each give the same <code>tamper-signal</code> CLI, plus a Python library or a Node API. The chains are interchangeable across the two stacks, proven byte-for-byte by golden vectors, so a chain signed in Python verifies in Node and the reverse.</p>
 
     <h3>What file formats can it read?</h3>
     <p><code>ingest</code> and <code>verify</code> accept .xlsx, .csv, .tsv, .json (an array of objects), and .ndjson. The semantic hash is identical across formats, so the format you store in does not move the verdict. Spreadsheets go through the Python CLI; the JavaScript stack reads the text formats.</p>
@@ -256,7 +257,7 @@
     <h2 id="scope">Scope and alternatives</h2>
 
     <h3>How is this different from dbt, Great Expectations, or OpenLineage?</h3>
-    <p>Those model lineage and quality at the warehouse and orchestration layer, and assume that infrastructure exists. Tamper Signal is narrower and lighter: a signed, file-based receipt chain you drop in front of an ad-hoc xlsx-to-dashboard pipeline with no database, server, or catalog. It is a complement for the gap before those tools are in place, not a replacement.</p>
+    <p>Those model lineage and quality at the warehouse and orchestration layer, and assume that infrastructure exists. Tamper Signal is narrower and lighter: a signed, file-based receipt chain you drop in front of an ad-hoc xlsx-to-dashboard pipeline with no database, server, or catalog. It is a complement for the gap before those tools are in place, not a replacement. The side-by-side, including Pandera and in-toto, is on <a href="/docs/compare.html">How it compares</a>.</p>
 
     <h3>What are tolerance bands?</h3>
     <p>A signed declaration, made at ingest, of how much a period normally moves day over day, plus a settling window. Recurring refreshes then stay green when recent data drifts within the band and turn yellow when settled data moves or a recent bucket breaches the band. It keeps the light believable on a pipeline that refreshes every morning, which is the <a href="/blog/your-data-is-supposed-to-move.html">whole story behind 1.6.0</a>.</p>

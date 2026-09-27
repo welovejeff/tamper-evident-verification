@@ -13,8 +13,9 @@ The hero line is locked:
 ## 0. The name
 
 **Product: Tamper Signal.** Styled "Tamper Signal" in prose, `tamper-signal` as
-the package name. **CLI: `receipts`** (the command reads like the pitch:
-`receipts verify chain.json`). **Python import: `tamper_signal`.** The repo
+the package name. **CLI: `tamper-signal`** on both stacks as of 2.0
+(`tamper-signal verify chain.json`; `receipts` is a deprecated Python alias,
+removed in 3.0). **Python import: `tamper_signal`.** The repo
 slug stays `tamper-evident-verification`.
 
 The layers each keep their own noun: the mechanism is the **receipt**, the

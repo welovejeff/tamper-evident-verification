@@ -1,20 +1,20 @@
 """Command-line entry points for Tamper Signal.
 
 Commands:
-  receipts keygen --out keys/
-  receipts ingest <file.xlsx> --origin "..." --key keys/signing.key --out receipts/
-  receipts verify receipts/chain.json --pub keys/signing.pub [--data <current.xlsx>] [--json]
-  receipts diff [A] [B] [--chain receipts/] [--json]
-  receipts log [--chain receipts/] [--granularity day|week|month|quarter] [--metric <name>] [--json]
-  receipts export [receipts/chain.json] --data <current.csv> [--bundle] [--json]
-  receipts annotate [receipts/chain.json] --reason "..." [--author "..."] [--json]
-  receipts timeline [receipts/chain.json] [--out timeline.json] [--json]
-  receipts custody [receipts/chain.json] [--json]
-  receipts init
-  receipts doctor [--url http://localhost:8787/chain.json]
-  receipts serve
-  receipts assets [--out badge/]
-  receipts demo
+  tamper-signal keygen --out keys/
+  tamper-signal ingest <file.xlsx> --origin "..." --key keys/signing.key --out receipts/
+  tamper-signal verify receipts/chain.json --pub keys/signing.pub [--data <current.xlsx>] [--json]
+  tamper-signal diff [A] [B] [--chain receipts/] [--json]
+  tamper-signal log [--chain receipts/] [--granularity day|week|month|quarter] [--metric <name>] [--json]
+  tamper-signal export [receipts/chain.json] --data <current.csv> [--bundle] [--json]
+  tamper-signal annotate [receipts/chain.json] --reason "..." [--author "..."] [--json]
+  tamper-signal timeline [receipts/chain.json] [--out timeline.json] [--json]
+  tamper-signal custody [receipts/chain.json] [--json]
+  tamper-signal init
+  tamper-signal doctor [--url http://localhost:8787/chain.json]
+  tamper-signal serve
+  tamper-signal assets [--out badge/]
+  tamper-signal demo
 """
 
 from __future__ import annotations
@@ -32,6 +32,7 @@ from .canonical import (
     load_records,
     semantic_hash,
 )
+from .demo import DOCS_URL, REPO_URL
 from .keys import generate_keys, load_private_key, load_public_key_hex, public_hex_from_private
 from .receipts import (
     CHAIN_FILENAME,
@@ -74,12 +75,12 @@ chain.json and the receipt files that prove it.
 
 Install either stack (chains are interchangeable across them):
 
-    pip install tamper-signal       # Python 3.11+, command: receipts
+    pip install tamper-signal       # Python 3.11+, command: tamper-signal
     npm install -g tamper-signal    # Node 18.17+, command: tamper-signal
 
 Then, from the folder you unzipped this into:
 
-    receipts verify chain.json
+    tamper-signal verify chain.json
 
 The exit code is the traffic light: 0 green (intact), 2 yellow (verifies, with
 caveats), 1 red (broken, at the exact link, with the totals that moved).
@@ -678,10 +679,11 @@ def cmd_init(args: argparse.Namespace) -> int:
     for action in actions:
         print(f"  - {action}")
     print(
-        "\nNext: receipts ingest <export-file> --origin \"...\" "
+        "\nNext: tamper-signal ingest <export-file> --origin \"...\" "
         f"--key {private_path} --out {receipts_dir}/"
     )
-    print("Then wrap each transform with @receipt_step (see AGENTS.md).")
+    print(f"Then wrap each transform with @receipt_step: {DOCS_URL}")
+    print(f"Source: {REPO_URL}")
     return 0
 
 
@@ -707,7 +709,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         (
             f"private key at {key_path}",
             key_path.exists(),
-            "run `receipts init` (or `receipts keygen --out keys/`)",
+            "run `tamper-signal init` (or `tamper-signal keygen --out keys/`)",
         )
     )
 
@@ -735,7 +737,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         line in gitignore.read_text(encoding="utf-8").splitlines() for line in GITIGNORE_LINES
     )
     if not covered:
-        warns.append(".gitignore does not mention keys/ or *.key; run `receipts init` to add it")
+        warns.append(".gitignore does not mention keys/ or *.key; run `tamper-signal init` to add it")
 
     chain_path = Path(args.chain)
     if chain_path.exists():
@@ -754,7 +756,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
                 (
                     f"chain verifies ({result.verdict})",
                     result.verdict != "red",
-                    "the chain is broken; do not ship it. See `receipts verify` output",
+                    "the chain is broken; do not ship it. See `tamper-signal verify` output",
                 )
             )
             if result.verdict == "yellow":
@@ -762,7 +764,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         except ValueError as exc:
             checks.append((f"chain loads ({chain_path})", False, str(exc)))
     else:
-        warns.append(f"no chain at {chain_path}; run `receipts ingest` to start one")
+        warns.append(f"no chain at {chain_path}; run `tamper-signal ingest` to start one")
 
     if args.url:
         import json as _json
@@ -783,7 +785,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
                 (
                     f"chain served at {args.url}",
                     False,
-                    f"could not fetch ({exc}); is the receipts directory being served? Try `receipts serve`",
+                    f"could not fetch ({exc}); is the receipts directory being served? Try `tamper-signal serve`",
                 )
             )
 
@@ -811,7 +813,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
 
 
 def _serve_handler_class(directory: str):
-    """The request handler `receipts serve` uses, bound to a directory.
+    """The request handler `tamper-signal serve` uses, bound to a directory.
 
     CORS is open and caching is off for every response. Anything under
     history/, archive/, or pending/ is 404'd: run snapshots, archived prior
@@ -869,7 +871,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
     except OSError as exc:
         if exc.errno == errno.EADDRINUSE:
             print(
-                f"port {args.port} is already in use — try `receipts serve --port <n>`",
+                f"port {args.port} is already in use — try `tamper-signal serve --port <n>`",
                 file=sys.stderr,
             )
         else:
@@ -1215,7 +1217,7 @@ def _write_verified_bundle(
     args: argparse.Namespace, chain: dict[str, Any], chain_dir: Path, data_hash: str
 ) -> int:
     """Write a verified bundle: the original data file plus chain.json and its
-    receipt files, packaged so a recipient can `receipts verify chain.json`
+    receipt files, packaged so a recipient can `tamper-signal verify chain.json`
     offline.
 
     Stores entries uncompressed and byte-for-byte (LF preserved), because
@@ -1233,7 +1235,7 @@ def _write_verified_bundle(
     out_path = Path(args.out) if args.out else chain_dir / f"{data_path.stem}-verified.zip"
 
     # Mirror the on-disk chain_dir layout flat at the bundle root so an unzip +
-    # `receipts verify chain.json` resolves receipts the same way it does locally.
+    # `tamper-signal verify chain.json` resolves receipts the same way it does locally.
     with zipfile.ZipFile(out_path, "w", compression=zipfile.ZIP_STORED) as bundle:
         bundle.writestr("README.md", BUNDLE_README)  # verify instructions for the recipient
         bundle.writestr(data_path.name, data_path.read_bytes())
@@ -1255,7 +1257,7 @@ def _write_verified_bundle(
     print(f"Exported verified bundle: {out_path}")
     print(f"  data {data_path.name}, {len(receipt_names)} receipts + {CHAIN_FILENAME}")
     print(f"  semantic_hash {color.dim(data_hash)} (matches final receipt)")
-    print(f"  recipient: unzip, then `receipts verify {CHAIN_FILENAME}`")
+    print(f"  recipient: unzip, then `tamper-signal verify {CHAIN_FILENAME}`")
     return 0
 
 
@@ -1271,7 +1273,7 @@ def _diff_side_from_chain_dir(chain_dir: str, ref: str) -> dict:
     """Adapter: a live chain directory in the snapshot's diff shape.
 
     Raises ValueError with a clean message on any load failure (missing
-    chain.json, unreadable receipts); `receipts diff` treats those as usage
+    chain.json, unreadable receipts); `tamper-signal diff` treats those as usage
     errors (exit 1).
     """
     from .history import chain_tail_hash, run_source, run_stages
@@ -1860,7 +1862,7 @@ def cmd_anchor(args: argparse.Namespace) -> int:
     print(f"  identity {record['identity']} (issuer {record['issuer']})")
     print(f"  integrated at {record['integrated_time'] or '(time not recorded by this log)'}")
     print(f"  anchor record -> {anchor_path_for(args.chain)}")
-    print("Re-run after every pipeline run that changes the chain; verify with: receipts verify --anchor")
+    print("Re-run after every pipeline run that changes the chain; verify with: tamper-signal verify --anchor")
     return 0
 
 
@@ -1884,7 +1886,7 @@ def _check_anchor(
 
     anchor_file = anchor_path_for(chain_path)
     if not anchor_file.exists():
-        emit("⚠ no anchor found; run `receipts anchor` to prove existence at a point in time")
+        emit("⚠ no anchor found; run `tamper-signal anchor` to prove existence at a point in time")
         return max(code, 2) if code != 1 else code
     try:
         info = verify_anchor(
@@ -2037,7 +2039,7 @@ def _watch_daemon(
     permanently stale) would otherwise spin forever — especially at a small
     interval — so the loop gives up after `max_consecutive_failures` in a row
     and exits non-zero for a supervisor to restart/alert on. A success resets
-    the counter. Ctrl-C (or SIGINT) stops cleanly, mirroring `receipts serve`.
+    the counter. Ctrl-C (or SIGINT) stops cleanly, mirroring `tamper-signal serve`.
     `sleep` is injectable for tests."""
     import time
 
@@ -2182,7 +2184,7 @@ def cmd_review(args: argparse.Namespace) -> int:
         return 0
 
     if not args.hash:
-        return _fail(args, f"{action} needs a pending event hash (see: receipts review list)")
+        return _fail(args, f"{action} needs a pending event hash (see: tamper-signal review list)")
     matches = [h for h in by_hash if h.startswith(args.hash)]
     if len(matches) != 1:
         return _fail(args, f"hash {args.hash!r} matched {len(matches)} pending events; be more specific")
@@ -2269,6 +2271,8 @@ def build_parser(prog: str = "tamper-signal") -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog=prog,
         description="Tamper Signal: signed receipts for analytics pipelines.",
+        epilog=f"Docs: {DOCS_URL}\nSource: {REPO_URL}",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     sub = parser.add_subparsers(dest="command", required=True)
 

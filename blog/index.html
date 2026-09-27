@@ -6,9 +6,9 @@
 <!-- Site analytics & tagging (GTM + Consent Mode v2). Config lives in /analytics.js -->
 <script src="/analytics.js"></script>
 <title>Blog · Tamper Signal</title>
-<meta name="description" content="Writing from Tamper Signal — signed receipts for vibe-coded data pipelines." />
+<meta name="description" content="Writing from Tamper Signal: signed receipts for vibe-coded data pipelines." />
 <meta property="og:title" content="Tamper Signal · Blog" />
-<meta property="og:description" content="Writing from Tamper Signal — signed receipts for vibe-coded data pipelines." />
+<meta property="og:description" content="Writing from Tamper Signal: signed receipts for vibe-coded data pipelines." />
 <meta property="og:image" content="https://tampersignal.com/docs/media/og-card.png" />
 <link rel="canonical" href="https://tampersignal.com/blog/" />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='%2334d399'/%3E%3C/svg%3E" />
@@ -26,9 +26,11 @@
     "logo": { "@type": "ImageObject", "url": "https://tampersignal.com/docs/media/og-card.png" }
   },
   "blogPost": [
+    { "@type": "BlogPosting", "headline": "Where did my pandas rows go? Catching silent row drops and merge fan-outs", "url": "https://tampersignal.com/blog/where-did-my-pandas-rows-go.html", "datePublished": "2026-09-27", "author": { "@type": "Person", "name": "Jeff MacDonald" } },
+    { "@type": "BlogPosting", "headline": "One light, one room", "url": "https://tampersignal.com/blog/one-light-one-room.html", "datePublished": "2026-07-12", "author": { "@type": "Person", "name": "Jeff MacDonald" } },
     { "@type": "BlogPosting", "headline": "Data that watches itself: the live-source watcher in Tamper Signal 2.0", "url": "https://tampersignal.com/blog/data-that-watches-itself.html", "datePublished": "2026-06-30", "author": { "@type": "Person", "name": "Jeff MacDonald" } },
     { "@type": "BlogPosting", "headline": "Guilty until proven clean: a chain of custody for AI-built dashboards", "url": "https://tampersignal.com/blog/guilty-until-proven-clean.html", "datePublished": "2026-06-23", "author": { "@type": "Person", "name": "Jeff MacDonald" } },
-    { "@type": "BlogPosting", "headline": "Why vibe-coded data pipelines fail silently — and how to catch it", "url": "https://tampersignal.com/blog/vibe-coded-pipelines-fail-silently.html", "datePublished": "2026-06-17", "author": { "@type": "Person", "name": "Jeff MacDonald" } },
+    { "@type": "BlogPosting", "headline": "Why vibe-coded data pipelines fail silently, and how to catch it", "url": "https://tampersignal.com/blog/vibe-coded-pipelines-fail-silently.html", "datePublished": "2026-06-17", "author": { "@type": "Person", "name": "Jeff MacDonald" } },
     { "@type": "BlogPosting", "headline": "Data you can take with you", "url": "https://tampersignal.com/blog/data-you-can-take-with-you.html", "datePublished": "2026-06-14", "author": { "@type": "Person", "name": "Jeff MacDonald" } },
     { "@type": "BlogPosting", "headline": "Show your work", "url": "https://tampersignal.com/blog/show-your-work.html", "datePublished": "2026-06-14", "author": { "@type": "Person", "name": "Jeff MacDonald" } },
     { "@type": "BlogPosting", "headline": "Your data is supposed to move", "url": "https://tampersignal.com/blog/your-data-is-supposed-to-move.html", "datePublished": "2026-06-12", "author": { "@type": "Person", "name": "Jeff MacDonald" } },
@@ -41,7 +43,7 @@
 
 <div class="top">
   <div class="wrap">
-    <a class="logo-stacked" href="/" aria-label="Tamper Signal — home">
+    <a class="logo-stacked" href="/" aria-label="Tamper Signal home">
       <span class="ls-rail" aria-hidden="true"><i class="r"></i><i class="y"></i><i class="g"></i></span>
       <span class="ls-words">TAMPER<br>SIGNAL</span>
     </a>
@@ -60,7 +62,7 @@
   <div class="wrap">
     <p class="kicker">the blog</p>
     <h1>Receipts, not vibes.</h1>
-    <p class="lede">Notes on keeping AI-built data pipelines honest — why dashboards lie so quietly, and what it feels like when yours can finally prove itself.</p>
+    <p class="lede">Notes on keeping AI-built data pipelines honest: why dashboards lie so quietly, and what it feels like when yours can finally prove itself.</p>
   </div>
 </header>
 
@@ -68,13 +70,24 @@
   <div class="wrap">
     <ul class="post-list">
       <li class="post-item">
+        <a class="post-thumb-link" href="/blog/where-did-my-pandas-rows-go.html" tabindex="-1" aria-hidden="true">
+          <img class="post-thumb" src="/docs/media/thumbs/post-vibe-silent.jpg" alt="" loading="lazy" width="1100" height="619" />
+        </a>
+        <div class="post-body">
+          <p class="post-date">September 2026 · <a href="https://github.com/welovejeff" rel="author">Jeff MacDonald</a> · tutorial</p>
+          <h2><a href="/blog/where-did-my-pandas-rows-go.html">Where did my pandas rows go?</a></h2>
+          <p>Pandas never raises when a NaN filter, a merge on duplicate keys, or a coerced column eats your rows. First the fixes that need only pandas, then a signed receipt for each step that shows exactly where the rows went.</p>
+          <a class="go" href="/blog/where-did-my-pandas-rows-go.html">read the post →</a>
+        </div>
+      </li>
+      <li class="post-item">
         <a class="post-thumb-link" href="/blog/one-light-one-room.html" tabindex="-1" aria-hidden="true">
           <img class="post-thumb" src="/docs/media/thumbs/post-signal-room.jpg" alt="" loading="lazy" width="1100" height="619" />
         </a>
         <div class="post-body">
           <p class="post-date">July 2026 · <a href="https://github.com/welovejeff" rel="author">Jeff MacDonald</a> · 2.1.0</p>
           <h2><a href="/blog/one-light-one-room.html">One light, one room</a></h2>
-          <p>Tamper Signal 2.1 puts the furniture away: the status light stays byte-identical, and the badge, verified table, and inspector console behind it become one surface — the Signal Room. Green earns silence; red leads with the break in business numbers; and one attach call now ships both halves, so the light can never dead-end in raw JSON again.</p>
+          <p>Tamper Signal 2.1 puts the furniture away: the status light stays byte-identical, and the badge, verified table, and inspector console behind it become one surface, the Signal Room. Green earns silence; red leads with the break in business numbers; and one attach call now ships both halves, so the light can never dead-end in raw JSON again.</p>
           <a class="go" href="/blog/one-light-one-room.html">read the post →</a>
         </div>
       </li>
@@ -85,7 +98,7 @@
         <div class="post-body">
           <p class="post-date">June 2026 · <a href="https://github.com/welovejeff" rel="author">Jeff MacDonald</a></p>
           <h2><a href="/blog/data-that-watches-itself.html">Data that watches itself</a></h2>
-          <p>Tamper Signal 2.0 adds a live-source watcher: point it at a feed and it keeps that source on the same signed chain, appending new data on its own — but a retroactive change to an already-settled value is never signed unattended. It is withheld for a human, with a chain-of-custody console and a live weather demo to prove it.</p>
+          <p>Tamper Signal 2.0 adds a live-source watcher: point it at a feed and it keeps that source on the same signed chain, appending new data on its own, but a retroactive change to an already-settled value is never signed unattended. It is withheld for a human, with a chain-of-custody console and a live weather demo to prove it.</p>
           <a class="go" href="/blog/data-that-watches-itself.html">read the post →</a>
         </div>
       </li>
@@ -107,7 +120,7 @@
         <div class="post-body">
           <p class="post-date">June 2026 · <a href="https://github.com/welovejeff" rel="author">Jeff MacDonald</a></p>
           <h2><a href="/blog/vibe-coded-pipelines-fail-silently.html">Why vibe-coded pipelines fail silently</a></h2>
-          <p>AI can write a working pipeline in minutes, but it can't prove the pipeline didn't drop rows, double-count, or coerce a column on the way to your dashboard. Why your tests catch only the failures you already imagined — and how a signed receipt catches the one you didn't.</p>
+          <p>AI can write a working pipeline in minutes, but it can't prove the pipeline didn't drop rows, double-count, or coerce a column on the way to your dashboard. Why your tests catch only the failures you already imagined, and how a signed receipt catches the one you didn't.</p>
           <a class="go" href="/blog/vibe-coded-pipelines-fail-silently.html">read the post →</a>
         </div>
       </li>
@@ -151,7 +164,7 @@
         <div class="post-body">
           <p class="post-date">June 2026 · <a href="https://github.com/welovejeff" rel="author">Jeff MacDonald</a></p>
           <h2><a href="/blog/your-vibe-coded-dashboard-needs-receipts.html">Your vibe-coded dashboard needs receipts</a></h2>
-          <p>The longer version of the homepage: AI-written data code fails silently — it drops rows and double-counts without ever crashing. A signed receipt at every step proves your numbers still descend from the source, and names the exact link if they don't.</p>
+          <p>The longer version of the homepage: AI-written data code fails silently. It drops rows and double-counts without ever crashing. A signed receipt at every step proves your numbers still descend from the source, and names the exact link if they don't.</p>
           <a class="go" href="/blog/your-vibe-coded-dashboard-needs-receipts.html">read the post →</a>
         </div>
       </li>

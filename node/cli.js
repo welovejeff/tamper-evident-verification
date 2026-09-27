@@ -115,12 +115,12 @@ chain.json and the receipt files that prove it.
 
 Install either stack (chains are interchangeable across them):
 
-    pip install tamper-signal       # Python 3.11+, command: receipts
+    pip install tamper-signal       # Python 3.11+, command: tamper-signal
     npm install -g tamper-signal    # Node 18.17+, command: tamper-signal
 
 Then, from the folder you unzipped this into:
 
-    receipts verify chain.json
+    tamper-signal verify chain.json
 
 The exit code is the traffic light: 0 green (intact), 2 yellow (verifies, with
 caveats), 1 red (broken, at the exact link, with the totals that moved).

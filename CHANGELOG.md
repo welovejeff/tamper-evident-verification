@@ -13,6 +13,7 @@ One light, one room. The outcome of a full design review of the browser UI: the 
 - **A verification memo in the shared core** — concurrent `verifyReceipts` calls with the same chain URL, trusted keyset, and drift flag share one in-flight run, and a completed result is reused for 250ms (hard below the 1000ms minimum watch interval), so a light and a room on one page fetch the chain and run Ed25519 once per refresh cycle. Different keysets never share a result. `invalidateVerification(chainUrl?)` busts synchronously; the room's re-verify always does.
 - **Evidence export at red** — the room's "Take your data" footer offers an evidence bundle (chain + receipts + the browser verifier's transcript) when the chain is broken, so the failure itself is portable; the verified bundle is still offered only for attested green/yellow data, and can now opt in `timeline.json` and the verification transcript.
 - `tamper-signal assets` (both stacks) now vendors `room.js` alongside the other five surfaces.
+- **A Claude Code plugin.** `/plugin marketplace add welovejeff/tamper-evident-verification`, then `/plugin install tamper-signal@welovejeff`, gives Claude Code an `add-tamper-signal` skill that follows `AGENTS.md`. A `context7.json` points documentation indexers at the same runbook.
 - **The export step is automatable** — `rebuildChain({ exportTable: true })` (Node) and `@receipt_step(..., write_table=True)` on the final stage (Python) write `table.json` as the last pipeline step, so the room's landing plane cannot go stale on a rebuild. And when a published `table.json` does go stale, both verify CLIs print a one-line stderr reminder naming the re-run command (absence stays silent, `--json` stdout is untouched, and the chain verdict and exit code never change).
 
 ### Changed
@@ -22,6 +23,10 @@ One light, one room. The outcome of a full design review of the browser UI: the 
 
 ### Fixed
 
+- **`tamper-signal demo` crashed after a plain `pip install`.** It imported its sample generator and transforms from a repo checkout's `examples/`, which the wheel never contained. They now ship inside the package (`tamper_signal/_demo`), and a test runs the demo from an empty directory.
+- **The demo could overwrite a real signing key.** It regenerates `keys/` and `receipts/` in the directory it runs in; outside a repo clone it now works in its own `tamper-signal-demo/` folder and never touches the caller's files.
+- **Hints named the deprecated command.** `init`, `doctor`, `serve`, `anchor`, `review`, the offline bundle README, and the room's UI now say `tamper-signal`, not `receipts`. The demo, `init`, and `--help` end with the docs and source links.
+- **Long custody metadata widened the page on phones.** The room's chain-of-custody rows now wrap an unbroken origin or code hash instead of scrolling the host page sideways.
 - **The unverifiable badge state wore amber.** `renderReceiptBadge`'s capability fallback ("could not load", "unsupported browser") was styled with the yellow verdict's color, violating the grey-is-not-a-verdict rule; it is now grey. (`renderReceiptBadge` itself is deprecated — mount the light with the room behind it — and will be removed in 3.0.)
 - **The committed coverage-gap fixture verified red, not yellow.** `examples/chains/gap/chain.json` recorded the renamed receipt's hash under its old filename (`002_aggregate.json` instead of `003_aggregate.json`), so every surface pointed at the "yellow" demo chain actually showed `receipt file mismatch` since receipt-hash enforcement landed.
 

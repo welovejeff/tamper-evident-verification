@@ -152,6 +152,8 @@ code, pre { font-family: var(--mono); }
 .codeswitch[data-lang="js"] .lang-py { display: none; }
 
 /* Comparison table inside a post (tooltip vs export vs Data tab, etc.). */
+.post .tbl-scroll { overflow-x: auto; margin: 0 0 22px; }
+.post .tbl-scroll table.cmp { margin: 0; min-width: 560px; }
 .post table.cmp {
   width: 100%; border-collapse: collapse; margin: 4px 0 26px;
   font-size: 14px; border: 1px solid var(--border); border-radius: 10px;
@@ -175,6 +177,13 @@ code, pre { font-family: var(--mono); }
 .post table.cmp tbody tr:last-child { background: rgba(52, 211, 153, 0.05); }
 
 /* ---------- related reading (foot of each post) ---------- */
+/* ---------- try-it box (end of every post) ---------- */
+.try-box { border: 1px solid var(--border); border-radius: 12px; background: var(--panel); padding: 18px 20px; margin: 8px 0 28px; }
+.try-box p { color: var(--dim); font-size: 15px; margin: 0 0 10px; }
+.try-box p:last-child { margin-bottom: 0; }
+.try-box code { color: var(--text); font-size: 0.9em; }
+.try-box .try-k { font: 12px var(--mono); color: var(--faint); letter-spacing: 2px; text-transform: uppercase; margin: 0 0 8px; }
+
 .related { padding: 10px 0 4px; }
 .related .wrap { max-width: 760px; }
 .related-k { font: 12px var(--mono); color: var(--faint); letter-spacing: 2px; text-transform: uppercase; margin: 0 0 6px; }

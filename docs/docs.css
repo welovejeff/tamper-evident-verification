@@ -259,3 +259,6 @@ table.ref tr:hover td { background: rgba(255, 255, 255, 0.015); }
 footer { border-top: 1px solid var(--border); margin-top: 48px; padding: 26px 0 50px; font: 12px var(--mono); color: var(--faint); }
 footer .wrap { max-width: 1180px; display: flex; flex-wrap: wrap; gap: 16px; align-items: baseline; }
 footer a { color: var(--cyan); }
+
+/* ---------- freshness line ---------- */
+.doc-updated { font: 12px var(--mono); color: var(--faint); margin-top: 36px; }
