@@ -11,9 +11,10 @@
 # One-time setup, done in each registry's web UI:
 # - PyPI: add a "trusted publisher" for this repo/workflow on the
 #   tamper-signal project (no token needed; uses the id-token permission).
-# - npm: after the first manual `npm publish`, either configure trusted
-#   publishing for this repo/workflow on the package settings, or create a
-#   granular automation token and save it as the NPM_TOKEN repo secret.
+# - npm: trusted publishing. On npmjs.com, package tamper-signal > Settings >
+#   Trusted Publisher > GitHub Actions: user welovejeff, repository
+#   tamper-evident-verification, workflow release.yml. No token needed; the
+#   publish authenticates with this workflow's OIDC identity.
 name: release
 
 on:
@@ -74,7 +75,11 @@ jobs:
           python-version: "3.12"
       - run: pip install build
       - run: python -m build
+      # skip-existing lets a release be re-run after a later job failed
+      # without PyPI rejecting the version that already went up.
       - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          skip-existing: true
 
   npm:
     needs: test
@@ -82,24 +87,21 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    env:
-      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
           registry-url: "https://registry.npmjs.org"
+      # Trusted publishing needs npm 11.5.1 or later; Node 22 bundles npm 10.
+      - run: npm install -g npm@^11.5.1
       # Skip cleanly (instead of failing the release) when the version is
-      # already on npm (e.g. published manually) or no token is configured.
+      # already on npm, e.g. published by an earlier run.
       - name: Decide whether to publish
         id: gate
         run: |
           VERSION=$(node -p "require('./package.json').version")
-          if [ -z "$NODE_AUTH_TOKEN" ]; then
-            echo "no NPM_TOKEN secret; skipping npm publish"
-            echo "go=false" >> "$GITHUB_OUTPUT"
-          elif npm view "tamper-signal@$VERSION" version >/dev/null 2>&1; then
+          if npm view "tamper-signal@$VERSION" version >/dev/null 2>&1; then
             echo "tamper-signal@$VERSION already on npm; skipping"
             echo "go=false" >> "$GITHUB_OUTPUT"
           else
