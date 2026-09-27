@@ -18,7 +18,7 @@
 
 <div class="top">
   <div class="wrap">
-    <a class="logo-stacked" href="/" aria-label="Tamper Signal — home">
+    <a class="logo-stacked" href="/" aria-label="Tamper Signal home">
       <span class="ls-rail" aria-hidden="true"><i class="r"></i><i class="y"></i><i class="g"></i></span>
       <span class="ls-words">TAMPER<br>SIGNAL</span>
     </a>
@@ -112,7 +112,7 @@
     </div>
 
     <h3 id="room-api">Browser: the light and the room</h3>
-    <p>Two browser entry points, always shipped together: <code>tamper-signal/light</code> exports <code>mountTamperSignal(el, chainUrl, pubKey?, opts?)</code> (the inline status pill), and <code>tamper-signal/room</code> exports <code>mountSignalRoom(el, chainUrl, pubKey?, opts?)</code> — the one robust surface behind it (attested table, provenance rail, break exhibit, receipt inspector, event log, chain of custody, evidence export) — plus the <code>&lt;tamper-signal-room&gt;</code> element, usable straight from React JSX. Room options: <code>tableUrl</code>, <code>timelineUrl</code>, <code>warnDrift</code>, <code>watch</code>, <code>strict</code>, <code>maxRows</code>, <code>onState</code>, <code>focus</code>, <code>preset</code> (<code>room</code>&thinsp;|&thinsp;<code>table</code>&thinsp;|&thinsp;<code>console</code>), <code>density</code> (<code>embedded</code>&thinsp;|&thinsp;<code>page</code>). The handle exposes <code>ready</code>, <code>refresh()</code>, <code>getState()</code>, <code>open(target)</code>, <code>destroy()</code>. The 2.0 <code>tamper-signal/table</code> and <code>tamper-signal/console</code> mounts keep working as room-backed presets through 2.x.</p>
+    <p>Two browser entry points, always shipped together: <code>tamper-signal/light</code> exports <code>mountTamperSignal(el, chainUrl, pubKey?, opts?)</code> (the inline status pill), and <code>tamper-signal/room</code> exports <code>mountSignalRoom(el, chainUrl, pubKey?, opts?)</code>, the one robust surface behind it (attested table, provenance rail, break exhibit, receipt inspector, event log, chain of custody, evidence export), plus the <code>&lt;tamper-signal-room&gt;</code> element, usable straight from React JSX. Room options: <code>tableUrl</code>, <code>timelineUrl</code>, <code>warnDrift</code>, <code>watch</code>, <code>strict</code>, <code>maxRows</code>, <code>onState</code>, <code>focus</code>, <code>preset</code> (<code>room</code>&thinsp;|&thinsp;<code>table</code>&thinsp;|&thinsp;<code>console</code>), <code>density</code> (<code>embedded</code>&thinsp;|&thinsp;<code>page</code>). The handle exposes <code>ready</code>, <code>refresh()</code>, <code>getState()</code>, <code>open(target)</code>, <code>destroy()</code>. The 2.0 <code>tamper-signal/table</code> and <code>tamper-signal/console</code> mounts keep working as room-backed presets through 2.x.</p>
 
     <h3 id="rebuild">Rebuilding idempotently</h3>
     <p>Pipelines re-run whenever the source changes. Appending to an existing chain would stack stale receipts, so reset first. Two equivalent patterns:</p>
