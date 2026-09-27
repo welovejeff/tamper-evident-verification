@@ -9,7 +9,7 @@ evidence: docs/plans/2026-09-26-001-growth-github-stars-evidence.md
 
 # Tamper Signal: +10 GitHub stars by Saturday 2026-10-03
 
-## Status (updated Sun 2026-09-27)
+## Status (updated Sun 2026-09-27, evening)
 
 **Done on branch `claude/github-stars-growth-strategy-us37ov` (merge to ship):**
 
@@ -36,14 +36,17 @@ evidence: docs/plans/2026-09-26-001-growth-github-stars-evidence.md
 - Mon: optional email to hn@ycombinator.com asking about a later Show HN, and create a Product Hunt account so a week-2 or week-3 launch is possible. Take part in HN comments genuinely in the meantime.
 - The launch kit (private page) carries every step and draft in this order.
 
-**Yours (in order):**
-1. Merge the PR; the site deploys from `main`.
-2. `git tag v2.1.0 && git push origin v2.1.0`, wait for `release.yml`, create the GitHub Release from the CHANGELOG, then `scripts/check-release.sh 2.1.0`. No outreach until it prints "All checks passed."
-3. Settings: upload `docs/media/social-preview.png` as the social preview, enable Discussions, add topics `hacktoberfest` `data-provenance` `audit-trail` `pandas`, pin the repo on your profile.
-4. Submit the repo at context7.com/add-library.
-5. The HN gate decision, the warm list, and every post in the appendix (your voice).
-6. Close #59 (v2.0 shipped) and decide on PR #60.
+**Kickoff moved to Mon 9/28 (decided Sun 9/27).** The seven-day window is now Mon Sep 28 to Sun Oct 4. Sunday's items (release, settings, PyCoder's, warm wave 1a) move to Monday, and the r/Python Sunday Daily Thread reply moves to Sun Oct 4, which is also count day. The launch kit carries this order. The day-by-day calendar in section 5 keeps its original dates for the record; read "Sun" items as Monday.
 
+**Release state:** PyPI 2.1.0 is live and passes `scripts/check-release.sh` (fresh venv, `tamper-signal demo`). npm is still on 2.0.0: the first run failed on an expired token, and `release.yml` now uses npm trusted publishing (#75), which needs the Trusted Publisher set on npmjs.com once. No v2.1.0 tag or GitHub Release yet; the manual run creates both.
+
+**Yours (in order, Mon 9/28 at a desktop):**
+1. npmjs.com, package `tamper-signal`, Settings, Trusted Publisher: GitHub Actions, `welovejeff` / `tamper-evident-verification` / `release.yml`.
+2. Actions, `release.yml`, Run workflow on `main` with version `2.1.0`. It skips PyPI, publishes npm, tags, and writes the GitHub Release. Then `scripts/check-release.sh 2.1.0`.
+3. Settings: upload `docs/media/social-preview.png` as the social preview, enable Discussions, add topics `hacktoberfest` `data-provenance` `audit-trail` `pandas`, pin the repo on your profile, approve the fork workflow runs on #69 and #70.
+4. Submit the repo at context7.com/add-library (Fri in the kit).
+5. The warm list and every post in the appendix (your voice).
+6. Close #59 (v2.0 shipped) and decide on PR #60.
 
 ## 1. Bottom line
 
