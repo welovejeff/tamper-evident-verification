@@ -737,8 +737,8 @@ would diverge from the Python canonicalization and is locale-ambiguous (`"1,234"
 is 1234 or 1.234?). Fix it upstream with a signed normalize stage that strips
 the separators before the receipt is written. On Node, `tamper-signal ingest`
 prints a warning naming any such columns, and `groupedNumericColumns(records)`
-finds them in code; the Python CLI does not warn yet (issue #67), so check
-exports with grouped numbers yourself.
+finds them in code; the Python CLI also warns on stderr (including with `--json`), and
+`grouped_numeric_columns(records)` is available from `tamper_signal`.
 
 ## 8. Publish table.json so the room's landing plane fills
 

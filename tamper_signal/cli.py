@@ -42,7 +42,7 @@ from .receipts import (
     receipt_file_hashes,
     verify_chain,
 )
-from .totals import control_totals
+from .totals import control_totals, grouped_numeric_columns
 from .wrapper import (
     DEFAULT_BAND,
     DEFAULT_SETTLE_HOURS,
@@ -305,6 +305,15 @@ def cmd_ingest(args: argparse.Namespace) -> int:
             "warning: previous run was never verified; its totals will not enter history",
             file=sys.stderr,
         )
+
+    grouped = grouped_numeric_columns(result["records"])
+    if grouped:
+        print("", file=sys.stderr)
+        for item in grouped:
+            print(f'  warning: column "{item["column"]}" looks numeric (e.g. "{item["example"]}") but is missing from numeric_sums.', file=sys.stderr)
+        print("  Grouped numbers don't parse as plain decimals, so these columns are left out of the control totals'", file=sys.stderr)
+        print("  numeric_sums -- a data-receipt-column on them can never flag a change. Add a normalize step that", file=sys.stderr)
+        print("  strips the separators before ingest. Only plain decimals (no thousands grouping) are summed.", file=sys.stderr)
 
     manifest = result["manifest"]
     tolerance = manifest.get("tolerance")
