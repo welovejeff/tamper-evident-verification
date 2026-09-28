@@ -172,7 +172,7 @@ signal = attach(app, receipts_dir=<span class="s">"receipts/"</span>)</code></pr
     <p>Column names are the normalized keys from the receipts' control totals: lowercased, spaces turned to underscores. Read them from <code>numeric_sums</code> and <code>null_counts</code> in the receipt files.</p>
     <div class="callout warn">
       <span class="co-label">A real limit worth knowing</span>
-      <p>Only plain decimals are summed into <code>numeric_sums</code>. A thousands-grouped string like <code>"289,084"</code> or <code>"1 198 372"</code> is not coerced to a number, so that column never reaches the totals, and <code>data-receipt-column</code> on it cannot flag a change. The fix is upstream: a signed normalize stage that turns the column into plain decimals. On Node, the <code>ingest</code> command prints a warning naming such columns, and <code>groupedNumericColumns(records)</code> finds them in code. The Python CLI does not warn yet (<a href="https://github.com/welovejeff/tamper-evident-verification/issues/67">#67</a>).</p>
+      <p>Only plain decimals are summed into <code>numeric_sums</code>. A thousands-grouped string like <code>"289,084"</code> or <code>"1 198 372"</code> is not coerced to a number, so that column never reaches the totals, and <code>data-receipt-column</code> on it cannot flag a change. The fix is upstream: a signed normalize stage that turns the column into plain decimals. On both Node and Python, the <code>ingest</code> command prints a warning naming such columns during normal ingest; <code>--json</code> keeps stderr silent. The helpers <code>groupedNumericColumns(records)</code> and <code>grouped_numeric_columns(records)</code> find them in code.</p>
     </div>
 
     <h2 id="verify-ui">Verify your wiring</h2>

@@ -52,6 +52,29 @@ def _columns(records: list[dict[str, Any]]) -> list[str]:
     return columns
 
 
+
+_GROUPED_NUMERIC_RE = re.compile(r"^[+-]?[0-9]{1,3}([,\u0020\u00a0\u202f][0-9]{3})+(\.[0-9]+)?$")
+
+
+def grouped_numeric_columns(records: list[dict[str, Any]]) -> list[dict[str, str]]:
+    """Columns excluded from numeric sums that would qualify without grouping."""
+    normalized = [{normalize_header(k): v for k, v in record.items()} for record in records]
+    flagged = []
+    for column in _columns(records):
+        non_null = [row.get(column) for row in normalized if normalize_cell(row.get(column)) is not None]
+        if not non_null:
+            continue
+        coercible = sum(_coerce_decimal(value) is not None for value in non_null)
+        if coercible / len(non_null) >= _TYPE_THRESHOLD:
+            continue
+        grouped = [value.strip() for value in non_null
+                   if isinstance(value, str) and _coerce_decimal(value) is None
+                   and _GROUPED_NUMERIC_RE.fullmatch(value.strip())]
+        if grouped and (coercible + len(grouped)) / len(non_null) >= _TYPE_THRESHOLD:
+            flagged.append({"column": column, "example": grouped[0]})
+    return flagged
+
+
 def _try_date(value: Any) -> bool:
     """True only for real date/datetime objects.
 
