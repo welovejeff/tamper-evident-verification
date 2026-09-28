@@ -1,0 +1,60 @@
+# Flags pull requests from outside contributors that touch sensitive paths:
+# files other people's coding agents follow (AGENTS.md, plugins), CI and
+# release, install-time packaging, browser code shipped to visitors, and key
+# material. The check fails on purpose so the PR shows a red flag; a
+# maintainer reviews those files line by line and can still merge.
+#
+# Why pull_request_target, and why it is safe here: this event runs the
+# workflow as it exists on main, so a PR cannot edit the check to pass itself.
+# That event is dangerous only when a job checks out or runs the PR's code.
+# This job never checks out anything; it reads the PR's file list from the
+# API with a read-only token, matches it in grep, and never echoes a
+# PR-controlled string to stdout (file names go to the job summary only).
+name: sensitive-paths
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  pull-requests: read
+
+jobs:
+  review:
+    name: "sensitive paths: maintainer review"
+    if: ${{ !contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.pull_request.author_association) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Match changed files against sensitive paths
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          gh api --paginate "repos/$REPO/pulls/$PR/files" \
+            --jq '.[] | .filename, (.previous_filename // empty)' > changed.txt
+          grep -E \
+            -e '^(AGENTS\.md|CLAUDE\.md|llms\.txt|context7\.json|CNAME|analytics\.js|package\.json|pyproject\.toml|setup\.py|setup\.cfg|MANIFEST\.in)$' \
+            -e '^(\.github|\.claude|\.claude-plugin|plugins|scripts|badge|tamper_signal/static|keys)/' \
+            -e '(^|/)package-lock\.json$' \
+            -e '(^|/)requirements[^/]*\.txt$' \
+            -e '\.(key|pem)$' \
+            changed.txt | sort -u > flagged.txt || true
+          count=$(wc -l < flagged.txt)
+          if [ "$count" -eq 0 ]; then
+            echo "No sensitive paths changed."
+            exit 0
+          fi
+          {
+            echo "### Sensitive paths changed by an outside contributor"
+            echo
+            echo "Review each of these line by line before merging. AGENTS.md and plugins are instructions other people's coding agents follow; .github and scripts run in CI and release; manifests run at install time; badge and static are code that visitors' browsers run."
+            echo
+            echo '```'
+            cat flagged.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::error title=Sensitive paths changed::This outside PR changes $count sensitive file(s). A maintainer must review them line by line before merging; the list is in the job summary."
+          exit 1

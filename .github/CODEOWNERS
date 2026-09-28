@@ -1,0 +1,28 @@
+# Paths where a bad change reaches someone else's machine: files coding agents
+# read and follow, CI and release, install-time packaging, browser code shipped
+# to visitors, and the site's domain. A PR touching any of these requests the
+# owner's review. The sensitive-paths workflow flags the same list on outside PRs.
+
+# Instructions that other people's coding agents read and act on
+/AGENTS.md              @welovejeff
+/CLAUDE.md              @welovejeff
+/llms.txt               @welovejeff
+/context7.json          @welovejeff
+/plugins/               @welovejeff
+/.claude-plugin/        @welovejeff
+/.claude/               @welovejeff
+
+# CI, release, and the scripts they run
+/.github/               @welovejeff
+/scripts/               @welovejeff
+
+# Packaging and dependencies (code that runs at install time)
+/package.json           @welovejeff
+package-lock.json       @welovejeff
+/pyproject.toml         @welovejeff
+
+# Browser code shipped to visitors, and the site's domain
+/badge/                 @welovejeff
+/tamper_signal/static/  @welovejeff
+/analytics.js           @welovejeff
+/CNAME                  @welovejeff
