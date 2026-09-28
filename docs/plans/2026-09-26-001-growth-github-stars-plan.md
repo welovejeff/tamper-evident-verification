@@ -38,11 +38,11 @@ evidence: docs/plans/2026-09-26-001-growth-github-stars-evidence.md
 
 **Kickoff moved to Mon 9/28 (decided Sun 9/27).** The seven-day window is now Mon Sep 28 to Sun Oct 4. Sunday's items (release, settings, PyCoder's, warm wave 1a) move to Monday, and the r/Python Sunday Daily Thread reply moves to Sun Oct 4, which is also count day. The launch kit carries this order. The day-by-day calendar in section 5 keeps its original dates for the record; read "Sun" items as Monday.
 
-**Release state:** PyPI 2.1.0 is live and passes `scripts/check-release.sh` (fresh venv, `tamper-signal demo`). npm is still on 2.0.0: the first run failed on an expired token, and `release.yml` now uses npm trusted publishing (#75), which needs the Trusted Publisher set on npmjs.com once. No v2.1.0 tag or GitHub Release yet; the manual run creates both.
+**Release state:** PyPI 2.1.0 is live and passes `scripts/check-release.sh` (fresh venv, `tamper-signal demo`). npm is still on 2.0.0: the first run failed on an expired token, and `release.yml` now uses npm trusted publishing (#75), which needs the Trusted Publisher set on npmjs.com once. No v2.1.0 tag or GitHub Release yet. **Decided Mon 9/28: ship 2.1.1 instead.** The contributor PRs (#69, #70) and the banner fix merged after PyPI 2.1.0 was built, so a 2.1.0 tag on main would not match what PyPI holds. 2.1.1 goes to PyPI and npm from the same commit; npm skips 2.1.0.
 
 **Yours (in order, Mon 9/28 at a desktop):**
 1. npmjs.com, package `tamper-signal`, Settings, Trusted Publisher: GitHub Actions, `welovejeff` / `tamper-evident-verification` / `release.yml`.
-2. Actions, `release.yml`, Run workflow on `main` with version `2.1.0`. It skips PyPI, publishes npm, tags, and writes the GitHub Release. Then `scripts/check-release.sh 2.1.0`.
+2. Actions, `release.yml`, Run workflow on `main` with version `2.1.1`. It publishes PyPI and npm, tags `v2.1.1`, and writes the GitHub Release. Then `scripts/check-release.sh 2.1.1`.
 3. Settings: upload `docs/media/social-preview.png` as the social preview, enable Discussions, add topics `hacktoberfest` `data-provenance` `audit-trail` `pandas`, pin the repo on your profile, approve the fork workflow runs on #69 and #70.
 4. Submit the repo at context7.com/add-library (Fri in the kit).
 5. The warm list and every post in the appendix (your voice).
@@ -249,7 +249,7 @@ Check every live sidebar before posting. Reddit rows were re-verified Sun 9/27 f
 | Console.dev | Ineligible | Pre-1.0 only |
 | Data Engineering Weekly | Article PR only | Takes technical articles by PR under `weekly/` (YAML entry), no vendor promotion; not bare project links |
 | Changelog News | Allowed | Sign in and submit at changelog.com/news/submit with a news angle; no tutorials |
-| Cooperpress (Node/JS Weekly) | Allowed | Submit form at cooperpress.com/submit/ (or reply to an issue email); ship npm 2.1.0 first |
+| Cooperpress (Node/JS Weekly) | Allowed | Submit form at cooperpress.com/submit/ (or reply to an issue email); ship npm 2.1.1 first |
 | OpenAlternative | Not yet | Star floor, reportedly 10 |
 | Python Weekly, TLDR Data | No verified path | Skip this week |
 | GitHub Trending | Unreachable | Lowest daily Python entry already had 1,167+ stars |

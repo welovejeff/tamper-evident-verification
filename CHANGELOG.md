@@ -2,11 +2,13 @@
 
 All notable changes to Tamper Signal are recorded here. The Python (`tamper-signal` on PyPI) and JavaScript (`tamper-signal` on npm) packages are versioned in lockstep and produce interchangeable chains.
 
-## Unreleased
+## 2.1.1
+
+The first npm release since 2.0.0: npm skipped 2.1.0, so this brings everything in [2.1.0](https://github.com/welovejeff/tamper-evident-verification/blob/main/CHANGELOG.md#210) (the Signal Room) to npm, together with the fixes below. PyPI and npm ship the same 2.1.1.
 
 ### Added
 
-- `tamper-signal --version` (and `-v`) on both CLIs prints the installed version, e.g. `tamper-signal 2.1.0`. A Python install without package metadata prints `unknown (not installed)` instead of failing. (#70, thanks @fatihcvs)
+- `tamper-signal --version` (and `-v`) on both CLIs prints the installed version, e.g. `tamper-signal 2.1.1`. A Python install without package metadata prints `unknown (not installed)` instead of failing. (#70, thanks @fatihcvs)
 - Python `ingest` now warns on stderr when a column holds thousands-grouped numbers (`"1,200"`, `"1 198 372"`) that are left out of `numeric_sums`, with the same text as the Node CLI; `--json` keeps stderr silent on both stacks. `grouped_numeric_columns(records)` is exported from `tamper_signal`. (#69, thanks @fatihcvs)
 
 ### Fixed
