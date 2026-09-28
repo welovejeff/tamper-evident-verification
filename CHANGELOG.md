@@ -4,6 +4,11 @@ All notable changes to Tamper Signal are recorded here. The Python (`tamper-sign
 
 ## Unreleased
 
+### Added
+
+- `tamper-signal --version` (and `-v`) on both CLIs prints the installed version, e.g. `tamper-signal 2.1.0`. A Python install without package metadata prints `unknown (not installed)` instead of failing. (#70, thanks @fatihcvs)
+- Python `ingest` now warns on stderr when a column holds thousands-grouped numbers (`"1,200"`, `"1 198 372"`) that are left out of `numeric_sums`, with the same text as the Node CLI; `--json` keeps stderr silent on both stacks. `grouped_numeric_columns(records)` is exported from `tamper_signal`. (#69, thanks @fatihcvs)
+
 ### Fixed
 
 - The first-run banner that `tamper-signal init` prints on a color terminal now has a closed right border (the top and bottom lines were one character short).
