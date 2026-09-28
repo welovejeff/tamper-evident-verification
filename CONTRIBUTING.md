@@ -36,6 +36,7 @@ CI runs both suites on Linux, macOS, and Windows, so keep paths and line endings
 2. **The browser assets ship twice.** `tamper_signal/static/` must stay byte-identical to `badge/`. After editing a surface: `cp badge/{badge,light,element,table,console,room}.js tamper_signal/static/` (a test fails on drift).
 3. **Copy follows `docs/MESSAGING.md`.** Tamper Signal proves continuity, not correctness: "It can't tell you the data is right, but it can prove nobody changed it." Never write that it ensures accuracy or guarantees anything, keep the three verdict lines verbatim, and skip em dashes in README and UI copy.
 4. **Never commit key material.** `keys/` and `*.key` are gitignored; keep it that way in tests and examples too.
+5. **Some paths get a line-by-line review.** `AGENTS.md`, `llms.txt`, and `plugins/` are instructions other people's coding agents follow; `.github/` and `scripts/` run in CI and release; `package.json` and `pyproject.toml` run at install time; `badge/` and `tamper_signal/static/` run in visitors' browsers. A PR from outside the project that touches any of them gets a red `sensitive paths` check until a maintainer has read those files. That's expected, not a verdict on the PR.
 
 ## Pull requests
 
@@ -46,3 +47,5 @@ CI runs both suites on Linux, macOS, and Windows, so keep paths and line endings
 ## Reporting a problem
 
 Open an issue with what you ran, what you expected, and what happened. For a verification result you think is wrong, include the output of `tamper-signal verify <chain.json> --json` (receipts are safe to share; never share `keys/signing.key`).
+
+Security issues (anything that lets changed data verify green) go through private reporting instead: see [SECURITY.md](SECURITY.md).
