@@ -19,16 +19,18 @@ def test_ingest_warns_only_for_grouped_column(tmp_path, monkeypatch, capsys, jso
     args = ["ingest", "data.csv"] + (["--json"] if json_output else [])
     assert main(args) == 0
     captured = capsys.readouterr()
-    assert 'warning: column "grouped"' in captured.err
-    assert 'column "plain"' not in captured.err
-    assert "strips the separators before ingest" in captured.err
     if json_output:
+        assert captured.err == ""
         payload = json.loads(captured.out)
         assert payload["row_count"] == 2
         assert "grouped_columns" not in payload
-    elif shutil.which("node"):
+    else:
+        assert 'warning: column "grouped"' in captured.err
+        assert 'column "plain"' not in captured.err
+        assert "strips the separators before ingest" in captured.err
+    if shutil.which("node"):
         cli = Path(__file__).resolve().parents[1] / "node" / "cli.js"
-        result = subprocess.run(["node", str(cli), "ingest", "data.csv", "--out", "node-receipts"], capture_output=True, text=True)
+        result = subprocess.run(["node", str(cli), "ingest", "data.csv", "--out", "node-receipts"] + (["--json"] if json_output else []), capture_output=True, text=True)
         assert result.returncode == 0, result.stderr
         assert result.stderr == captured.err
 

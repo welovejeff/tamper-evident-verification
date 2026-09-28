@@ -307,7 +307,7 @@ def cmd_ingest(args: argparse.Namespace) -> int:
         )
 
     grouped = grouped_numeric_columns(result["records"])
-    if grouped:
+    if grouped and not args.json:
         print("", file=sys.stderr)
         for item in grouped:
             print(f'  warning: column "{item["column"]}" looks numeric (e.g. "{item["example"]}") but is missing from numeric_sums.', file=sys.stderr)
