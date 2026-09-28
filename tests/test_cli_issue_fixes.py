@@ -165,3 +165,33 @@ def test_python_m_entrypoint_runs():
     )
     assert result.returncode == 0
     assert "usage" in (result.stdout + result.stderr).lower()
+
+
+def test_cli_version_uses_installed_metadata(tmp_path):
+    from importlib.metadata import version
+
+    for flag in ("--version", "-v"):
+        result = subprocess.run([sys.executable, "-m", "tamper_signal", flag], cwd=tmp_path, capture_output=True, text=True)
+        assert result.returncode == 0, result.stderr
+        assert result.stdout == f"tamper-signal {version('tamper-signal')}\n"
+        assert result.stderr == ""
+
+
+def test_cli_works_without_installed_metadata(monkeypatch, capsys):
+    import pytest
+    from importlib.metadata import PackageNotFoundError
+    from tamper_signal import cli
+
+    def missing_version(distribution):
+        raise PackageNotFoundError(distribution)
+
+    monkeypatch.setattr(cli, "version", missing_version)
+    parser = cli.build_parser()
+    assert parser.parse_args(["verify", "chain.json"]).func is cli.cmd_verify
+    for flag in ("--version", "-v"):
+        with pytest.raises(SystemExit) as exc:
+            parser.parse_args([flag])
+        assert exc.value.code == 0
+        captured = capsys.readouterr()
+        assert captured.out == "tamper-signal unknown (not installed)\n"
+        assert captured.err == ""

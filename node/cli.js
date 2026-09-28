@@ -1417,6 +1417,11 @@ function cmdTimeline(args) {
 }
 
 const [, , command, ...rawRest] = process.argv;
+if (command === "--version" || command === "-v") {
+  const { version } = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+  console.log(`tamper-signal ${version}`);
+  process.exit(0);
+}
 // --no-color is global: honor it at any position and strip it so each command's
 // strict parser does not reject it. NO_COLOR / FORCE_COLOR env are honored too.
 if (rawRest.includes("--no-color")) color.setNoColor(true);
