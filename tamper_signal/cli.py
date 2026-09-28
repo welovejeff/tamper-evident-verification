@@ -20,10 +20,10 @@ Commands:
 from __future__ import annotations
 
 import argparse
-from importlib.metadata import version
 import os
 import sys
 from collections.abc import Callable
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any
 
@@ -2268,6 +2268,13 @@ def cmd_demo(args: argparse.Namespace) -> int:
     return run_demo(serve=not args.no_serve, port=args.port)
 
 
+def _installed_version() -> str:
+    try:
+        return version("tamper-signal")
+    except PackageNotFoundError:
+        return "unknown (not installed)"
+
+
 def build_parser(prog: str = "tamper-signal") -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog=prog,
@@ -2275,7 +2282,7 @@ def build_parser(prog: str = "tamper-signal") -> argparse.ArgumentParser:
         epilog=f"Docs: {DOCS_URL}\nSource: {REPO_URL}",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("--version", "-v", action="version", version=f"tamper-signal {version('tamper-signal')}")
+    parser.add_argument("--version", "-v", action="version", version=f"tamper-signal {_installed_version()}")
     sub = parser.add_subparsers(dest="command", required=True)
 
     p_keygen = sub.add_parser("keygen", help="Generate an Ed25519 signing keypair")
