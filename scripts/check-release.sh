@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Post-release check: run after pushing a vX.Y.Z tag and letting release.yml finish.
-#   scripts/check-release.sh 2.1.0
+#   scripts/check-release.sh 2.1.1
 # Confirms both registries serve the version, the npm exports include every
 # browser surface, and a fresh pip install runs the demo outside a clone.
 set -euo pipefail

@@ -2,7 +2,7 @@
 
 > Signed receipts for vibe-coded data pipelines. Every pipeline stage signs a receipt; verification reports a traffic light: green (chain intact), yellow (verifies, with caveats), red (broken at an exact link, with the totals delta). This proves continuity, not correctness: it can't tell you the data is right, but it can prove nobody changed it.
 
-Current version: 2.1.0. Install: `pip install tamper-signal` (Python 3.11+) or `npm install tamper-signal` (Node 18.17+). Both give the same `tamper-signal` CLI (on Python, `receipts` is a deprecated alias), and chains are interchangeable across the two stacks. `tamper-signal demo` (Python) runs the whole story on sample data in its own folder.
+Current version: 2.1.1. Install: `pip install tamper-signal` (Python 3.11+) or `npm install tamper-signal` (Node 18.17+). Both give the same `tamper-signal` CLI (on Python, `receipts` is a deprecated alias), and chains are interchangeable across the two stacks. `tamper-signal demo` (Python) runs the whole story on sample data in its own folder.
 
 Period-over-period continuity: declare a signed tolerance at ingest (`--band`, `--settle`, `--bucket-column`) and recurring refreshes earn yellow caveats when recent data drifts past the band or settled data moves; `tamper-signal diff` and `tamper-signal log` read the auto-archived run history (weaker evidence than the chain).
 
