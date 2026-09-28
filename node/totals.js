@@ -419,7 +419,7 @@ export function totalsDelta(upstream, downstream) {
       const afterDec = coerceDecimal(after);
       if (beforeDec && afterDec) {
         const diff = sumDecimals([afterDec, { v: -beforeDec.v, exp: beforeDec.exp }]);
-        lines.push(`${column} ${before} -> ${after} (${decimalToPlainString(diff)})`);
+        lines.push(`${column} ${before} -> ${after} (${diff.v >= 0n ? "+" : ""}${decimalToPlainString(diff)})`);
       } else {
         // Sums in receipt JSON are attacker-controlled; report without a diff.
         lines.push(`${column} ${before} -> ${after}`);
