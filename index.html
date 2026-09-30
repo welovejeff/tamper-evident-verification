@@ -228,6 +228,31 @@
   .pain p { color: var(--dim); font-size: 16px; margin: 0 0 16px; }
   .pain p:last-child { color: var(--text); }
 
+  /* ---------- the film ---------- */
+  .film {
+    position: relative;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    background: #000;
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.5);
+  }
+  .film video { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; }
+  .film-play {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    display: inline-flex; align-items: center; gap: 10px;
+    font: 13px var(--mono); letter-spacing: 1px; color: var(--text);
+    background: rgba(11, 15, 20, 0.88);
+    border: 1px solid var(--faint); border-radius: 999px;
+    padding: 12px 20px;
+    cursor: pointer;
+  }
+  .film-play i { width: 9px; height: 9px; border-radius: 50%; display: block; background: var(--green); box-shadow: 0 0 10px var(--green); }
+  .film-play .fp-len { color: var(--dim); }
+  .film-play:hover { border-color: var(--dim); }
+  .film-play:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+  .film-play[hidden] { display: none; }
+
   /* ---------- the playground ---------- */
   .switcher {
     display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
@@ -571,6 +596,25 @@
     </div>
   </div>
 </header>
+
+<section id="film">
+  <div class="wrap">
+    <p class="sec-kicker">the film · 1:24</p>
+    <h2>Ninety-eight dollars</h2>
+    <p class="sec-lede">
+      A client's number doesn't match Sam's dashboard. Here's the evening that
+      costs without receipts, and what the status light shows with them.
+    </p>
+    <div class="film">
+      <video id="film-video" controls preload="metadata" playsinline
+        poster="docs/media/film/tamper-signal-film-poster.jpg" width="1280" height="720">
+        <source src="docs/media/film/tamper-signal-film.mp4" type="video/mp4" />
+        <track kind="captions" srclang="en" label="English" src="docs/media/film/tamper-signal-film.en.vtt" />
+      </video>
+      <button type="button" class="film-play" aria-label="Play the film, 1 minute 24 seconds"><i aria-hidden="true"></i>PLAY <span class="fp-len">· 1:24</span></button>
+    </div>
+  </div>
+</section>
 
 <section id="why">
   <div class="wrap">
@@ -1015,6 +1059,16 @@
         try { sessionStorage.setItem(CACHE_KEY, String(data.stargazers_count)); } catch {}
       }
     } catch { /* offline or rate-limited: leave the button as-is */ }
+  })();
+
+  // ---- the film: a branded play button over the poster; native controls after ----
+  (() => {
+    const video = document.getElementById("film-video");
+    const play = document.querySelector(".film-play");
+    if (!video || !play) return;
+    play.addEventListener("click", () => { video.play(); });
+    video.addEventListener("play", () => { play.hidden = true; });
+    video.addEventListener("ended", () => { play.hidden = false; });
   })();
 </script>
 </body>
