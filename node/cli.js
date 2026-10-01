@@ -52,6 +52,7 @@ import { UntrustedSignerError, appendPeriod, ingestFile } from "./wrapper.js";
 const USAGE = `usage: tamper-signal <command>
 
 commands:
+  init [--keys keys/] [--receipts receipts/]  initialize keys, .gitignore, and receipts
   keygen --out keys/                         generate an Ed25519 signing keypair
   ingest <file> --origin "..." [--key keys/signing.key] [--out receipts/]
                 [--band 5%] [--settle 72h] [--bucket-column <name>]
@@ -134,6 +135,71 @@ changed the data between the export and you.
 https://tampersignal.com
 `;
 
+const GITIGNORE_LINES = ["keys/", "*.key"];
+
+function cmdInit(args) {
+  const { values } = parseArgs({
+    args,
+    options: {
+      keys: { type: "string", default: "keys/" },
+      receipts: { type: "string", default: "receipts/" },
+    },
+  });
+
+  const actions = [];
+  const keyDir = values.keys;
+  const privatePath = join(keyDir, "signing.key");
+
+  if (existsSync(privatePath)) {
+    actions.push(`keys: ${privatePath} already exists (left untouched)`);
+  } else {
+    const { publicPath } = generateKeys(keyDir);
+    actions.push(`keys: generated ${privatePath} and ${publicPath}`);
+  }
+
+  const gitignore = ".gitignore";
+  const existing = existsSync(gitignore)
+    ? readFileSync(gitignore, "utf-8").split(/\r?\n/).filter((line, index, arr) =>
+        !(index === arr.length - 1 && line === "")
+      )
+    : [];
+
+  const missing = GITIGNORE_LINES.filter((line) => !existing.includes(line));
+
+  if (missing.length) {
+    const block = existing.length
+      ? [...existing, "", "# Tamper Signal: never commit private key material", ...missing]
+      : ["# Tamper Signal: never commit private key material", ...missing];
+
+    writeFileSync(gitignore, block.join("\n") + "\n", "utf-8");
+    actions.push(`.gitignore: added ${missing.join(", ")}`);
+  } else {
+    actions.push(".gitignore: already covers keys/ and *.key");
+  }
+
+  const receiptsDir = values.receipts;
+
+  if (existsSync(receiptsDir)) {
+    actions.push(`receipts: ${receiptsDir}/ already exists`);
+  } else {
+    mkdirSync(receiptsDir, { recursive: true });
+    actions.push(`receipts: created ${receiptsDir}/`);
+  }
+
+  for (const action of actions) {
+    console.log(` - ${action}`);
+  }
+
+  console.log(
+    `\nNext: tamper-signal ingest <export-file> --origin "..." ` +
+    `--key ${privatePath} --out ${receiptsDir}/`
+  );
+
+  console.log("Then wrap each transform with @receipt_step: https://tampersignal.com/");
+  console.log("Source: https://github.com/welovejeff/tamper-evident-verification");
+
+  return 0;
+}
 function cmdKeygen(args) {
   const { values } = parseArgs({ args, options: { out: { type: "string", default: "keys/" } } });
   const { privatePath, publicPath } = generateKeys(values.out);
@@ -224,7 +290,7 @@ function cmdIngestPeriod(values, file) {
   } catch (err) {
     if (err instanceof UntrustedSignerError) {
       if (values.json) printJson({ ok: false, error: `Refusing to append a period: ${err.message}` });
-      else console.error(`✗ Refusing to append a period: ${err.message}`);
+      else console.error(`ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Refusing to append a period: ${err.message}`);
       return 1;
     }
     if (values.json) printJson({ ok: false, error: err.message });
@@ -498,7 +564,7 @@ function cmdVerify(args) {
       }
       if (tableHash !== outputHashOf(receipts[receipts.length - 1])) {
         console.error(
-          "⚠ table.json beside this chain does not match the final receipt; the room " +
+          "ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã‚Â¡Ãƒâ€šÃ‚Â  table.json beside this chain does not match the final receipt; the room " +
             "will show NOT THE ATTESTED DATA. Re-run: tamper-signal export <chain.json> --data <file>"
         );
       }
@@ -575,10 +641,10 @@ function foldJudgment(result, caveats) {
     result.lines.splice(result.lines.length - 1, 0, ...newLines);
   } else {
     const header = result.lines.length ? result.lines[result.lines.length - 1] : "";
-    const prefix = "✓ CHAIN INTACT: ";
+    const prefix = "ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ CHAIN INTACT: ";
     const summary = header.startsWith(prefix) ? header.slice(prefix.length) : header;
     if (result.lines.length) {
-      result.lines[result.lines.length - 1] = `⚠ CHAIN VERIFIES, WITH CAVEATS: ${summary}`;
+      result.lines[result.lines.length - 1] = `ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã‚Â¡Ãƒâ€šÃ‚Â  CHAIN VERIFIES, WITH CAVEATS: ${summary}`;
     }
     result.lines.push(...newLines, "  A human should look.");
   }
@@ -1188,7 +1254,7 @@ function cmdExport(args) {
         data_hash: dataHash,
       });
     } else {
-      console.error("✗ Refusing to export: the data does not match the final receipt.");
+      console.error("ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Refusing to export: the data does not match the final receipt.");
       console.error(`  expected output hash ${expected}`);
       console.error(`  found    data hash   ${dataHash}`);
       console.error("  The Data tab only shows attested data. Re-run the pipeline or fix --data.");
@@ -1331,7 +1397,7 @@ function cmdAnnotate(args) {
   if (chain.public_key && signerHex !== chain.public_key) {
     return fail(
       `Signing key does not match the chain's key; the annotation would not verify ` +
-        `(chain key ${chain.public_key.slice(0, 12)}…, your key ${signerHex.slice(0, 12)}…).`,
+        `(chain key ${chain.public_key.slice(0, 12)}ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦, your key ${signerHex.slice(0, 12)}ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦).`,
     );
   }
   const annotation = buildAnnotation({
@@ -1348,9 +1414,9 @@ function cmdAnnotate(args) {
     return 0;
   }
   console.log(`Signed annotation written: ${path}`);
-  console.log(`  bound to ${tail} (${target.slice(0, 12)}…)`);
+  console.log(`  bound to ${tail} (${target.slice(0, 12)}ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦)`);
   if (values.author) console.log(`  self-declared author: ${values.author} (attribution, not verified identity)`);
-  if (values.supersedes) console.log(`  supersedes ${values.supersedes.slice(0, 12)}…`);
+  if (values.supersedes) console.log(`  supersedes ${values.supersedes.slice(0, 12)}ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦`);
   return 0;
 }
 
@@ -1412,7 +1478,7 @@ function cmdTimeline(args) {
     return 0;
   }
   console.log(`Wrote provenance timeline: ${path}`);
-  console.log(`  ${doc.entries.length} entries, ${signed ? "signed" : "unsigned"}, bound to chain tail ${doc.chain_tail.slice(0, 12)}…`);
+  console.log(`  ${doc.entries.length} entries, ${signed ? "signed" : "unsigned"}, bound to chain tail ${doc.chain_tail.slice(0, 12)}ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦`);
   return 0;
 }
 
@@ -1426,9 +1492,12 @@ if (command === "--version" || command === "-v") {
 // strict parser does not reject it. NO_COLOR / FORCE_COLOR env are honored too.
 if (rawRest.includes("--no-color")) color.setNoColor(true);
 const rest = rawRest.filter((arg) => arg !== "--no-color");
-const commands = { keygen: cmdKeygen, ingest: cmdIngest, verify: cmdVerify, diff: cmdDiff, log: cmdLog, export: cmdExport, assets: cmdAssets, annotate: cmdAnnotate, timeline: cmdTimeline };
+const commands = { init: cmdInit, keygen: cmdKeygen, ingest: cmdIngest, verify: cmdVerify, diff: cmdDiff, log: cmdLog, export: cmdExport, assets: cmdAssets, annotate: cmdAnnotate, timeline: cmdTimeline };
 if (!command || !(command in commands)) {
   console.error(USAGE);
   process.exit(command ? 1 : 0);
 }
 process.exit(commands[command](rest));
+
+
+

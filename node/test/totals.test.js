@@ -18,7 +18,7 @@ import {
   sumDecimals,
 } from "../canonical.js";
 import { loadCsv } from "../load.js";
-import { UNBUCKETED_KEY, controlTotals, groupedNumericColumns } from "../totals.js";
+import { totalsDelta,  UNBUCKETED_KEY, controlTotals, groupedNumericColumns } from "../totals.js";
 
 test("comma-grouped column is excluded from numeric_sums", () => {
   const records = [
@@ -280,4 +280,27 @@ test("loadCsv with ISO dates buckets identically to the matching vector", () => 
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("totalsDelta prefixes positive numeric sums with plus and preserves negative signs", () => {
+  const up = {
+    numeric_sums: {
+      spend: "10.50",
+      loss: "20",
+      same: "7",
+    },
+  };
+  const down = {
+    numeric_sums: {
+      spend: "12.75",
+      loss: "15",
+      same: "7",
+    },
+  };
+
+  const lines = totalsDelta(up, down);
+
+  assert.ok(lines.includes("spend 10.50 -> 12.75 (+2.25)"));
+  assert.ok(lines.includes("loss 20 -> 15 (-5)"));
+  assert.ok(!lines.some((line) => line.includes("same")));
 });
