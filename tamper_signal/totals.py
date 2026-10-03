@@ -411,7 +411,7 @@ def totals_delta(upstream: dict[str, Any], downstream: dict[str, Any]) -> list[s
                 try:
                     diff = Decimal(after) - Decimal(before)
                     lines.append(
-                        f"{column} {before} -> {after} ({decimal_to_plain_string(diff)})"
+                        f"{column} {before} -> {after} ({diff:+})"
                     )
                 except InvalidOperation:
                     # Sums in receipt JSON are attacker-controlled; if either

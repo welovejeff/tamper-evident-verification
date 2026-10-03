@@ -131,8 +131,49 @@ export const stageNameOf = (r) => (r.kind === "source_manifest" ? "source" : r.t
 // --- Totals delta, mirroring tamper_signal/totals.py for the red expand. Reports
 // row_count, column_count, numeric_sums and null_counts, with sorted (so
 // deterministic) column ordering to stay consistent with the CLI verifier. The
-// numeric diff is shown as before -> after (no Decimal arithmetic in-browser).
+// numeric diff uses exact decimal arithmetic to stay consistent with the CLI.
 const sortedUnion = (a, b) => [...new Set([...Object.keys(a), ...Object.keys(b)])].sort();
+const browserDecimal = (value) => {
+  if (typeof value !== "string") return null;
+  const text = value.trim();
+  if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(text)) return null;
+
+  let sign = 1n;
+  let body = text;
+  if (body[0] === "+" || body[0] === "-") {
+    if (body[0] === "-") sign = -1n;
+    body = body.slice(1);
+  }
+
+  const parts = body.split(".");
+  const fraction = parts[1] || "";
+  const digits = (parts[0] || "0") + fraction;
+  return { v: sign * BigInt(digits || "0"), exp: fraction.length };
+};
+
+const browserDecimalDiff = (before, after) => {
+  const a = browserDecimal(before);
+  const b = browserDecimal(after);
+  if (!a || !b) return null;
+
+  const exp = Math.max(a.exp, b.exp);
+  const av = a.v * 10n ** BigInt(exp - a.exp);
+  const bv = b.v * 10n ** BigInt(exp - b.exp);
+  const diff = bv - av;
+
+  const sign = diff >= 0n ? "+" : "";
+  const negative = diff < 0n;
+  const value = negative ? -diff : diff;
+
+  const digits = value.toString().padStart(exp + 1, "0");
+  const whole = exp ? digits.slice(0, -exp) : digits;
+  const fraction = exp
+    ? digits.slice(-exp).replace(/0+$/, "")
+    : "";
+
+  return `${sign}${negative ? "-" : ""}${fraction ? `${whole}.${fraction}` : whole}`;
+};
+
 
 export function totalsDelta(up, down) {
   const lines = [];
@@ -147,7 +188,22 @@ export function totalsDelta(up, down) {
   const us = up.numeric_sums || {};
   const ds = down.numeric_sums || {};
   for (const col of sortedUnion(us, ds)) {
-    if (us[col] !== ds[col]) lines.push(`${col} ${us[col] ?? "(added)"} -> ${ds[col] ?? "(removed)"}`);
+    if (us[col] !== ds[col]) {
+      const before = us[col];
+      const after = ds[col];
+      if (before !== undefined && after !== undefined) {
+        const diff = browserDecimalDiff(before, after);
+        if (diff !== null) {
+          lines.push(`${col} ${before} -> ${after} (${diff})`);
+        } else {
+          lines.push(`${col} ${before} -> ${after}`);
+        }
+      } else if (after === undefined) {
+        lines.push(`${col} ${before} -> (removed)`);
+      } else {
+        lines.push(`${col} (added) -> ${after}`);
+      }
+    }
   }
   const un = up.null_counts || {};
   const dn = down.null_counts || {};

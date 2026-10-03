@@ -529,6 +529,19 @@ def test_verify_signature_fails_closed_on_bad_body(keypair):
     assert verify_signature(manifest, public_hex) is False
 
 
+def test_totals_delta_formats_numeric_sum_signs():
+    from tamper_signal.totals import totals_delta
+
+    up = {"numeric_sums": {"spend": "10.50", "loss": "20", "same": "7"}}
+    down = {"numeric_sums": {"spend": "12.75", "loss": "15", "same": "7"}}
+
+    lines = totals_delta(up, down)
+
+    assert "spend 10.50 -> 12.75 (+2.25)" in lines
+    assert "loss 20 -> 15 (-5)" in lines
+    assert not any("same" in line for line in lines)
+
+
 def test_totals_delta_survives_bad_decimal():
     from tamper_signal.totals import totals_delta
 
