@@ -15,6 +15,7 @@ import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import process from "node:process";
+import { execFileSync } from "node:child_process";
 
 import * as color from "./color.js";
 import { annotationBodyHash, buildAnnotation, writeAnnotation } from "./annotations.js";
@@ -53,6 +54,8 @@ const USAGE = `usage: tamper-signal <command>
 
 commands:
   keygen --out keys/                         generate an Ed25519 signing keypair
+  doctor [--key keys/signing.key] [--chain receipts/chain.json] [--url URL] [--json]
+                                             integration self-check with actionable fixes
   ingest <file> --origin "..." [--key keys/signing.key] [--out receipts/]
                 [--band 5%] [--settle 72h] [--bucket-column <name>]
                 [--as replace|period] [--pub key.pub ...]
@@ -1416,6 +1419,229 @@ function cmdTimeline(args) {
   return 0;
 }
 
+
+// Integration self-check with actionable fixes.
+// Mirrors Python's `tamper-signal doctor`.
+async function cmdDoctor(args) {
+  const { values } = parseArgs({
+    args,
+    options: {
+      key: { type: "string", default: "keys/signing.key" },
+      chain: { type: "string", default: "receipts/chain.json" },
+      url: { type: "string" },
+      json: { type: "boolean", default: false },
+    },
+  });
+
+  const checks = [];
+  const warnings = [];
+
+  const addCheck = (name, ok, fix) => {
+    checks.push({ name, ok: Boolean(ok), fix });
+  };
+
+  const fail = (message) => {
+    if (values.json) printJson({ ok: false, error: message });
+    else console.error(message);
+    return 1;
+  };
+
+  // Node runtime: Python doctor requires 3.11+; Node parity requires 18.17+.
+  const [major, minor] = process.versions.node.split(".").map(Number);
+  const versionOk = major > 18 || (major === 18 && minor >= 17);
+  addCheck(
+    `node ${major}.${minor}`,
+    versionOk,
+    "Tamper Signal needs Node 18.17+",
+  );
+
+  // Private signing key.
+  const keyPath = values.key;
+  const keyExists = existsSync(keyPath);
+  addCheck(
+    `private key at ${keyPath}`,
+    keyExists,
+    "run `tamper-signal init` (or `tamper-signal keygen --out keys/`)",
+  );
+
+  // Private key must not be tracked by git.
+  if (keyExists) {
+    try {
+      const { execFileSync } = await import("node:child_process");
+      const { relative, isAbsolute } = await import("node:path");
+      const gitPath = isAbsolute(keyPath)
+        ? relative(process.cwd(), keyPath)
+        : keyPath;
+
+      let tracked = false;
+      try {
+        execFileSync("git", ["ls-files", "--error-unmatch", gitPath], {
+          cwd: process.cwd(),
+          stdio: "ignore",
+        });
+        tracked = true;
+      } catch {
+        tracked = false;
+      }
+
+      addCheck(
+        "private key is not tracked by git",
+        !tracked,
+        `git rm --cached ${keyPath} and add \`keys/\` plus \`*.key\` to .gitignore`,
+      );
+    } catch {
+      warnings.push("git not found; could not confirm the private key is untracked");
+    }
+  }
+
+  // .gitignore coverage.
+  const gitignorePath = ".gitignore";
+  let covered = false;
+  if (existsSync(gitignorePath)) {
+    try {
+      const lines = readFileSync(gitignorePath, "utf8")
+        .split(/\r?\n/)
+        .map((line) => line.trim());
+      covered = lines.includes("keys/") || lines.includes("*.key");
+    } catch {
+      covered = false;
+    }
+  }
+
+  if (!covered) {
+    warnings.push(
+      ".gitignore does not mention keys/ or *.key; run `tamper-signal init` to add it",
+    );
+  }
+
+  // Chain verification.
+  const chainPath = values.chain;
+  if (existsSync(chainPath)) {
+    let chain;
+
+    try {
+      chain = readChain(chainPath);
+    } catch (err) {
+      addCheck(
+        `chain loads (${chainPath})`,
+        false,
+        err.message,
+      );
+      chain = null;
+    }
+
+    if (chain) {
+      const chainDir = dirname(chainPath);
+
+      try {
+        const receipts = (chain.receipts ?? []).map((name) =>
+          readReceipt(chainDir, name),
+        );
+
+        const recordedHashes =
+          chain.receipt_hashes && typeof chain.receipt_hashes === "object"
+            ? chain.receipt_hashes
+            : null;
+
+        const actualHashes = recordedHashes
+          ? receiptFileHashes(chainDir, chain.receipts ?? [])
+          : null;
+
+        const result = verifyChain(
+          receipts,
+          chain.public_key,
+          null,
+          null,
+          {
+            chainPublicHex: chain.public_key,
+            receiptNames: chain.receipts ?? [],
+            recordedHashes,
+            actualHashes,
+          },
+        );
+
+        addCheck(
+          `chain verifies (${result.verdict})`,
+          result.verdict !== "red",
+          "the chain is broken; do not ship it. See `tamper-signal verify` output",
+        );
+
+        if (result.verdict === "yellow" && result.caveats?.length) {
+          warnings.push(...result.caveats);
+        }
+      } catch (err) {
+        addCheck(
+          `chain loads (${chainPath})`,
+          false,
+          err.message,
+        );
+      }
+    }
+  } else {
+    warnings.push(
+      `no chain at ${chainPath}; run \`tamper-signal ingest\` to start one`,
+    );
+  }
+
+  // Optional HTTP chain check.
+  if (values.url) {
+    try {
+      const response = await fetch(values.url, {
+        signal: AbortSignal.timeout(5000),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const served = await response.json();
+
+      addCheck(
+        `chain served at ${values.url}`,
+        served && Array.isArray(served.receipts),
+        "the URL responded but does not look like chain.json",
+      );
+    } catch (err) {
+      addCheck(
+        `chain served at ${values.url}`,
+        false,
+        `could not fetch (${err.message}); is the receipts directory being served? Try \`tamper-signal serve\``,
+      );
+    }
+  }
+
+  const failures = checks.filter((check) => !check.ok).length;
+  const allPassed = failures === 0;
+
+  if (values.json) {
+    printJson({
+      checks,
+      warnings,
+      all_passed: allPassed,
+    });
+    return allPassed ? 0 : 1;
+  }
+
+  for (const check of checks) {
+    if (check.ok) {
+      console.log(`  ${color.colorize("✓", "green")} ${check.name}`);
+    } else {
+      console.log(
+        `  ${color.colorize("✗", "red")} ${check.name}\n      fix: ${check.fix}`,
+      );
+    }
+  }
+
+  for (const warning of warnings) {
+    console.log(`  ${color.colorize("⚠", "yellow")} ${warning}`);
+  }
+
+  console.log(
+    `\n${allPassed ? "All checks passed." : `${failures} check(s) failed.`}`,
+  );
+
+  return allPassed ? 0 : 1;
+}
 const [, , command, ...rawRest] = process.argv;
 if (command === "--version" || command === "-v") {
   const { version } = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
@@ -1426,9 +1652,9 @@ if (command === "--version" || command === "-v") {
 // strict parser does not reject it. NO_COLOR / FORCE_COLOR env are honored too.
 if (rawRest.includes("--no-color")) color.setNoColor(true);
 const rest = rawRest.filter((arg) => arg !== "--no-color");
-const commands = { keygen: cmdKeygen, ingest: cmdIngest, verify: cmdVerify, diff: cmdDiff, log: cmdLog, export: cmdExport, assets: cmdAssets, annotate: cmdAnnotate, timeline: cmdTimeline };
+const commands = { keygen: cmdKeygen, doctor: cmdDoctor, ingest: cmdIngest, verify: cmdVerify, diff: cmdDiff, log: cmdLog, export: cmdExport, assets: cmdAssets, annotate: cmdAnnotate, timeline: cmdTimeline };
 if (!command || !(command in commands)) {
   console.error(USAGE);
   process.exit(command ? 1 : 0);
 }
-process.exit(commands[command](rest));
+process.exit(await commands[command](rest));

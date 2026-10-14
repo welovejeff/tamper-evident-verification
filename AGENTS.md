@@ -170,7 +170,7 @@ noted equivalent and skip them:
 
 | Python-only subcommand | On Node |
 | --- | --- |
-| `tamper-signal doctor` | use `tamper-signal verify` (exit 0 = healthy); confirm the key is gitignored yourself |
+| `tamper-signal doctor` | `tamper-signal doctor` |
 | `tamper-signal anchor` | Python-only today (transparency-log anchoring; Node support planned for 2.1) |
 | `tamper-signal custody` | Python-only today (the CLI-local custody view over history/archive) |
 | `tamper-signal watch` | Python-only today (the live-source watcher; see §5c) — its signed manifests and snapshots stay fully readable/verifiable by the JS stack |
