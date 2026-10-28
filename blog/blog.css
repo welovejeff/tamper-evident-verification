@@ -112,6 +112,10 @@ code, pre { font-family: var(--mono); }
   background: var(--panel); border: 1px solid var(--border); border-radius: 5px;
   padding: 1px 6px; font-size: 0.9em; color: var(--dim);
 }
+/* Pull quotes from cited research; the amber rule echoes "a human should look". */
+.post .pull { margin: 32px 0; padding: 4px 0 4px 22px; border-left: 3px solid var(--amber); }
+.post .pull p { font-size: clamp(19px, 2.6vw, 23px); line-height: 1.45; color: var(--text); margin: 0 0 10px; letter-spacing: -0.2px; }
+.post .pull cite { display: block; font: 12px var(--mono); font-style: normal; color: var(--dim); }
 .post ul { color: #d4dbe2; font-size: 17px; padding-left: 22px; margin: 0 0 20px; }
 .post li { margin: 0 0 8px; }
 
