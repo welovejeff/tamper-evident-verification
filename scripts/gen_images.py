@@ -82,6 +82,13 @@ SLOTS = {
                "by a glowing emerald-green wax seal as if a quiet watcher caught "
                "it and paused it for review; generous negative space, the seal "
                "the only saturated glowing element.",
+    "whocall": "A single matte charcoal 3D path seen from slightly above that "
+               "splits into two branches like a fork in the road; exactly at "
+               "the split stands a small matte charcoal signpost with a paper "
+               "receipt tag hanging from it, sealed with a glowing emerald-green "
+               "wax dot, as if the choice made at this fork has been signed and "
+               "recorded; generous negative space, the seal the only saturated "
+               "glowing element.",
 }
 
 SIZE = {"width": 1280, "height": 800}  # 16:10, matches the card thumb aspect

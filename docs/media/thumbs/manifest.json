@@ -157,6 +157,40 @@
       "slot": "watcher",
       "style_id": "65e64f0a-d9a5-4fee-96fc-7acc7ab1d9be",
       "variant": "b"
+    },
+    "whocall-a": {
+      "collection": "d8nf53kregj0m3bnnbmg",
+      "image_size": {
+        "height": 800,
+        "width": 1280
+      },
+      "local_path": "docs/media/thumbs/_gen/whocall-a.jpg",
+      "model": "fal-ai/recraft/v3/text-to-image",
+      "prompt": "A single matte charcoal 3D path seen from slightly above that splits into two branches like a fork in the road; exactly at the split stands a small matte charcoal signpost with a paper receipt tag hanging from it, sealed with a glowing emerald-green wax dot, as if the choice made at this fork has been signed and recorded; generous negative space, the seal the only saturated glowing element. Minimalist 3D product render, near-black blue-black background, soft studio lighting, matte charcoal rubberized material, gentle soft shadows, subtle radial vignette, generous negative space, single centered hero object, one emerald-green glow as the only saturated light source with a soft bloom halo, shallow depth of field, premium and restrained, no text, no lettering, no logos, high detail, octane render.",
+      "request_id": "01a183da-98de-7da1-8333-8f812b7f3432",
+      "result_url": "https://v3b.fal.media/files/b/0ab03a07/2zPn5i-xavNLzncNDtfNl_U3fRUHhs.webp",
+      "slot": "whocall",
+      "style_id": "65e64f0a-d9a5-4fee-96fc-7acc7ab1d9be",
+      "synced": true,
+      "variant": "a",
+      "vector_id": "dbh48i4regjbuf182nfg"
+    },
+    "whocall-b": {
+      "collection": "d8nf53kregj0m3bnnbmg",
+      "image_size": {
+        "height": 800,
+        "width": 1280
+      },
+      "local_path": "docs/media/thumbs/_gen/whocall-b.jpg",
+      "model": "fal-ai/recraft/v3/text-to-image",
+      "prompt": "A single matte charcoal 3D path seen from slightly above that splits into two branches like a fork in the road; exactly at the split stands a small matte charcoal signpost with a paper receipt tag hanging from it, sealed with a glowing emerald-green wax dot, as if the choice made at this fork has been signed and recorded; generous negative space, the seal the only saturated glowing element. Minimalist 3D product render, near-black blue-black background, soft studio lighting, matte charcoal rubberized material, gentle soft shadows, subtle radial vignette, generous negative space, single centered hero object, one emerald-green glow as the only saturated light source with a soft bloom halo, shallow depth of field, premium and restrained, no text, no lettering, no logos, high detail, octane render.",
+      "request_id": "01a183da-ce44-7862-b31d-a1658f866667",
+      "result_url": "https://v3b.fal.media/files/b/0ab03a08/hQgfFpUGITOWfcRW4le1D_lhWquA6X.webp",
+      "slot": "whocall",
+      "style_id": "65e64f0a-d9a5-4fee-96fc-7acc7ab1d9be",
+      "synced": true,
+      "variant": "b",
+      "vector_id": "dbh48lsregjbfq98327g"
     }
   }
 }
