@@ -191,6 +191,108 @@
       "synced": true,
       "variant": "b",
       "vector_id": "dbh48lsregjbfq98327g"
+    },
+    "whocall-coin-a": {
+      "collection": "d8nf53kregj0m3bnnbmg",
+      "image_size": {
+        "height": 800,
+        "width": 1280
+      },
+      "local_path": "docs/media/thumbs/_gen/whocall-coin-a.jpg",
+      "model": "fal-ai/recraft/v3/text-to-image",
+      "prompt": "A single matte charcoal 3D coin caught mid-flip in the air, tilted on its edge, above a curled paper receipt resting on the surface below; the coin's rim glows emerald green with a soft bloom, motion suggested by a faint arc, as if the decision is being settled by the toss. Minimalist 3D product render, near-black blue-black background, soft studio lighting, matte charcoal rubberized material, gentle soft shadows, subtle radial vignette, generous negative space, single centered hero object, one emerald-green glow as the only saturated light source with a soft bloom halo, shallow depth of field, premium and restrained, no text, no lettering, no logos, high detail, octane render.",
+      "request_id": "01a183f6-ada3-7d31-848e-40a68d7332ae",
+      "result_url": "https://v3b.fal.media/files/b/0ab03abf/0U7iEALydMLH-r1lPlHmL_BFXKWIty.webp",
+      "slot": "whocall-coin",
+      "style_id": "65e64f0a-d9a5-4fee-96fc-7acc7ab1d9be",
+      "synced": true,
+      "variant": "a",
+      "vector_id": "dbh4mukregjbuf196lh0"
+    },
+    "whocall-coin-b": {
+      "collection": "d8nf53kregj0m3bnnbmg",
+      "image_size": {
+        "height": 800,
+        "width": 1280
+      },
+      "local_path": "docs/media/thumbs/_gen/whocall-coin-b.jpg",
+      "model": "fal-ai/recraft/v3/text-to-image",
+      "prompt": "A single matte charcoal 3D coin caught mid-flip in the air, tilted on its edge, above a curled paper receipt resting on the surface below; the coin's rim glows emerald green with a soft bloom, motion suggested by a faint arc, as if the decision is being settled by the toss. Minimalist 3D product render, near-black blue-black background, soft studio lighting, matte charcoal rubberized material, gentle soft shadows, subtle radial vignette, generous negative space, single centered hero object, one emerald-green glow as the only saturated light source with a soft bloom halo, shallow depth of field, premium and restrained, no text, no lettering, no logos, high detail, octane render.",
+      "request_id": "01a183f6-ed5c-7db2-b004-f1f66c9bddfb",
+      "result_url": "https://v3b.fal.media/files/b/0ab03ac0/R87T519wgAOaGfxw_m8Th_oXod5Bjl.webp",
+      "slot": "whocall-coin",
+      "style_id": "65e64f0a-d9a5-4fee-96fc-7acc7ab1d9be",
+      "synced": true,
+      "variant": "b",
+      "vector_id": "dbh4n24regjdsq996uhg"
+    },
+    "whocall-scale-a": {
+      "collection": "d8nf53kregj0m3bnnbmg",
+      "image_size": {
+        "height": 800,
+        "width": 1280
+      },
+      "local_path": "docs/media/thumbs/_gen/whocall-scale-a.jpg",
+      "model": "fal-ai/recraft/v3/text-to-image",
+      "prompt": "A minimalist matte charcoal 3D balance scale with two shallow pans, clearly tipped to one side; the lower pan holds one small glowing emerald-green sphere, the higher pan holds a folded paper receipt, as if a single small weight quietly decided which way the judgment leaned. Minimalist 3D product render, near-black blue-black background, soft studio lighting, matte charcoal rubberized material, gentle soft shadows, subtle radial vignette, generous negative space, single centered hero object, one emerald-green glow as the only saturated light source with a soft bloom halo, shallow depth of field, premium and restrained, no text, no lettering, no logos, high detail, octane render.",
+      "request_id": "01a183f7-1a93-78a1-ad5a-4b8c47deb13e",
+      "result_url": "https://v3b.fal.media/files/b/0ab03ac1/lRuPC759qNPIoqSUhSbTj_Yp3RdCW6.webp",
+      "slot": "whocall-scale",
+      "style_id": "65e64f0a-d9a5-4fee-96fc-7acc7ab1d9be",
+      "synced": true,
+      "variant": "a",
+      "vector_id": "dbh4n5cregjdsq9977jg"
+    },
+    "whocall-scale-b": {
+      "collection": "d8nf53kregj0m3bnnbmg",
+      "image_size": {
+        "height": 800,
+        "width": 1280
+      },
+      "local_path": "docs/media/thumbs/_gen/whocall-scale-b.jpg",
+      "model": "fal-ai/recraft/v3/text-to-image",
+      "prompt": "A minimalist matte charcoal 3D balance scale with two shallow pans, clearly tipped to one side; the lower pan holds one small glowing emerald-green sphere, the higher pan holds a folded paper receipt, as if a single small weight quietly decided which way the judgment leaned. Minimalist 3D product render, near-black blue-black background, soft studio lighting, matte charcoal rubberized material, gentle soft shadows, subtle radial vignette, generous negative space, single centered hero object, one emerald-green glow as the only saturated light source with a soft bloom halo, shallow depth of field, premium and restrained, no text, no lettering, no logos, high detail, octane render.",
+      "request_id": "01a183f7-5a72-7e33-b132-b8a78effa49e",
+      "result_url": "https://v3b.fal.media/files/b/0ab03ac3/osQbqMd1U4pgd9RcmpB5Z_4YtiMR5G.webp",
+      "slot": "whocall-scale",
+      "style_id": "65e64f0a-d9a5-4fee-96fc-7acc7ab1d9be",
+      "synced": true,
+      "variant": "b",
+      "vector_id": "dbh4n94regjcfbp97gj0"
+    },
+    "whocall-strings-a": {
+      "collection": "d8nf53kregj0m3bnnbmg",
+      "image_size": {
+        "height": 800,
+        "width": 1280
+      },
+      "local_path": "docs/media/thumbs/_gen/whocall-strings-a.jpg",
+      "model": "fal-ai/recraft/v3/text-to-image",
+      "prompt": "A single matte charcoal 3D rubber stamp suspended in mid-air by thin taut marionette strings rising out of frame above it, hovering just over a blank paper receipt on the surface below; the stamp's face glows emerald green, about to press its seal, as if something above is guiding the hand that signs. Minimalist 3D product render, near-black blue-black background, soft studio lighting, matte charcoal rubberized material, gentle soft shadows, subtle radial vignette, generous negative space, single centered hero object, one emerald-green glow as the only saturated light source with a soft bloom halo, shallow depth of field, premium and restrained, no text, no lettering, no logos, high detail, octane render.",
+      "request_id": "01a183f6-3cd9-7641-bf4e-1fcdef991232",
+      "result_url": "https://v3b.fal.media/files/b/0ab03abc/YovYt81b5How-yv-JBJfk_xuGRIsDO.webp",
+      "slot": "whocall-strings",
+      "style_id": "65e64f0a-d9a5-4fee-96fc-7acc7ab1d9be",
+      "synced": true,
+      "variant": "a",
+      "vector_id": "dbh4mn4regjbuf1964v0"
+    },
+    "whocall-strings-b": {
+      "collection": "d8nf53kregj0m3bnnbmg",
+      "image_size": {
+        "height": 800,
+        "width": 1280
+      },
+      "local_path": "docs/media/thumbs/_gen/whocall-strings-b.jpg",
+      "model": "fal-ai/recraft/v3/text-to-image",
+      "prompt": "A single matte charcoal 3D rubber stamp suspended in mid-air by thin taut marionette strings rising out of frame above it, hovering just over a blank paper receipt on the surface below; the stamp's face glows emerald green, about to press its seal, as if something above is guiding the hand that signs. Minimalist 3D product render, near-black blue-black background, soft studio lighting, matte charcoal rubberized material, gentle soft shadows, subtle radial vignette, generous negative space, single centered hero object, one emerald-green glow as the only saturated light source with a soft bloom halo, shallow depth of field, premium and restrained, no text, no lettering, no logos, high detail, octane render.",
+      "request_id": "01a183f6-6f1d-7e93-9ac6-6493fa2ccc17",
+      "result_url": "https://v3b.fal.media/files/b/0ab03abd/xJfW-kj2RQEZo3PcV1sFz_SiXpoVgz.webp",
+      "slot": "whocall-strings",
+      "style_id": "65e64f0a-d9a5-4fee-96fc-7acc7ab1d9be",
+      "synced": true,
+      "variant": "b",
+      "vector_id": "dbh4mr4regjev5996d8g"
     }
   }
 }
